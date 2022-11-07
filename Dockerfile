@@ -12,7 +12,7 @@ RUN apt update -y
 RUN apt install -y make git wget cmake gcc g++ libconfig++-dev vim
 
 
-WORKDIR /usr/src/adinstDAQ
+WORKDIR /usr/src/redisAdapter
 RUN wget https://download.redis.io/redis-stable.tar.gz
 RUN tar -xvf redis-stable.tar.gz redis-stable
 
@@ -22,22 +22,22 @@ RUN git clone http://cdcvs.fnal.gov/projects/trace-git trace
 
 
 #BUILD Redis Stable
-WORKDIR /usr/src/adinstDAQ/redis-stable
+WORKDIR /usr/src/redisAdapter/redis-stable
 RUN make
 RUN make install
 #BUILD Hiredis
-WORKDIR /usr/src/adinstDAQ/hiredis
+WORKDIR /usr/src/redisAdapter/hiredis
 RUN make
 RUN make install
 #BUILD Redis plus plus
-WORKDIR /usr/src/adinstDAQ/redis-plus-plus
+WORKDIR /usr/src/redisAdapter/redis-plus-plus
 RUN mkdir build
-WORKDIR /usr/src/adinstDAQ/redis-plus-plus/build
+WORKDIR /usr/src/redisAdapter/redis-plus-plus/build
 RUN cmake ..
 RUN make
 RUN make install
 #Build Trace
-WORKDIR /usr/src/adinstDAQ/trace
+WORKDIR /usr/src/redisAdapter/trace
 RUN make OUT=$PWD -j4 
 RUN cp -r include/TRACE /usr/include/
 
@@ -55,10 +55,10 @@ ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib:/usr/local/lib64
 
 # This command compiles your app using GCC, adjust for your source code
 
-#RUN make adinstDAQEngine
+#RUN make redisAdapterEngine
 
 # This command runs your application, comment out this line to compile only
 CMD [tail -f /dev/null]
-#CMD ["./adinstDAQEngine -c bpmd.conf"]
+#CMD ["./redisAdapterEngine -c bpmd.conf"]
 
 LABEL Name=redisAdapter Version=0.0.1

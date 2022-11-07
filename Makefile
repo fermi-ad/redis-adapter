@@ -34,10 +34,8 @@ BI_LDFLAGS  = 			-L/usr/local/lib/ \
 				-lredis++ \
 				-lhiredis \
 				-pthread \
-				-lrt \
-				-lconfig++ \
-				-lgenerallib \
-				-lddcp 
+				-lrt 
+
 
 
 SO_NAME      = lib$(BI_PROJECT).so
@@ -48,7 +46,7 @@ SO_LONG_NAME = lib$(BI_PROJECT).so.$(BI_VERSION).$(BI_MINOR).$(BI_RELEASE)
 BI_CPPSOURCES_A = $(wildcard *.cpp) 
 BI_OBJS = $(BI_CPPSOURCES_A:.cpp=.o)
 
-all: clean libredisadapter test
+all: clean libredisadapter 
 
 %.o: %.cpp Makefile
 	$(BI_OUT) $(CXX) -c -o $*.o $(BI_CPPFLAGS) $<
