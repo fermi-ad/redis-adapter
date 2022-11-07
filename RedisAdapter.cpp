@@ -175,7 +175,7 @@ string RedisAdapter::streamReadBlock(std::unordered_map<string,string> keysID, i
 }
 
 
-void RedisAdapter::streamRead(string key, string time, int count, std::unordered_map<string,vector<float>>& dest){
+void RedisAdapter::streamRead(string key, string time, int count, vector<float>& dest){
 
   try{
     ItemStream result;
@@ -183,10 +183,21 @@ void RedisAdapter::streamRead(string key, string time, int count, std::unordered
     for(auto data : result){
         string timeID = data.first;
         for (auto val : *data.second){
-            dest[val.first].resize(val.second.length() / sizeof(float));
-            memcpy(dest[val.first].data(),val.second.data(),val.second.length());
+            dest.resize(val.second.length() / sizeof(float));
+            memcpy(dest.data(),val.second.data(),val.second.length());
         }
     }  
+  }catch (const std::exception &err) {
+    TRACE(1,"xadd(" + key + ", " +time + ":" + to_string(count) + ", ...) failed: " + err.what());
+
+  }
+
+}
+
+void RedisAdapter::streamRead(string key, string time, int count, ItemStream& result){
+
+  try{
+    _redisCluster.xrevrange(key, "+","-", count, back_inserter(result));
   }catch (const std::exception &err) {
     TRACE(1,"xadd(" + key + ", " +time + ":" + to_string(count) + ", ...) failed: " + err.what());
 
@@ -320,6 +331,13 @@ void RedisAdapter::listener(){
 
             string patern = _channelKey + "*";
             _sub.psubscribe(patern);
+
+            for( auto [pat, func] : patternSubscriptions){
+              _sub.psubscribe(pat);
+            }
+            for( auto [pat, func] : subscriptions){
+              _sub.subscribe(pat);
+            }
 
         }
     }

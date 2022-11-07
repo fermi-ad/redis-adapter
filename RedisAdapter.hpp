@@ -66,7 +66,8 @@ class RedisAdapter: public IRedisAdapter {
 
 	virtual void streamWrite(vector<pair<string,string>> data, string time, string key, uint trim = 0);
 	virtual string streamReadBlock(std::unordered_map<string,string> keysID, int count, std::unordered_map<string,vector<float>>& result);
-	virtual void streamRead(string key, string time, int count,std::unordered_map<string,vector<float>>& result);
+	virtual void streamRead(string key, string time, int count,vector<float>& result);
+	void streamRead(string key, string time, int count,ItemStream& result);
 	virtual void streamTrim(string key, int size);
 	virtual vector<pair<string,string>> logRead(string key, uint count);
 	virtual void logWrite(string key, string msg, string source);
