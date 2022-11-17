@@ -46,7 +46,7 @@ SO_LONG_NAME = lib$(BI_PROJECT).so.$(BI_VERSION).$(BI_MINOR).$(BI_RELEASE)
 BI_CPPSOURCES_A = $(wildcard *.cpp) 
 BI_OBJS = $(BI_CPPSOURCES_A:.cpp=.o)
 
-all: clean libredisadapter 
+all: clean libredisadapter test
 
 %.o: %.cpp Makefile
 	$(BI_OUT) $(CXX) -c -o $*.o $(BI_CPPFLAGS) $<

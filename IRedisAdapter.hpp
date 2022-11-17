@@ -12,6 +12,7 @@
 #include <string>
 #include <functional>
 #include<unordered_set>
+#include "BPM.hpp"
 
 using namespace std;
 //using Attrs = std::unordered_map<std::string, std::string>;
@@ -50,7 +51,7 @@ class IRedisAdapter {
 	*		logRead and logWrite are stream functions, but use the config connection
 	*/
 
-	virtual void streamWrite(vector<pair<string,string>> data, string time, string key, uint trim = 0) = 0;
+	virtual void streamWrite(vector<pair<string,string>> data, string timeID, string key, uint trim = 0) = 0;
 	virtual string streamReadBlock(std::unordered_map<string,string> keysID, int count, std::unordered_map<string,vector<float>>& result) = 0;
 	virtual void streamRead(string key, string time, int count, vector<float>& result) = 0;
 	virtual void streamTrim(string key, int size) = 0;
@@ -62,8 +63,10 @@ class IRedisAdapter {
 	* Note: All publish / subscribe functions use the config connection
 	*/
 	virtual void publish(string msg) = 0;
+	virtual void publish(string key, string msg) = 0;
 	virtual void psubscribe(std::string pattern, std::function<void(std::string,std::string,std::string)> f) = 0;
 	virtual void subscribe(std::string channel, std::function<void(std::string,std::string)> f) = 0;
+	virtual void registerCommand(std::string command, std::function<void(std::string, std::string)> f) = 0;
 
 	/*
 	* Copy Functions
@@ -77,11 +80,14 @@ class IRedisAdapter {
 	virtual bool getAbortFlag() = 0;
 
 	/*
+	* Time
+	*/
+	virtual vector<string> getServerTime() = 0;
+
+	/*
 	* Device Status
 	*/
 	virtual string getDeviceStatus() = 0;
-
-
 
 	virtual string getBaseKey() const = 0;
 	virtual void setBaseKey(string baseKey) = 0;

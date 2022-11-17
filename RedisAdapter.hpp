@@ -16,9 +16,9 @@
 #include <sstream>
 #include <iostream>
 #include <thread>
-#include <TRACE/trace.h>
 #include <sw/redis++/redis++.h>
 #include "IRedisAdapter.hpp"
+#include <TRACE/trace.h>
 
 using namespace std;
 using namespace sw::redis;
@@ -32,8 +32,8 @@ using ItemStream = std::vector<Item>;
    * RedisAdapter
    */
 class RedisAdapter: public IRedisAdapter {
-   public:
 
+   public:
 	/*Constructor / Destructor*/
     RedisAdapter(string key);
 	RedisAdapter(const RedisAdapter& ra);
@@ -64,10 +64,9 @@ class RedisAdapter: public IRedisAdapter {
 	*		logRead and logWrite are stream functions, but use the config connection
 	*/
 
-	virtual void streamWrite(vector<pair<string,string>> data, string time, string key, uint trim = 0);
+	virtual void streamWrite(vector<pair<string,string>> data, string timeID, string key, uint trim = 0);
 	virtual string streamReadBlock(std::unordered_map<string,string> keysID, int count, std::unordered_map<string,vector<float>>& result);
-	virtual void streamRead(string key, string time, int count,vector<float>& result);
-	void streamRead(string key, string time, int count,ItemStream& result);
+	virtual void streamRead(string key, string time, int count, vector<float>& result);
 	virtual void streamTrim(string key, int size);
 	virtual vector<pair<string,string>> logRead(string key, uint count);
 	virtual void logWrite(string key, string msg, string source);
@@ -77,8 +76,10 @@ class RedisAdapter: public IRedisAdapter {
 	* Note: All publish / subscribe functions use the config connection
 	*/
 	virtual void publish(string msg);
+	virtual void publish(string key, string msg);
 	virtual void psubscribe(std::string pattern, std::function<void(std::string,std::string,std::string)> f);
 	virtual void subscribe(std::string channel, std::function<void(std::string,std::string)> f);
+	virtual void registerCommand(std::string command, std::function<void(std::string, std::string)> f);
 
 	/*
 	* Copy Functions
@@ -91,6 +92,10 @@ class RedisAdapter: public IRedisAdapter {
 	virtual void setAbortFlag(bool flag = false);
 	virtual bool getAbortFlag();
 
+	/*
+	* Time
+	*/
+	virtual vector<string> getServerTime();
 
 	/* Key getters and setters*/
 	virtual string getBaseKey() const { return _baseKey;} 
@@ -140,6 +145,8 @@ class RedisAdapter: public IRedisAdapter {
 
 	map<string, std::function<void(std::string,std::string,std::string)>> patternSubscriptions;
 	map<string, std::function<void(std::string,std::string)>> subscriptions;
+	map<string, std::function<void(std::string,std::string)>> commands;
+	
 
 	vector<string> streamKeys;
 	ItemStream buffer;
@@ -147,7 +154,7 @@ class RedisAdapter: public IRedisAdapter {
 	std::string _lastTimeID = "$"; 
     std::mutex m_lastTimeID;
 
-	std::string  _baseKey, _configKey, _logKey, _channelKey, _statusKey, _timeKey, _dataKey , _deviceKey, _abortKey;
+	std::string  _baseKey, _configKey, _logKey, _channelKey, _statusKey, _timeKey, _deviceKey, _abortKey;
 	std::string	 _dataBaseKey;
   };
 

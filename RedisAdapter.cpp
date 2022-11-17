@@ -23,7 +23,7 @@ RedisAdapter::RedisAdapter( string key )
   _channelKey = _baseKey + ":CHANNEL";
   _statusKey  = _baseKey + ":STATUS";
   _timeKey    = _baseKey + ":TIME";
-  _dataKey    = _baseKey + ":DATA";
+  _dataBaseKey= _baseKey + ":DATA";
   _deviceKey = _baseKey + ":DEVICES";
 
   TRACE(2,"Loaded Redis Adapters");
@@ -40,7 +40,7 @@ RedisAdapter::RedisAdapter(const RedisAdapter& ra)
   _channelKey = _baseKey + ":CHANNEL";
   _statusKey  = _baseKey + ":STATUS";
   _timeKey  = _baseKey + ":TIME";
-  _dataKey  = _baseKey + ":DATA";
+  _dataBaseKey  = _baseKey + ":DATA";
   _deviceKey = _baseKey + ":DEVICES";
 }
 
@@ -141,13 +141,13 @@ void RedisAdapter::setSet(string key, string val){
 /*
 * Stream Functions
 */
-void RedisAdapter::streamWrite(vector<pair<string,string>> data, string time, string key, uint trim ){
+void RedisAdapter::streamWrite(vector<pair<string,string>> data, string timeID , string key, uint trim ){
   try{
-    auto replies  =  _redisCluster.xadd(key, "*", data.begin(), data.end());  
+    auto replies  =  _redisCluster.xadd(key, timeID, data.begin(), data.end());  
     if(trim)
       streamTrim(key, trim);
   }catch (const std::exception &err) {
-    TRACE(1,"xadd(" + key + ", " +time + ", ...) failed: " + err.what());
+    TRACE(1,"xadd(" + key + ", " + ", ...) failed: " + err.what());
   }
 }
 
@@ -187,17 +187,6 @@ void RedisAdapter::streamRead(string key, string time, int count, vector<float>&
             memcpy(dest.data(),val.second.data(),val.second.length());
         }
     }  
-  }catch (const std::exception &err) {
-    TRACE(1,"xadd(" + key + ", " +time + ":" + to_string(count) + ", ...) failed: " + err.what());
-
-  }
-
-}
-
-void RedisAdapter::streamRead(string key, string time, int count, ItemStream& result){
-
-  try{
-    _redisCluster.xrevrange(key, "+","-", count, back_inserter(result));
   }catch (const std::exception &err) {
     TRACE(1,"xadd(" + key + ", " +time + ":" + to_string(count) + ", ...) failed: " + err.what());
 
@@ -252,24 +241,14 @@ void RedisAdapter::publish(string msg){
     TRACE(1,"publish(" + _channelKey + ", " +msg+ ", ...) failed: " + err.what());
   }
 }
+void RedisAdapter::publish(string key, string msg){
+  try{
+      _redisConfig.publish(_channelKey + ":" + key, msg);
 
-
-void RedisAdapter::startListener(){
-  _listener = thread(&RedisAdapter::listener, this);
+  }catch (const std::exception &err) {
+    TRACE(1,"publish(" + _channelKey + ", " +msg+ ", ...) failed: " + err.what());
+  }
 }
-void RedisAdapter::startReader(){
-  _reader = thread(&RedisAdapter::reader, this);
-}
-
-
-void RedisAdapter::psubscribe(std::string pattern, std::function<void(std::string,std::string,std::string)> func){
-  patternSubscriptions.emplace(pattern, func);
-}
-
-void RedisAdapter::subscribe(std::string channel, std::function<void(std::string,std::string)> func){
-  subscriptions.emplace(channel, func);
-}
-
 
 string RedisAdapter::getDeviceStatus() {
   return getValue(_statusKey);
@@ -299,6 +278,34 @@ void RedisAdapter::setAbortFlag(bool flag){
 }
 
 
+vector<string> RedisAdapter::getServerTime(){
+
+  std::vector<string> result;
+  _redisConfig.command("time", std::back_inserter(result));
+  return result;
+}
+
+
+
+
+void RedisAdapter::psubscribe(std::string pattern, std::function<void(std::string,std::string,std::string)> func){
+  patternSubscriptions.emplace(pattern, func);
+}
+
+void RedisAdapter::subscribe(std::string channel, std::function<void(std::string,std::string)> func){
+  subscriptions.emplace(channel, func);
+}
+
+void RedisAdapter::startListener(){
+  _listener = thread(&RedisAdapter::listener, this);
+}
+void RedisAdapter::startReader(){
+  _reader = thread(&RedisAdapter::reader, this);
+}
+
+void RedisAdapter::registerCommand(std::string command, std::function<void(std::string, std::string)> func){
+  commands.emplace(_channelKey +":"+ command, func);
+}
 
 
 void RedisAdapter::listener(){
@@ -311,33 +318,30 @@ void RedisAdapter::listener(){
             _sub.consume();
         else{
             flag = true;
-            Subscriber _sub = _redisConfig.subscriber();
 
             _sub.on_pmessage([&](std::string pattern, std::string key, std::string msg) { 
 
-                auto search = patternSubscriptions.find(pattern);
-                if (search != patternSubscriptions.end()) {
-                  search->second(pattern, key, msg);
+                auto search = commands.find(key);;
+                if(search != commands.end()){
+                  search->second(key, msg);
+                }
+                else{
+                  auto patternsearch = patternSubscriptions.find(pattern);
+                  if (patternsearch != patternSubscriptions.end()) {
+                    patternsearch->second(pattern, key, msg);
+                  }
                 }
             });
 
             _sub.on_message([&](std::string key, std::string msg) { 
 
-                auto search = subscriptions.find(key);
-                if (search != subscriptions.end()) {
-                  search->second( key, msg);
-                }
+                  auto search = subscriptions.find(msg);
+                  if (search != subscriptions.end()) {
+                    search->second( key, msg);
+                  }
             });
-
-            string patern = _channelKey + "*";
-            _sub.psubscribe(patern);
-
-            for( auto [pat, func] : patternSubscriptions){
-              _sub.psubscribe(pat);
-            }
-            for( auto [pat, func] : subscriptions){
-              _sub.subscribe(pat);
-            }
+            //The default is everything published on ChannelKey
+            _sub.psubscribe(_channelKey + "*");
 
         }
     }
