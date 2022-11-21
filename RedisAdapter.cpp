@@ -13,8 +13,7 @@ using namespace sw::redis;
 using namespace std;
 
 RedisAdapter::RedisAdapter( string key )
-:_redisConfig("tcp://127.0.0.1:6379"),
- _redisCluster("tcp://127.0.0.1:30001"),
+:_redisCluster("tcp://127.0.0.1:30001"),
  _baseKey(key)
 {
 
@@ -31,8 +30,7 @@ RedisAdapter::RedisAdapter( string key )
 }
 
 RedisAdapter::RedisAdapter(const RedisAdapter& ra)
-:_redisConfig("tcp://127.0.0.1:6379"),
- _redisCluster("tcp://127.0.0.1:30001")
+:_redisCluster("tcp://127.0.0.1:30001")
 {
   _baseKey    = ra.getBaseKey();
   _configKey  = _baseKey + ":CONFIG";
@@ -61,9 +59,9 @@ vector<string> RedisAdapter::getDevices(){
 void RedisAdapter::clearDevices(string devicelist)
 {
   std::unordered_map<string, string> nameMap;
-  _redisConfig.hgetall(devicelist, inserter(nameMap, nameMap.begin()));
+  _redisCluster.hgetall(devicelist, inserter(nameMap, nameMap.begin()));
   for(const auto& name : nameMap){
-    _redisConfig.del(name.first);
+    _redisCluster.del(name.first);
   }
 }
 /*
@@ -87,16 +85,16 @@ void RedisAdapter::setDevice(string name){
 
  string RedisAdapter::getValue(string key){
 
-  return *(_redisConfig.get(key));
+  return *(_redisCluster.get(key));
 }
 
 void RedisAdapter::setValue(string key, string val){
-  _redisConfig.set(key,val);
+  _redisCluster.set(key,val);
 }
 
 
 int RedisAdapter::getUniqueValue(string key){
-  return _redisConfig.incr(key);
+  return _redisCluster.incr(key);
 } 
 
 /*
@@ -105,14 +103,14 @@ int RedisAdapter::getUniqueValue(string key){
 unordered_map<string, string> RedisAdapter::getHash(string key){
 
   std::unordered_map<std::string, std::string> m;
-  _redisConfig.hgetall(key, std::inserter(m, m.begin()));
+  _redisCluster.hgetall(key, std::inserter(m, m.begin()));
 
   return m;
 }
 
 void RedisAdapter::setHash(string key, std::unordered_map<std::string, std::string> m){
 
-   return _redisConfig.hmset(key, m.begin(), m.end());
+   return _redisCluster.hmset(key, m.begin(), m.end());
 }
 
 
@@ -123,7 +121,7 @@ std::unordered_set<string> RedisAdapter::getSet(string key){
 
   std::unordered_set<string> set;
   try{
-    _redisConfig.smembers( key, std::inserter(set, set.begin()));
+    _redisCluster.smembers( key, std::inserter(set, set.begin()));
 
   }
   catch(...){
@@ -133,7 +131,7 @@ std::unordered_set<string> RedisAdapter::getSet(string key){
 }
 
 void RedisAdapter::setSet(string key, string val){
-  _redisConfig.sadd(key,val);
+  _redisCluster.sadd(key,val);
 }
 
 
@@ -206,7 +204,7 @@ vector<pair<string,string>> RedisAdapter::logRead(std::string key, uint count){
   string timeID;
   try{
     ItemStream result;
-    _redisConfig.xrevrange(key, "+","-", count, back_inserter(result));
+    _redisCluster.xrevrange(key, "+","-", count, back_inserter(result));
     for(auto data : result){
         timeID = data.first;
         for (auto val : *data.second){
@@ -235,7 +233,7 @@ void RedisAdapter::streamTrim(string key, int size){
 
 void RedisAdapter::publish(string msg){
   try{
-      _redisConfig.publish(_channelKey, msg);
+      _redisCluster.publish(_channelKey, msg);
 
   }catch (const std::exception &err) {
     TRACE(1,"publish(" + _channelKey + ", " +msg+ ", ...) failed: " + err.what());
@@ -243,7 +241,7 @@ void RedisAdapter::publish(string msg){
 }
 void RedisAdapter::publish(string key, string msg){
   try{
-      _redisConfig.publish(_channelKey + ":" + key, msg);
+      _redisCluster.publish(_channelKey + ":" + key, msg);
 
   }catch (const std::exception &err) {
     TRACE(1,"publish(" + _channelKey + ", " +msg+ ", ...) failed: " + err.what());
@@ -259,7 +257,7 @@ void RedisAdapter::copyKey( string src, string dest, bool data){
   if (data)
     _redisCluster.command<void>("copy", src, dest);
   else
-    _redisConfig.command<void>("copy", src, dest);
+    _redisCluster.command<void>("copy", src, dest);
 
 }
 
@@ -281,7 +279,7 @@ void RedisAdapter::setAbortFlag(bool flag){
 vector<string> RedisAdapter::getServerTime(){
 
   std::vector<string> result;
-  _redisConfig.command("time", std::back_inserter(result));
+  _redisCluster.redis("hash-tag", false).command("time", std::back_inserter(result));
   return result;
 }
 
@@ -311,7 +309,7 @@ void RedisAdapter::registerCommand(std::string command, std::function<void(std::
 void RedisAdapter::listener(){
   // Consume messages in a loop.
   bool flag = false;
-  Subscriber _sub = _redisConfig.subscriber();
+  Subscriber _sub = _redisCluster.subscriber();
   while (true) {
     try {
         if(flag)
@@ -352,7 +350,7 @@ void RedisAdapter::listener(){
         // Handle unrecoverable exceptions. Need to re create redis connection
         std::cout << "AN ERROR OCCURED, trying to recover" << std::endl;
         flag = false;
-        _sub = _redisConfig.subscriber();
+        _sub = _redisCluster.subscriber();
         continue;
     }
   }

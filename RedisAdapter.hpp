@@ -134,9 +134,6 @@ class RedisAdapter: public IRedisAdapter {
 
 	virtual string getDeviceStatus();
 
-
-	
-    Redis _redisConfig;
     RedisCluster _redisCluster;
 
 	thread _reader;
