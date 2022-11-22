@@ -14,9 +14,9 @@
 #include<unordered_set>
 
 using namespace std;
-//using Attrs = std::unordered_map<std::string, std::string>;
-//using Item = std::pair<std::string, sw::redis::Optional<Attrs>>;
-//using ItemStream = std::vector<Item>;
+using Attrs = std::unordered_map<std::string, std::string>;
+using Item = std::pair<std::string, Attrs>;
+using ItemStream = std::vector<Item>;
 //using ItemStream = std::unordered_map<std::string, Attrs>;
 
 
@@ -53,6 +53,7 @@ class IRedisAdapter {
 	virtual void streamWrite(vector<pair<string,string>> data, string timeID, string key, uint trim = 0) = 0;
 	virtual string streamReadBlock(std::unordered_map<string,string> keysID, int count, std::unordered_map<string,vector<float>>& result) = 0;
 	virtual void streamRead(string key, string time, int count, vector<float>& result) = 0;
+	virtual void streamRead(string key, string time, int count, ItemStream& dest) = 0;
 	virtual void streamTrim(string key, int size) = 0;
 	virtual vector<pair<string,string>> logRead(string key, uint count) = 0;
 	virtual void logWrite(string key, string msg, string source) = 0;

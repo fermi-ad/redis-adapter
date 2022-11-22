@@ -159,7 +159,7 @@ string RedisAdapter::streamReadBlock(std::unordered_map<string,string> keysID, i
       string dataKey = key.first;
       for(auto data : key.second){
         timeID = data.first;
-        for (auto val : *data.second){
+        for (auto val : data.second){
           dest[dataKey].resize(val.second.length() / sizeof(float));
           memcpy(dest[dataKey].data(),val.second.data(),val.second.length());
         }
@@ -172,17 +172,28 @@ string RedisAdapter::streamReadBlock(std::unordered_map<string,string> keysID, i
   }
 }
 
+void RedisAdapter::streamRead(string key, string time, int count, ItemStream& dest){
+
+  try{
+    _redisCluster.xrevrange(key, "+","-", count, back_inserter(dest));
+  }catch (const std::exception &err) {
+    TRACE(1,"xadd(" + key + ", " +time + ":" + to_string(count) + ", ...) failed: " + err.what());
+  }
+}
+
 
 void RedisAdapter::streamRead(string key, string time, int count, vector<float>& dest){
 
   try{
     ItemStream result;
-    _redisCluster.xrevrange(key, "+","-", count, back_inserter(result));
+    streamRead(key,time,1, result);
     for(auto data : result){
         string timeID = data.first;
-        for (auto val : *data.second){
-            dest.resize(val.second.length() / sizeof(float));
-            memcpy(dest.data(),val.second.data(),val.second.length());
+        for (auto val : data.second){
+            if(!val.first.compare("DATA")){
+              dest.resize(val.second.length() / sizeof(float));
+              memcpy(dest.data(),val.second.data(),val.second.length());
+            }
         }
     }  
   }catch (const std::exception &err) {
@@ -207,7 +218,7 @@ vector<pair<string,string>> RedisAdapter::logRead(std::string key, uint count){
     _redisCluster.xrevrange(key, "+","-", count, back_inserter(result));
     for(auto data : result){
         timeID = data.first;
-        for (auto val : *data.second){
+        for (auto val : data.second){
             out.push_back(val);
         }
 

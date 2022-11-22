@@ -44,21 +44,25 @@ RUN cp -r include/TRACE /usr/include/
 
 RUN mkdir /usr/local/lib64
 
+COPY startup.sh /bin/startup.sh
+
 COPY . /usr/src/redisAdapter
+
 WORKDIR /usr/src/redisAdapter
 RUN make 
 RUN make install
 RUN make test
-
 
 ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib:/usr/local/lib64
 
 # This command compiles your app using GCC, adjust for your source code
 
 #RUN make redisAdapterEngine
+RUN ["chmod", "+x", "/bin/startup.sh"]
+
+ENTRYPOINT ["/bin/startup.sh"]
 
 # This command runs your application, comment out this line to compile only
-CMD [tail -f /dev/null]
-#CMD ["./redisAdapterEngine -c bpmd.conf"]
+#CMD ["/bin/startup.sh"]
 
 LABEL Name=redisAdapter Version=0.0.1
