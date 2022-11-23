@@ -44,8 +44,6 @@ RUN cp -r include/TRACE /usr/include/
 
 RUN mkdir /usr/local/lib64
 
-COPY startup.sh /bin/startup.sh
-
 COPY . /usr/src/redisAdapter
 
 WORKDIR /usr/src/redisAdapter
@@ -58,9 +56,10 @@ ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib:/usr/local/lib64
 # This command compiles your app using GCC, adjust for your source code
 
 #RUN make redisAdapterEngine
-RUN ["chmod", "+x", "/bin/startup.sh"]
+RUN ["chmod", "+x", "./startup.sh"]
+RUN ["chmod", "+x", "./create-cluster"]
 
-ENTRYPOINT ["/bin/startup.sh"]
+#ENTRYPOINT ["./startup.sh"]
 
 # This command runs your application, comment out this line to compile only
 #CMD ["/bin/startup.sh"]

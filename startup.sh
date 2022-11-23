@@ -1,8 +1,10 @@
 #!/bin/bash
 
-/usr/src/redisAdapter/redis-stable/utils/create-cluster/create-cluster start
-echo yes | /usr/src/redisAdapter/redis-stable/utils/create-cluster/create-cluster create 
+./create-cluster start
+if [ "$JOIN" == "t" ]; then
+   echo yes | ./create-cluster create 
+fi
 
 while true ; do
    echo " " ; sleep 300
-   done
+done
