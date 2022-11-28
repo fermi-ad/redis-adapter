@@ -261,7 +261,10 @@ void RedisAdapter::publish(string key, string msg){
 
 string RedisAdapter::getDeviceStatus() {
   return getValue(_statusKey);
-};
+}
+string RedisAdapter::setDeviceStatus(string status){
+  setValue(getStatusKey(), status);
+}
 
 
 void RedisAdapter::copyKey( string src, string dest, bool data){

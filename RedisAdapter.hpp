@@ -128,6 +128,7 @@ class RedisAdapter: public IRedisAdapter {
 	virtual void startReader();
 
 	virtual string getDeviceStatus();
+	virtual string setDeviceStatus(string status = "AOK");
 
     RedisCluster _redisCluster;
 

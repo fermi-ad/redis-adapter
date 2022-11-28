@@ -87,6 +87,7 @@ class IRedisAdapter {
 	* Device Status
 	*/
 	virtual string getDeviceStatus() = 0;
+	virtual string setDeviceStatus(string status = "AOK") = 0;
 
 	virtual string getBaseKey() const = 0;
 	virtual void setBaseKey(string baseKey) = 0;
