@@ -22,12 +22,6 @@
 
 using namespace std;
 using namespace sw::redis;
-//using Attrs = std::unordered_map<std::string, string>;
-//using Item = std::pair<std::string, sw::redis::Optional<Attrs>>;
-//using ItemStream = std::vector<Item>;
-//using ItemStream = std::unordered_map<std::string, Attrs>;
-
-
   /**
    * RedisAdapter
    */

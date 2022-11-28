@@ -8,6 +8,9 @@ REDISADAPTER_VERSION = $(BI_VERSION).$(BI_MINOR).$(BI_RELEASE)
 # Install locations
 BI_INC = /usr/local/include
 BI_LIB += /usr/local/lib
+BI_PRODUCTS_INC = /usr/local/products/include
+BI_PRODUCTS_LIB += /usr/local/products/lib
+
 
 BI_OUT =
 
@@ -65,6 +68,17 @@ install:
 	install -D -m 0755 $(SO_LONG_NAME) $(BI_LIB)
 	ln -sf $(SO_LONG_NAME) $(BI_LIB)/$(SO_VER_NAME)
 	ln -sf $(SO_VER_NAME) $(BI_LIB)/$(SO_NAME)
+	install -d $(BI_INC)
+	install -D -m 0644  $(HEADERS) $(BI_INC)
+
+installp:
+	install -d $(BI_PRODUCTS_LIB)
+	install -D -m 0755 $(SO_LONG_NAME) $(BI_PRODUCTS_LIB)
+	ln -sf $(SO_LONG_NAME) $(BI_PRODUCTS_LIB)/$(SO_VER_NAME)
+	ln -sf $(SO_VER_NAME) $(BI_PRODUCTSLIB)/$(SO_NAME0)
+	install -d $(BI_PRODUCTS_INC)
+	install -D -m 0644  $(HEADERS) $(BI_PRODUCTS_INC)
+
 
 .PHONY: clean
 
