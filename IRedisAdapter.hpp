@@ -14,9 +14,9 @@
 #include<unordered_set>
 
 using namespace std;
-using Attrs = std::unordered_map<std::string, std::string>;
-using Item = std::pair<std::string, Attrs>;
-using ItemStream = std::vector<Item>;
+//using Attrs = std::unordered_map<std::string, std::string>;
+//using Item = std::pair<std::string, Attrs>;
+//using ItemStream = std::vector<Item>;
 
 
   /**
@@ -24,6 +24,10 @@ using ItemStream = std::vector<Item>;
    */
 class IRedisAdapter {
    public:
+	using Attrs = std::unordered_map<std::string, std::string>;
+	using Item = std::pair<std::string, Attrs>;
+	using ItemStream = std::vector<Item>;
+
 	virtual vector<string> getDevices() = 0;
     virtual void clearDevices(string devicelist) = 0;
 	virtual void setDeviceConfig(std::unordered_map<std::string, std::string> map) = 0;
