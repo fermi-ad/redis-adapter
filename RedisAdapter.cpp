@@ -198,15 +198,13 @@ void RedisAdapter::streamRead(string key, string time, int count, vector<float>&
     }  
   }catch (const std::exception &err) {
     TRACE(1,"xadd(" + key + ", " +time + ":" + to_string(count) + ", ...) failed: " + err.what());
-
   }
-
 }
 
 void RedisAdapter::logWrite(string key, string msg, string source){
   vector<pair<string,string>> data;
   data.emplace_back(make_pair(source,msg));
-  streamWrite(data, "*", key, false);
+  streamWrite(data, "*", key, 1000);
 }
 
 
@@ -259,11 +257,14 @@ void RedisAdapter::publish(string key, string msg){
   }
 }
 
-string RedisAdapter::getDeviceStatus() {
-  return getValue(_statusKey);
+inline bool const StringToBool(string const& s){
+    return s != "0";
+  }
+bool RedisAdapter::getDeviceStatus() {
+  return StringToBool(getValue(_statusKey));
 }
-void RedisAdapter::setDeviceStatus(string status){
-  setValue(getStatusKey(), status);
+void RedisAdapter::setDeviceStatus(bool status){
+  setValue(getStatusKey(), to_string((int)status));
 }
 
 
@@ -275,9 +276,9 @@ void RedisAdapter::copyKey( string src, string dest, bool data){
 
 }
 
-inline bool const StringToBool(string const& s){
-    return s != "0";
-  }
+//inline bool const StringToBool(string const& s){
+//    return s != "0";
+//  }
 bool RedisAdapter::getAbortFlag(){
   return StringToBool(getValue(_abortKey));
 }
