@@ -29,7 +29,7 @@ class RedisAdapter: public IRedisAdapter {
 
    public:
 	/*Constructor / Destructor*/
-    RedisAdapter(string key);
+    RedisAdapter(string key, string connection = "tcp://127.0.0.1:6379");
 	RedisAdapter(const RedisAdapter& ra);
     ~RedisAdapter();
 
@@ -149,6 +149,7 @@ class RedisAdapter: public IRedisAdapter {
 
 	std::string  _baseKey, _configKey, _logKey, _channelKey, _statusKey, _timeKey, _deviceKey, _abortKey;
 	std::string	 _dataBaseKey;
+	std::string _connection;
   };
 
 #endif

@@ -12,11 +12,12 @@
 using namespace sw::redis;
 using namespace std;
 
-RedisAdapterCluster::RedisAdapterCluster( string key )
-:_redisCluster("tcp://127.0.0.1:30001"),
+RedisAdapterCluster::RedisAdapterCluster( string key, string connection )
+:_redisCluster(connection),
  _baseKey(key)
 {
 
+  _connection = connection;
   _configKey  = _baseKey + ":CONFIG";
   _logKey     = _baseKey + ":LOG";
   _channelKey = _baseKey + ":CHANNEL";
