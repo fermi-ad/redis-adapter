@@ -31,7 +31,7 @@ BI_CPPFLAGS = 			-I. \
 				-D_REENTRANT \
 				-DVERSION_ID=$(REDISADAPTER_VERSION)
 
-BI_LDFLAGS  = 			-L/usr/local/lib/ \
+BI_LDFLAGS  = 	-L/usr/local/lib/ \
 				-L/usr/local/lib64/ \
 				-L. \
 				-lredis++ \
@@ -57,7 +57,7 @@ all: clean libredisadapter
 test: test.o 
 	$(CXX) ./test.o -o test $(BI_LDFLAGS) -lredisAdapter
 
-libredisadapter: RedisAdapter.o
+libredisadapter: RedisAdapter.o RedisAdapterCluster.o RedisAdapterSingle.o
 	$(BI_OUT) $(CXX) -shared -Wl,-soname,$(SO_NAME) -o $(SO_LONG_NAME)  RedisAdapter.o -lm $(BI_LDFLAGS) 
 
 clean:
