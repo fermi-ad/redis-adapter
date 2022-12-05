@@ -58,7 +58,7 @@ test: test.o
 	$(CXX) ./test.o -o test $(BI_LDFLAGS) -lredisAdapter
 
 libredisadapter: RedisAdapter.o RedisAdapterCluster.o RedisAdapterSingle.o
-	$(BI_OUT) $(CXX) -shared -Wl,-soname,$(SO_NAME) -o $(SO_LONG_NAME)  RedisAdapter.o -lm $(BI_LDFLAGS) 
+	$(BI_OUT) $(CXX) -shared -Wl,-soname,$(SO_NAME) -o $(SO_LONG_NAME)  RedisAdapter.o RedisAdapterCluster.o RedisAdapterSingle.o -lm $(BI_LDFLAGS) 
 
 clean:
 	rm -f *.o *.a *.so* test
