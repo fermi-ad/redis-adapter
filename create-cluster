@@ -2,8 +2,8 @@
 
 # Settings
 BIN_PATH="./redis-stable/src"
-CLUSTER_HOST=127.0.0.1
-REMOTE_CLUSTER_HOST=10.200.12.22
+HOST=DRBPM1
+REMOTE_HOST=DRBPM2
 PORT=6378
 TIMEOUT=2000
 NODES=6
@@ -37,9 +37,9 @@ then
     HOSTS=""
     while [ $((PORT < ENDPORT)) != "0" ]; do
         PORT=$((PORT+1))
-        HOSTS="$HOSTS $CLUSTER_HOST:$PORT"
-        if [ "$JOIN" == "t" ]; then
-            HOSTS="$HOSTS $REMOTE_CLUSTER_HOST:$PORT"
+        HOSTS="$HOSTS $HOST:$PORT"
+        if [ "$JOIN" == "yes" ]; then
+            HOSTS="$HOSTS $REMOTE_HOST:$PORT"
         fi
     done
     echo "HOSTS : $HOSTS"

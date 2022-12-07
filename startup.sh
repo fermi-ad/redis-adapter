@@ -1,8 +1,8 @@
 #!/bin/bash
 
 ./create-cluster start
-if [ "$JOIN" == "t" ]; then
-   echo yes | ./create-cluster create 
+if [ "$JOIN" == "yes" ]; then
+   ./create-cluster create -f
 fi
 
 while true ; do
