@@ -276,6 +276,11 @@ void RedisAdapterSingle::copyKey( string src, string dest, bool data){
 
 }
 
+void RedisAdapterSingle::deleteKey( string key ){
+  _redis.command<long long>("del", key);
+}
+
+
 //inline bool const StringToBool(string const& s){
 //    return s != "0";
 //  }

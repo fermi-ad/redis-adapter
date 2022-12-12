@@ -77,9 +77,10 @@ class RedisAdapterSingle: public IRedisAdapter {
 	virtual void registerCommand(std::string command, std::function<void(std::string, std::string)> f);
 
 	/*
-	* Copy Functions
+	* Copy & Delete Functions
 	*/
 	virtual void copyKey(string src, string dest, bool data = false);
+	virtual void deleteKey(string key);
 
 	/*
 	*	Abort Flag
