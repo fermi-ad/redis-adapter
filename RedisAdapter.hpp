@@ -29,7 +29,7 @@ class RedisAdapter: public IRedisAdapter {
 
    public:
 	/*Constructor / Destructor*/
-    RedisAdapter(string key, string connection = "tcp://127.0.0.1:6379");
+    RedisAdapter(string key, string connection = "tcp://127.0.0.1:6380");
 	RedisAdapter(const RedisAdapter& ra);
     ~RedisAdapter();
 
