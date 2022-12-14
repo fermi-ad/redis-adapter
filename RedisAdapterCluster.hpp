@@ -29,7 +29,7 @@ class RedisAdapterCluster: public IRedisAdapter {
 
    public:
 	/*Constructor / Destructor*/
-    RedisAdapterCluster(string key, string connection = "tcp://127.0.0.1:30001");
+    RedisAdapterCluster(string key, string connection = "tcp://127.0.0.1:6380");
 	RedisAdapterCluster(const RedisAdapterCluster& ra);
     ~RedisAdapterCluster();
 
