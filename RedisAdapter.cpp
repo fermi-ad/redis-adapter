@@ -9,11 +9,14 @@
 
 #include "RedisAdapter.hpp"
 
+#include <exception>
+
 using namespace sw::redis;
 using namespace std;
 
-RedisAdapter::RedisAdapter( string key, string connection )
-:_redisCluster(connection),
+template<>
+RedisAdapter<Redis>::RedisAdapter( string key, string connection )
+:_redis(connection),
  _baseKey(key)
 {
   _connection = connection;
@@ -29,8 +32,34 @@ RedisAdapter::RedisAdapter( string key, string connection )
 
 }
 
-RedisAdapter::RedisAdapter(const RedisAdapter& ra)
-:_redisCluster(ra._connection)
+template<>
+RedisAdapter<RedisCluster>::RedisAdapter( string key, string connection )
+:_redis(connection),
+ _baseKey(key)
+{
+  _connection = connection;
+  _configKey  = _baseKey + ":CONFIG";
+  _logKey     = _baseKey + ":LOG";
+  _channelKey = _baseKey + ":CHANNEL";
+  _statusKey  = _baseKey + ":STATUS";
+  _timeKey    = _baseKey + ":TIME";
+  _dataBaseKey= _baseKey + ":DATA";
+  _deviceKey = _baseKey + ":DEVICES";
+
+  TRACE(2,"Loaded Redis Adapters");
+
+}
+
+template<typename T>
+RedisAdapter<T>::RedisAdapter(string key, string connection){
+  static_assert(!std::is_same<T, Redis>::value || std::is_same<T, RedisCluster>::value, "You can't use that type here");
+}
+
+
+
+template<>
+RedisAdapter<Redis>::RedisAdapter(const RedisAdapter<Redis>& ra)
+:_redis(ra._connection)
 {
   _baseKey    = ra.getBaseKey();
   _configKey  = _baseKey + ":CONFIG";
@@ -42,13 +71,27 @@ RedisAdapter::RedisAdapter(const RedisAdapter& ra)
   _deviceKey = _baseKey + ":DEVICES";
 }
 
+template<>
+RedisAdapter<RedisCluster>::RedisAdapter(const RedisAdapter<RedisCluster>& ra)
+:_redis(ra._connection)
+{
+  _baseKey    = ra.getBaseKey();
+  _configKey  = _baseKey + ":CONFIG";
+  _logKey     = _baseKey + ":LOG";
+  _channelKey = _baseKey + ":CHANNEL";
+  _statusKey  = _baseKey + ":STATUS";
+  _timeKey  = _baseKey + ":TIME";
+  _dataBaseKey  = _baseKey + ":DATA";
+  _deviceKey = _baseKey + ":DEVICES";
+}
 
-RedisAdapter::~RedisAdapter()
+template<typename T>
+RedisAdapter<T>::~RedisAdapter()
 {
 }
 
-
-vector<string> RedisAdapter::getDevices(){
+template<typename T>
+vector<string> RedisAdapter<T>::getDevices(){
 
   std::unordered_set<string> set = getSet(_deviceKey);
   std::vector<string> devices(set.begin(), set.end());
@@ -56,72 +99,76 @@ vector<string> RedisAdapter::getDevices(){
 
 }
 
-void RedisAdapter::clearDevices(string devicelist)
+template<typename T>
+void RedisAdapter<T>::clearDevices(string devicelist)
 {
   std::unordered_map<string, string> nameMap;
-  _redisCluster.hgetall(devicelist, inserter(nameMap, nameMap.begin()));
+  _redis.hgetall(devicelist, inserter(nameMap, nameMap.begin()));
   for(const auto& name : nameMap){
-    _redisCluster.del(name.first);
+    _redis.del(name.first);
   }
 }
 /*
 * Get Device Config
 */
-void RedisAdapter::setDeviceConfig(std::unordered_map<std::string, std::string> map){
-
+template<typename T>
+void RedisAdapter<T>::setDeviceConfig(std::unordered_map<std::string, std::string> map){
     setHash(_configKey, map);
-
 }
 
-std::unordered_map<std::string, std::string> RedisAdapter::getDeviceConfig(){
+template<typename T>
+std::unordered_map<std::string, std::string> RedisAdapter<T>::getDeviceConfig(){
     return getHash(_configKey);
 }
 
-void RedisAdapter::setDevice(string name){
+template<typename T>
+void RedisAdapter<T>::setDevice(string name){
   setSet(_deviceKey, name);
 }
 
-
-
- sw::redis::Optional<string> RedisAdapter::getValue(string key){
-
-  return *(_redisCluster.get(key));
+template<typename T>
+sw::redis::Optional<string> RedisAdapter<T>::getValue(string key){
+  return _redis.get(key);
 }
 
-void RedisAdapter::setValue(string key, string val){
-  _redisCluster.set(key,val);
+template<typename T>
+void RedisAdapter<T>::setValue(string key, string val){
+  _redis.set(key,val);
 }
 
-
-int RedisAdapter::getUniqueValue(string key){
-  return _redisCluster.incr(key);
+template<typename T>
+int RedisAdapter<T>::getUniqueValue(string key){
+  return _redis.incr(key);
 } 
 
 /*
 * Hash get and set
 */
-unordered_map<string, string> RedisAdapter::getHash(string key){
+template<typename T>
+unordered_map<string, string> RedisAdapter<T>::getHash(string key){
 
   std::unordered_map<std::string, std::string> m;
-  _redisCluster.hgetall(key, std::inserter(m, m.begin()));
+  _redis.hgetall(key, std::inserter(m, m.begin()));
 
   return m;
 }
 
-void RedisAdapter::setHash(string key, std::unordered_map<std::string, std::string> m){
+template<typename T>
+void RedisAdapter<T>::setHash(string key, std::unordered_map<std::string, std::string> m){
 
-   return _redisCluster.hmset(key, m.begin(), m.end());
+   return _redis.hmset(key, m.begin(), m.end());
 }
 
 
 /*
 * Set get and add member
 */
-std::unordered_set<string> RedisAdapter::getSet(string key){
+template<typename T>
+std::unordered_set<string> RedisAdapter<T>::getSet(string key){
 
   std::unordered_set<string> set;
   try{
-    _redisCluster.smembers( key, std::inserter(set, set.begin()));
+    _redis.smembers( key, std::inserter(set, set.begin()));
 
   }
   catch(...){
@@ -130,8 +177,9 @@ std::unordered_set<string> RedisAdapter::getSet(string key){
   return set;
 }
 
-void RedisAdapter::setSet(string key, string val){
-  _redisCluster.sadd(key,val);
+template<typename T>
+void RedisAdapter<T>::setSet(string key, string val){
+  _redis.sadd(key,val);
 }
 
 
@@ -139,9 +187,22 @@ void RedisAdapter::setSet(string key, string val){
 /*
 * Stream Functions
 */
-void RedisAdapter::streamWrite(vector<pair<string,string>> data, string timeID , string key, uint trim ){
+// Redis Stream structure:
+// element 1:
+//   timestamp
+//   fieldname1 fielddata1
+//   fieldname2 fielddata2
+// element 2:
+//   timestamp
+//   fieldname1 fielddata1
+
+// Adds data to a redis stream at the key key
+// timeID is the time that should be used as the time in the stream 
+// data is formated as a pair of strings the first is the element name and the second is the data at that element
+template<typename T>
+void RedisAdapter<T>::streamWrite(vector<pair<string,string>> data, string timeID , string key, uint trim ){
   try{
-    auto replies  =  _redisCluster.xadd(key, timeID, data.begin(), data.end());  
+    auto replies  =  _redis.xadd(key, timeID, data.begin(), data.end());  
     if(trim)
       streamTrim(key, trim);
   }catch (const std::exception &err) {
@@ -149,12 +210,25 @@ void RedisAdapter::streamWrite(vector<pair<string,string>> data, string timeID ,
   }
 }
 
+// Simlified version of streamWrite when you only have one element in the item you want to add to the stream, and you have binary data.
+// When this is called an element is appended to the stream named 'key' that has one field named 'field' with the value data in binary form. 
 
-string RedisAdapter::streamReadBlock(std::unordered_map<string,string> keysID, int count, std::unordered_map<string,vector<float>>& dest){
+template<typename T>
+void RedisAdapter<T>::streamWriteOneField(const string& data, const string& timeID, const string& key, const string& field)
+{
+  // Single element vector formated the way that streamWrite wants it.
+  std::vector<pair<string, string>> wrapperVector = { {field, data }};
+  // When you give * as your time in redis the server generates the timestamp for you. Here we do the same if timeID is empty.
+  if (0 == timeID.length()) { streamWrite(wrapperVector,    "*", key, false); }
+  else                      { streamWrite(wrapperVector, timeID, key, false); }
+}
+
+template<typename T>
+string RedisAdapter<T>::streamReadBlock(std::unordered_map<string,string> keysID, int count, std::unordered_map<string,vector<float>>& dest){
   string timeID = "";
   try{
     std::unordered_map<std::string, ItemStream> result;
-    _redisCluster.xread(keysID.begin(),keysID.end(), count, std::inserter(result, result.end()) );
+    _redis.xread(keysID.begin(),keysID.end(), count, std::inserter(result, result.end()) );
     for(auto key : result){
       string dataKey = key.first;
       for(auto data : key.second){
@@ -172,56 +246,59 @@ string RedisAdapter::streamReadBlock(std::unordered_map<string,string> keysID, i
   }
 }
 
-void RedisAdapter::streamRead(string key, string time, int count, ItemStream& dest){
+template<typename T>
+void RedisAdapter<T>::streamRead(string key, string time, int count, ItemStream& dest) {
 
   try{
-    _redisCluster.xrevrange(key, "+","-", count, back_inserter(dest));
+    _redis.xrevrange(key, "+","-", count, back_inserter(dest));
   }catch (const std::exception &err) {
     TRACE(1,"xadd(" + key + ", " +time + ":" + to_string(count) + ", ...) failed: " + err.what());
   }
 }
 
-
-void RedisAdapter::streamRead(string key, string time, int count, vector<float>& dest){
+template<typename T>
+void RedisAdapter<T>::streamRead(string key, string time, int count, vector<float>& dest){
 
   try{
     ItemStream result;
     streamRead(key,time,1, result);
-    for(auto data : result){
+    for(Item data : result){
         string timeID = data.first;
         for (auto val : data.second){
-            if(!val.first.compare("DATA")){
+            // If we have an element named data
+            if(val.first.compare("DATA") == 0){
               dest.resize(val.second.length() / sizeof(float));
               memcpy(dest.data(),val.second.data(),val.second.length());
             }
         }
-    }  
+    }
   }catch (const std::exception &err) {
     TRACE(1,"xadd(" + key + ", " +time + ":" + to_string(count) + ", ...) failed: " + err.what());
   }
 }
 
-void RedisAdapter::logWrite(string key, string msg, string source){
+template<typename T>
+void RedisAdapter<T>::logWrite(string key, string msg, string source){
   vector<pair<string,string>> data;
   data.emplace_back(make_pair(source,msg));
   streamWrite(data, "*", key, 1000);
 }
 
-
-IRedisAdapter::ItemStream RedisAdapter::logRead(uint count){
-
+template<typename T>
+IRedisAdapter::ItemStream RedisAdapter<T>::logRead(uint count){
   ItemStream is ;
   try{ 
-    _redisCluster.xrevrange(getLogKey(), "+","-", count, back_inserter(is));
+    _redis.xrevrange(getLogKey(), "+","-", count, back_inserter(is));
   } catch (const std::exception &err) {
     TRACE(1,"logRead(" + getLogKey()  + "," + to_string(count) + ") failed: " + err.what());
   }
   return is;
 }
 
-void RedisAdapter::streamTrim(string key, int size){
+template<typename T>
+void RedisAdapter<T>::streamTrim(string key, int size){
   try{
-      _redisCluster.xtrim(key, size, false);
+      _redis.xtrim(key, size, false);
 
   }catch (const std::exception &err) {
     TRACE(1,"xtrim(" + key + ", " +to_string(size)+ ", ...) failed: " + err.what());
@@ -229,18 +306,19 @@ void RedisAdapter::streamTrim(string key, int size){
 }
 
 
-
-void RedisAdapter::publish(string msg){
+template<typename T>
+void RedisAdapter<T>::publish(string msg){
   try{
-      _redisCluster.publish(_channelKey, msg);
-
+      _redis.publish(_channelKey, msg);
   }catch (const std::exception &err) {
     TRACE(1,"publish(" + _channelKey + ", " +msg+ ", ...) failed: " + err.what());
   }
 }
-void RedisAdapter::publish(string key, string msg){
+
+template<typename T>
+void RedisAdapter<T>::publish(string key, string msg){
   try{
-      _redisCluster.publish(_channelKey + ":" + key, msg);
+      _redis.publish(_channelKey + ":" + key, msg);
 
   }catch (const std::exception &err) {
     TRACE(1,"publish(" + _channelKey + ", " +msg+ ", ...) failed: " + err.what());
@@ -250,123 +328,168 @@ void RedisAdapter::publish(string key, string msg){
 inline bool const StringToBool(string const& s){
     return s != "0";
   }
-bool RedisAdapter::getDeviceStatus() {
+
+template<typename T>
+bool RedisAdapter<T>::getDeviceStatus() {
   return StringToBool(getValue(_statusKey).value());
 }
-void RedisAdapter::setDeviceStatus(bool status){
+
+template<typename T>
+void RedisAdapter<T>::setDeviceStatus(bool status){
   setValue(getStatusKey(), to_string((int)status));
 }
 
-
-void RedisAdapter::copyKey( string src, string dest, bool data){
-  if (data)
-    _redisCluster.command<void>("copy", src, dest);
-  else
-    _redisCluster.command<void>("copy", src, dest);
-
+template<typename T>
+void RedisAdapter<T>::copyKey( string src, string dest, bool data){
+    _redis.command<void>("copy", src, dest);
 }
 
-//inline bool const StringToBool(string const& s){
-//    return s != "0";
-//  }
-bool RedisAdapter::getAbortFlag(){
+template<typename T>
+void RedisAdapter<T>::deleteKey( string key ){
+  _redis.command<long long>("del", key);
+}
+
+template<typename T>
+bool RedisAdapter<T>::getAbortFlag(){
   return StringToBool(getValue(_abortKey).value());
 }
 
 inline const char * const BoolToString(bool b){
     return b ? "1" : "0";
 }
-void RedisAdapter::setAbortFlag(bool flag){
+template<typename T>
+void RedisAdapter<T>::setAbortFlag(bool flag){
   setValue(_abortKey, BoolToString(flag));
 }
 
-
-vector<string> RedisAdapter::getServerTime(){
-
+template<>
+vector<string> RedisAdapter<Redis>::getServerTime(){
   std::vector<string> result;
-  _redisCluster.redis("hash-tag", false).command("time", std::back_inserter(result));
+  _redis.command("time", std::back_inserter(result));
+  return result;
+}
+
+template<>
+vector<string> RedisAdapter<RedisCluster>::getServerTime(){
+  std::vector<string> result;
+   _redis.redis("hash-tag", false).command("time", std::back_inserter(result));
   return result;
 }
 
 
+template<typename T>
+sw::redis::Optional<timespec> RedisAdapter<T>::getServerTimespec()
+{
+  vector<string> result = getServerTime();
+  // The redis command time is returns an array with the first element being the time in seconds and the second being the microseconds within that second
+  if (result.size() != 2) { return std::nullopt; }
+  timespec ts;
+  ts.tv_sec  = stoll(result.at(0));        // first element contains unix time
+  ts.tv_nsec = stoll(result.at(1)) * 1000; // second element contains microseconds in the second
 
-
-void RedisAdapter::psubscribe(std::string pattern, std::function<void(std::string,std::string,std::string)> func){
-  patternSubscriptions.emplace(pattern, func);
+  return ts;
 }
 
-void RedisAdapter::subscribe(std::string channel, std::function<void(std::string,std::string)> func){
-  subscriptions.emplace(channel, func);
+template<typename T>
+void RedisAdapter<T>::psubscribe(std::string pattern, std::function<void(std::string,std::string,std::string)> func){
+  patternSubscriptions.push_back({ .pattern=pattern, .function=func });
 }
 
-void RedisAdapter::startListener(){
+template<typename T>
+void RedisAdapter<T>::subscribe(std::string channel, std::function<void(std::string,std::string)> func){
+  subscriptions.push_back(keyFunctionPair{ .key=channel, .function=func});
+}
+
+template<typename T>
+void RedisAdapter<T>::startListener(){
   _listener = thread(&RedisAdapter::listener, this);
 }
-void RedisAdapter::startReader(){
+template<typename T>
+void RedisAdapter<T>::startReader(){
   _reader = thread(&RedisAdapter::reader, this);
 }
 
-void RedisAdapter::registerCommand(std::string command, std::function<void(std::string, std::string)> func){
+template<typename T>
+void RedisAdapter<T>::registerCommand(std::string command, std::function<void(std::string, std::string)> func){
   commands.emplace(_channelKey +":"+ command, func);
 }
 
-
-void RedisAdapter::listener(){
+template<typename T>
+void RedisAdapter<T>::listener(){
   // Consume messages in a loop.
   bool flag = false;
-  Subscriber _sub = _redisCluster.subscriber();
+  Subscriber _sub = _redis.subscriber();
   while (true) {
     try {
-        if(flag)
-            _sub.consume();
-        else{
-            flag = true;
+      if(flag)
+        _sub.consume();
+      else{
+        flag = true;
 
-            _sub.on_pmessage([&](std::string pattern, std::string key, std::string msg) { 
+        _sub.on_pmessage([&](std::string pattern, std::string key, std::string msg) {
+          auto search = commands.find(key);;
+          if(search != commands.end()){
+            search->second(key, msg);
+          }
+          else{
+            vector<patternFunctionPair> matchingPatterns;
+            for (patternFunctionPair patternSubscription : patternSubscriptions)
+            {
+              if (patternSubscription.pattern == pattern) { matchingPatterns.push_back(patternSubscription); }
+            }
+    
+            // Loop over the members of patternSubscriptions that have the same pattern as this event
+            for (patternFunctionPair patternFunction : matchingPatterns)
+            {
+              patternFunction.function(pattern, key, msg);
+            }
+          }
+        });
 
-                auto search = commands.find(key);;
-                if(search != commands.end()){
-                  search->second(key, msg);
-                }
-                else{
-                  auto patternsearch = patternSubscriptions.find(pattern);
-                  if (patternsearch != patternSubscriptions.end()) {
-                    patternsearch->second(pattern, key, msg);
-                  }
-                }
-            });
+        _sub.on_message([&](std::string key, std::string msg) {
+          
+          vector<keyFunctionPair> matchingSubscriptions;
+          for (keyFunctionPair subscription : subscriptions)
+          {
+            if (subscription.key == key) { matchingSubscriptions.push_back(subscription); }
+          }
 
-            _sub.on_message([&](std::string key, std::string msg) { 
-
-                  auto search = subscriptions.find(msg);
-                  if (search != subscriptions.end()) {
-                    search->second( key, msg);
-                  }
-            });
-            //The default is everything published on ChannelKey
-            _sub.psubscribe(_channelKey + "*");
-
-        }
+          // Loop over the members of subscriptions that have the same key as this event
+          for (keyFunctionPair keyFunction : matchingSubscriptions)
+          {
+            keyFunction.function(key, msg);
+          }
+        });
+        //The default is everything published on ChannelKey
+        _sub.psubscribe(_channelKey + "*");
+        // Subscribe to the pattens in patternSubscriptions
+         for (auto element : patternSubscriptions)
+          { _sub.psubscribe(element.pattern); }
+         // Subscribe to the keys in subscriptions
+         for (auto element : subscriptions)
+          { _sub.subscribe(element.key); }
+      }
     }
     catch(const TimeoutError &e) {
         continue;
     }
-    catch (...) {
+    catch (std::exception &e) {
         // Handle unrecoverable exceptions. Need to re create redis connection
-        std::cout << "AN ERROR OCCURED, trying to recover" << std::endl;
+        std::cout << "ERROR " << e.what() << " occured, trying to recover" << std::endl;
         flag = false;
-        _sub = _redisCluster.subscriber();
+        _sub = _redis.subscriber();
         continue;
     }
   }
 }
 
-void RedisAdapter::reader(){
+template<typename T>
+void RedisAdapter<T>::reader(){
   // Read the stream for data
 
   while (true) {
     try {
-        //streamtime = _redisCluster.streamReadBlock(streamKeys, 1, buffer);
+        //streamtime = _redis.streamReadBlock(streamKeys, 1, buffer);
 
     }
     catch(const TimeoutError &e) {

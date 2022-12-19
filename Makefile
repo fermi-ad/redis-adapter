@@ -27,7 +27,7 @@ BI_CPPFLAGS = 			-I. \
 				-fPIC \
 				-Wno-format-extra-args \
 				-Wno-literal-suffix \
-				-std=c++2a \
+				-std=c++11 \
 				-D_REENTRANT \
 				-DVERSION_ID=$(REDISADAPTER_VERSION)
 
@@ -57,10 +57,9 @@ all: clean libredisadapter
 test: test.o 
 	$(CXX) ./test.o -o test $(BI_LDFLAGS) -lredisAdapter
 
-libredisadapter: RedisAdapter.o RedisAdapterCluster.o RedisAdapterSingle.o
-	$(CXX) -shared -Wl,-soname,$(SO_NAME) -o $(SO_LONG_NAME)  RedisAdapter.o RedisAdapterCluster.o RedisAdapterSingle.o -lm $(BI_LDFLAGS)
-	$(AR) rcs libredisAdapter.a RedisAdapter.o RedisAdapterCluster.o RedisAdapterSingle.o
-
+libredisadapter: RedisAdapter.o 
+	$(BI_OUT) $(CXX) -shared -Wl,-soname,$(SO_NAME) -o $(SO_LONG_NAME)  RedisAdapter.o -lm $(BI_LDFLAGS) 
+	$(AR) rcs libredisAdapter.a RedisAdapter.o 
 
 clean:
 	rm -f *.o *.a *.so* test

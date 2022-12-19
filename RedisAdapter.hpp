@@ -6,30 +6,39 @@
  * @author rsantucc
  */
 
+#pragma once
 #ifndef RedisAdapter_HPP
 #define RedisAdapter_HPP
 
+#if __cplusplus >= 202002L
+#define CPLUSPLUS20_SUPPORTED
+#endif
+
 #include <string>
-#include <errno.h>
-#include <stdexcept>
-#include <unistd.h>
-#include <sstream>
-#include <iostream>
-#include <thread>
 #include <sw/redis++/redis++.h>
 #include "IRedisAdapter.hpp"
 #include <TRACE/trace.h>
+#if defined(CPLUSPLUS20_SUPPORTED)
+#include <ranges>
+#endif
+#include <vector>
+#include <time.h>
+
+#include <sw/redis++/utils.h>
 
 using namespace std;
 using namespace sw::redis;
+
   /**
    * RedisAdapter
    */
+
+template<typename T>
 class RedisAdapter: public IRedisAdapter {
 
    public:
 	/*Constructor / Destructor*/
-    RedisAdapter(string key, string connection = "tcp://127.0.0.1:6380");
+    RedisAdapter(string key, string = "tcp://127.0.0.1:6379");
 	RedisAdapter(const RedisAdapter& ra);
     ~RedisAdapter();
 
@@ -59,12 +68,53 @@ class RedisAdapter: public IRedisAdapter {
 	*/
 
 	virtual void streamWrite(vector<pair<string,string>> data, string timeID, string key, uint trim = 0);
+	void streamWriteOneField(const string& data, const string& timeID, const string& key, const string& field);
+	
+	#if defined(CPLUSPLUS20_SUPPORTED)
+	// Simplified version of streamWrite when you only have one element in the item you want to add to the stream, and you have binary data.
+	// When this is called an element is appended to the stream named 'key' that has one field named 'field' with the value data in binary form. 
+	// This is in the header to make it compile, if you move this to the source file, then it causes really wierd linker errors.
+	// @todo Consider performing host to network conversion for data compatibility.
+	static_assert(BYTE_ORDER == __LITTLE_ENDIAN); // Arm and x86 use the same byte order. If this ever fails we should look into this problem. 
+	template <ranges::input_range Range>
+	void streamWriteOneFieldRange(Range&& data, const string& timeID, const string& key, const string& field)
+	{
+	  // Copy data from the caller to a string so that it can be used by the redis++ API
+	  std::string_view view((char *)data.data(), data.size() * sizeof(*data.begin()));
+	  std::string temp(view);
+	  streamWriteOneField(temp, timeID, key, field);
+	}
+	#endif
+
 	virtual string streamReadBlock(std::unordered_map<string,string> keysID, int count, std::unordered_map<string,vector<float>>& result);
 	virtual void streamRead(string key, string time, int count, vector<float>& result);
 	virtual void streamRead(string key, string time, int count, ItemStream& dest);
 	virtual void streamTrim(string key, int size);
-	virtual ItemStream logRead(uint count);
+	IRedisAdapter::ItemStream logRead(uint count);
 	virtual void logWrite(string key, string msg, string source);
+
+	// Read a single field from the element at desiredTime and return the actual time. 
+	// If this fails then return an empty optional
+	template<typename T>
+	sw::redis::Optional<string> streamReadOneField(string key, string desiredTime, string field, vector<T>& dest)
+	{
+	  ItemStream result;
+	  streamRead(key,desiredTime,1, result);
+	  assert(result.size() != 0);
+	  sw::redis::Optional<string> time = result.at(0).first;  
+	  Attrs attributes = result.at(0).second;
+	  // Find the field named field or return an empty optional
+	  auto fieldPointer = attributes.find(field);
+	  if (fieldPointer == attributes.end()) // if the field isn't in the item in the st
+	  {
+	    time.reset();
+	    return time;
+	  }
+	  std::string& str = fieldPointer->second;
+	  dest.resize(str.length() / sizeof(T));
+	  memcpy(dest.data(), str.c_str(), str.length());
+	  return time;
+	}
 
 	/*
 	* Publish / Subscribe Functions
@@ -77,9 +127,10 @@ class RedisAdapter: public IRedisAdapter {
 	virtual void registerCommand(std::string command, std::function<void(std::string, std::string)> f);
 
 	/*
-	* Copy Functions
+	* Copy & Delete Functions
 	*/
 	virtual void copyKey(string src, string dest, bool data = false);
+	virtual void deleteKey(string key);
 
 	/*
 	*	Abort Flag
@@ -91,6 +142,7 @@ class RedisAdapter: public IRedisAdapter {
 	* Time
 	*/
 	virtual vector<string> getServerTime();
+	sw::redis::Optional<timespec> getServerTimespec();
 
 	/* Key getters and setters*/
 	virtual string getBaseKey() const { return _baseKey;} 
@@ -130,16 +182,28 @@ class RedisAdapter: public IRedisAdapter {
 	virtual bool getDeviceStatus();
 	virtual void setDeviceStatus(bool status = true);
 
-    RedisCluster _redisCluster;
+    T _redis;
 
 	thread _reader;
     thread _listener;
 
 
-	map<string, std::function<void(std::string,std::string,std::string)>> patternSubscriptions;
-	map<string, std::function<void(std::string,std::string)>> subscriptions;
+    typedef struct
+    {
+        std::string pattern;
+        std::function<void(std::string,std::string,std::string)> function;
+    } patternFunctionPair;
+
+    typedef struct
+    {
+        std::string key;
+        std::function<void(std::string, std::string)> function;
+    } keyFunctionPair;
+
+    vector<patternFunctionPair> patternSubscriptions;
+    vector<keyFunctionPair> subscriptions;
 	map<string, std::function<void(std::string,std::string)>> commands;
-	
+
 
 	vector<string> streamKeys;
 	ItemStream buffer;
