@@ -85,10 +85,11 @@ RedisAdapter<RedisCluster>::RedisAdapter(const RedisAdapter<RedisCluster>& ra)
   _deviceKey = _baseKey + ":DEVICES";
 }
 
-template<typename T>
-RedisAdapter<T>::~RedisAdapter()
-{
-}
+template<>
+RedisAdapter<Redis>::~RedisAdapter(){}
+
+template<>
+RedisAdapter<RedisCluster>::~RedisAdapter(){}
 
 template<typename T>
 vector<string> RedisAdapter<T>::getDevices(){
