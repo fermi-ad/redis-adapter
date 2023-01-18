@@ -24,12 +24,12 @@ endfunction()
 
 
 # <------------ add hiredis dependency --------------->
-find_path(HIREDIS_HEADER hiredis)
+find_path(HIREDIS_HEADER_PATH hiredis)
 find_library(HIREDIS_LIB hiredis)
 
 # <------------ add redis-plus-plus dependency -------------->
 # NOTE: this should be *sw* NOT *redis++*
-find_path(REDIS_PLUS_PLUS_HEADER sw)
+find_path(REDIS_PLUS_PLUS_HEADER_PATH sw)
 find_library(REDIS_PLUS_PLUS_LIB redis++)
 
 # <------------ add pthread dependency -------------->
@@ -41,8 +41,8 @@ file(GLOB REDIS_ADAPTER_HEADERS IRedisAdapter.hpp RedisAdapterCluster.hpp RedisA
 
 # Create a list of the directories our headers are in
 get_directories_of_files("${REDIS_ADAPTER_HEADERS}" REDIS_ADAPTER_INCLUDE_DIRS)
-list(APPEND REDIS_ADAPTER_INCLUDE_DIRS ${HIREDS_HEADER})
-list(APPEND REDIS_ADAPTER_INCLUDE_DIRS ${REDIS_PLUS_PLUS_HEADER})
+list(APPEND REDIS_ADAPTER_INCLUDE_DIRS ${HIREDIS_HEADER_PATH})
+list(APPEND REDIS_ADAPTER_INCLUDE_DIRS ${REDIS_PLUS_PLUS_HEADER_PATH})
 list(REMOVE_DUPLICATES REDIS_ADAPTER_INCLUDE_DIRS)
 
 # Send the lists to the project that wants to include them.
