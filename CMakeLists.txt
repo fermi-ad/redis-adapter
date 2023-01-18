@@ -1,6 +1,28 @@
 cmake_minimum_required(VERSION 3.6)
 project(RedisAdapter LANGUAGES CXX)
 
+# todo put this somewhere where we can reuse it more broadly
+# function to extract include directories from a list of files
+# takes two arguments:
+#   - _headers: list of files
+#   - _var: variable to store the list of include directories
+#   - example usage get_directory_of_files("${REDIS_ADAPTER_HEADERS}" REDIS_ADAPTER_INCLUDE_DIRS)
+#         where REDIS_ADAPTER_HEADERS contains the names of the headers used and REDIS_ADAPTER_INCLUDE_DIRS is the name of the variable you want the result stored in
+function(get_directories_of_files _files _var)
+    # iterate over the list of files
+    foreach(_file ${_files})
+        # extract the directory of each header
+        get_filename_component(_dir ${_file} DIRECTORY)
+        # add the directory to the list of include directories
+        list(APPEND directories ${_dir})
+    endforeach()
+    # remove duplicates from the list of include directories
+    list(REMOVE_DUPLICATES directories)
+    # set the variable to the parent scope so it can be used outside the function
+    set(${_var} ${directories} PARENT_SCOPE)
+endfunction()
+
+
 # <------------ add hiredis dependency --------------->
 find_path(HIREDIS_HEADER hiredis)
 find_library(HIREDIS_LIB hiredis)
@@ -13,18 +35,19 @@ find_library(REDIS_PLUS_PLUS_LIB redis++)
 # <------------ add pthread dependency -------------->
 find_library(PTHREAD_LIB pthread)
 
+# Create a lists of headers and sources with complete path based on our source files
 file(GLOB REDIS_ADAPTER_SOURCES RedisAdapterCluster.cpp RedisAdapter.cpp RedisAdapterSingle.cpp)
-file(GLOB REDIS_ADAPTER_HEADERS IRedisAdapter.hpp RedisAdapterCluster.hpp RedisAdapter.hpp RedisAdapterSingle.hpp ${REDIS_PLUS_PLUS_HEADER} ${HIREDS_HEADER})
+file(GLOB REDIS_ADAPTER_HEADERS IRedisAdapter.hpp RedisAdapterCluster.hpp RedisAdapter.hpp RedisAdapterSingle.hpp)
 
+# Create a list of the directories our headers are in
+get_directories_of_files("${REDIS_ADAPTER_HEADERS}" REDIS_ADAPTER_INCLUDE_DIRS)
+list(APPEND REDIS_ADAPTER_INCLUDE_DIRS ${HIREDS_HEADER})
+list(APPEND REDIS_ADAPTER_INCLUDE_DIRS ${REDIS_PLUS_PLUS_HEADER})
+list(REMOVE_DUPLICATES REDIS_ADAPTER_INCLUDE_DIRS)
+
+# Send the lists to the project that wants to include them.
 set(REDIS_ADAPTER_SOURCES ${REDIS_ADAPTER_SOURCES} PARENT_SCOPE)
 set(REDIS_ADAPTER_HEADERS ${REDIS_ADAPTER_HEADERS} PARENT_SCOPE)
 set(REDIS_ADAPTER_LIBRARIES ${REDIS_PLUS_PLUS_LIB} ${HIREDIS_LIB} ${PTHREAD_LIB} PARENT_SCOPE)
-
-foreach(_header ${REDIS_ADAPTER_HEADERS})
-    get_filename_component(_dir ${_header} DIRECTORY)
-    list(APPEND REDIS_ADAPTER_INCLUDE_DIRS ${_dir})
-endforeach()
-list(REMOVE_DUPLICATES REDIS_ADAPTER_INCLUDE_DIRS)
 set(REDIS_ADAPTER_INCLUDE_DIRS ${REDIS_ADAPTER_INCLUDE_DIRS} PARENT_SCOPE)
-
 set(REDIS_ADAPTER_COMPILER_FEATURES cxx_std_17 PARENT_SCOPE)
