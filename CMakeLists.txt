@@ -4,7 +4,7 @@ project(RedisAdapter LANGUAGES CXX)
 # todo put this somewhere where we can reuse it more broadly
 # function to extract include directories from a list of files
 # takes two arguments:
-#   - _headers: list of files
+#   - _files: list of files
 #   - _var: variable to store the list of include directories
 #   - example usage get_directory_of_files("${REDIS_ADAPTER_HEADERS}" REDIS_ADAPTER_INCLUDE_DIRS)
 #         where REDIS_ADAPTER_HEADERS contains the names of the headers used and REDIS_ADAPTER_INCLUDE_DIRS is the name of the variable you want the result stored in
@@ -21,7 +21,6 @@ function(get_directories_of_files _files _var)
     # set the variable to the parent scope so it can be used outside the function
     set(${_var} ${directories} PARENT_SCOPE)
 endfunction()
-
 
 # <------------ add hiredis dependency --------------->
 find_path(HIREDIS_HEADER_PATH hiredis)
@@ -40,7 +39,9 @@ endif()
 
 # <------------ add pthread dependency -------------->
 find_library(PTHREAD_LIB pthread)
-
+if (NOT PTHREAD_LIB)
+	message(SEND_ERROR "Did not find pthread library. Install pthread library from your package manager")
+endif()
 
 # <------------ add TRACE dependency -------------->
 find_path(TRACE_HEADER_PATH TRACE)
