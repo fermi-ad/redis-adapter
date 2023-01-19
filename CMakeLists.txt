@@ -26,14 +26,27 @@ endfunction()
 # <------------ add hiredis dependency --------------->
 find_path(HIREDIS_HEADER_PATH hiredis)
 find_library(HIREDIS_LIB hiredis)
+if (NOT HIREDIS_HEADER_PATH OR NOT HIREDIS_LIB)
+	message(SEND_ERROR "Did not find hiredis library. Install hiredis library from your package manager")
+endif()
 
 # <------------ add redis-plus-plus dependency -------------->
 # NOTE: this should be *sw* NOT *redis++*
 find_path(REDIS_PLUS_PLUS_HEADER_PATH sw)
 find_library(REDIS_PLUS_PLUS_LIB redis++)
+if (NOT REDIS_PLUS_PLUS_HEADER_PATH OR NOT REDIS_PLUS_PLUS_LIB)
+	message(SEND_ERROR "Did not find redis++ library. Install redis plus plus from here: https://github.com/sewenew/redis-plus-plus")
+endif()
 
 # <------------ add pthread dependency -------------->
 find_library(PTHREAD_LIB pthread)
+
+
+# <------------ add TRACE dependency -------------->
+find_path(TRACE_HEADER_PATH TRACE)
+if (NOT TRACE_HEADER_PATH)
+	message(SEND_ERROR "Did not find TRACE library. Install TRACE library from here: git clone http://cdcvs.fnal.gov/projects/trace-git trace")
+endif()
 
 # Create a lists of headers and sources with complete path based on our source files
 file(GLOB REDIS_ADAPTER_SOURCES RedisAdapterCluster.cpp RedisAdapter.cpp RedisAdapterSingle.cpp)
@@ -43,6 +56,7 @@ file(GLOB REDIS_ADAPTER_HEADERS IRedisAdapter.hpp RedisAdapterCluster.hpp RedisA
 get_directories_of_files("${REDIS_ADAPTER_HEADERS}" REDIS_ADAPTER_INCLUDE_DIRS)
 list(APPEND REDIS_ADAPTER_INCLUDE_DIRS ${HIREDIS_HEADER_PATH})
 list(APPEND REDIS_ADAPTER_INCLUDE_DIRS ${REDIS_PLUS_PLUS_HEADER_PATH})
+list(APPEND REDIS_ADAPTER_INCLUDE_DIRS ${TRACE_HEADER_PATH})
 list(REMOVE_DUPLICATES REDIS_ADAPTER_INCLUDE_DIRS)
 
 # Send the lists to the project that wants to include them.
