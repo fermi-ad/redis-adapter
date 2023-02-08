@@ -207,26 +207,15 @@ void RedisAdapterSingle::logWrite(string key, string msg, string source){
   streamWrite(data, "*", key, 1000);
 }
 
+IRedisAdapter::ItemStream RedisAdapterSingle::logRead(uint count){
 
-vector<pair<string,string>> RedisAdapterSingle::logRead(std::string key, uint count){
-  vector<pair<string,string>> out;
-  string timeID;
-  try{
-    ItemStream result;
-    _redis.xrevrange(key, "+","-", count, back_inserter(result));
-    for(auto data : result){
-        timeID = data.first;
-        for (auto val : data.second){
-            out.push_back(val);
-        }
-
-    }
-    return out;  
-
-  }catch (const std::exception &err) {
-    TRACE(1,"xadd(" + key + ", " +timeID + ":" + to_string(count) + ", ...) failed: " + err.what());
-    return out;
+  ItemStream is ;
+  try{ 
+    _redis.xrevrange(getLogKey(), "+","-", count, back_inserter(is));
+  } catch (const std::exception &err) {
+    TRACE(1,"logRead(" + getLogKey()  + "," + to_string(count) + ") failed: " + err.what());
   }
+  return is;
 }
 
 void RedisAdapterSingle::streamTrim(string key, int size){
