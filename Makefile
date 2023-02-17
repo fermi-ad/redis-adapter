@@ -40,7 +40,7 @@ BI_LDFLAGS  = 	-L/usr/local/lib/ \
 				-lrt 
 
 
-
+LIB_STATIC   = lib$(BI_PROJECT).a
 SO_NAME      = lib$(BI_PROJECT).so
 SO_VER_NAME  = lib$(BI_PROJECT).so.$(BI_VERSION)
 SO_LONG_NAME = lib$(BI_PROJECT).so.$(BI_VERSION).$(BI_MINOR).$(BI_RELEASE)
@@ -58,13 +58,16 @@ test: test.o
 	$(CXX) ./test.o -o test $(BI_LDFLAGS) -lredisAdapter
 
 libredisadapter: RedisAdapter.o RedisAdapterCluster.o RedisAdapterSingle.o
-	$(BI_OUT) $(CXX) -shared -Wl,-soname,$(SO_NAME) -o $(SO_LONG_NAME)  RedisAdapter.o RedisAdapterCluster.o RedisAdapterSingle.o -lm $(BI_LDFLAGS) 
+	$(CXX) -shared -Wl,-soname,$(SO_NAME) -o $(SO_LONG_NAME)  RedisAdapter.o RedisAdapterCluster.o RedisAdapterSingle.o -lm $(BI_LDFLAGS)
+	$(AR) rcs libredisAdapter.a RedisAdapter.o RedisAdapterCluster.o RedisAdapterSingle.o
+
 
 clean:
 	rm -f *.o *.a *.so* test
 
 install:
 	install -d $(BI_LIB)
+	install -D -m 0755 $(LIB_STATIC) $(BI_LIB)
 	install -D -m 0755 $(SO_LONG_NAME) $(BI_LIB)
 	ln -sf $(SO_LONG_NAME) $(BI_LIB)/$(SO_VER_NAME)
 	ln -sf $(SO_VER_NAME) $(BI_LIB)/$(SO_NAME)
@@ -73,6 +76,7 @@ install:
 
 installp:
 	install -d $(BI_PRODUCTS_LIB)
+	install -D -m 0755 $(LIB_STATIC ) $(BI_PRODUTCS_LIB)
 	install -D -m 0755 $(SO_LONG_NAME) $(BI_PRODUCTS_LIB)
 	ln -sf $(SO_LONG_NAME) $(BI_PRODUCTS_LIB)/$(SO_VER_NAME)
 	ln -sf $(SO_VER_NAME) $(BI_PRODUCTSLIB)/$(SO_NAME0)
