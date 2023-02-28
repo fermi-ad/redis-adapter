@@ -6,6 +6,7 @@
  * @author rsantucc
  */
 
+#pragma once
 #ifndef RedisAdapterSingle_HPP
 #define RedisAdapterSingle_HPP
 
@@ -19,9 +20,14 @@
 #include <sw/redis++/redis++.h>
 #include "IRedisAdapter.hpp"
 #include <TRACE/trace.h>
+#include <span>
+#include <optional>
+#include <ranges>
+#include <vector>
 
 using namespace std;
 using namespace sw::redis;
+
   /**
    * RedisAdapterSingle
    */
@@ -44,7 +50,7 @@ class RedisAdapterSingle: public IRedisAdapter {
 	*  Note: These use the config connection
 	*
 	*/
-	virtual string getValue(string key);
+	virtual optional<string> getValue(string key);
 	virtual void setValue(string key, string val);
 	virtual int getUniqueValue(string key);
 	virtual unordered_map<string, string> getHash(string key);
@@ -59,12 +65,49 @@ class RedisAdapterSingle: public IRedisAdapter {
 	*/
 
 	virtual void streamWrite(vector<pair<string,string>> data, string timeID, string key, uint trim = 0);
+	void streamWriteOneField(const string& data, const string& timeID, const string& key, const string& field);
+	// Simplified version of streamWrite when you only have one element in the item you want to add to the stream, and you have binary data.
+	// When this is called an element is appended to the stream named 'key' that has one field named 'field' with the value data in binary form. 
+	// This is in the header to make it compile, if you move this to the source file, then it causes really wierd linker errors.
+	// @todo Consider performing host to network conversion for data compatibility.
+	static_assert(BYTE_ORDER == __LITTLE_ENDIAN); // Arm and x86 use the same byte order. If this ever fails we should look into this problem. 
+	template <ranges::input_range Range>
+	void streamWriteOneFieldRange(Range&& data, const string& timeID, const string& key, const string& field)
+	{
+	  // Copy data from the caller to a string so that it can be used by the redis++ API
+	  std::string_view view((char *)data.data(), data.size() * sizeof(*data.begin()));
+	  std::string temp(view);
+	  streamWriteOneField(temp, timeID, key, field);
+	}
 	virtual string streamReadBlock(std::unordered_map<string,string> keysID, int count, std::unordered_map<string,vector<float>>& result);
 	virtual void streamRead(string key, string time, int count, vector<float>& result);
 	virtual void streamRead(string key, string time, int count, ItemStream& dest);
 	virtual void streamTrim(string key, int size);
 	IRedisAdapter::ItemStream logRead(uint count);
 	virtual void logWrite(string key, string msg, string source);
+
+	// Read a single field from the element at desiredTime and return the actual time. 
+	// If this fails then return an empty optional
+	template<typename T>
+	std::optional<string> streamReadOneField(string key, string desiredTime, string field, vector<T>& dest)
+	{
+	  ItemStream result;
+	  streamRead(key,desiredTime,1, result);
+	  assert(result.size() != 0);
+	  std::optional<string> time = result.at(0).first;  
+	  Attrs attributes = result.at(0).second;
+	  // Find the field named field or return an empty optional
+	  auto fieldPointer = attributes.find(field);
+	  if (fieldPointer == attributes.end()) [[unlikely]]
+	  {
+	    time.reset();
+	    return time;
+	  }
+	  std::string& str = fieldPointer->second;
+	  dest.resize(str.length() / sizeof(T));
+	  memcpy(dest.data(), str.c_str(), str.length());
+	  return time;
+	}
 
 	/*
 	* Publish / Subscribe Functions
@@ -137,10 +180,20 @@ class RedisAdapterSingle: public IRedisAdapter {
     thread _listener;
 
 
-	map<string, std::function<void(std::string,std::string,std::string)>> patternSubscriptions;
-	map<string, std::function<void(std::string,std::string)>> subscriptions;
+    typedef struct
+    {
+        std::string pattern;
+        std::function<void(std::string,std::string,std::string)> function;
+    } patternFunctionPair;
+    typedef struct
+    {
+        std::string key;
+        std::function<void(std::string, std::string)> function;
+    } keyFunctionPair;
+    vector<patternFunctionPair> patternSubscriptions;
+    vector<keyFunctionPair> subscriptions;
 	map<string, std::function<void(std::string,std::string)>> commands;
-	
+
 
 	vector<string> streamKeys;
 	ItemStream buffer;

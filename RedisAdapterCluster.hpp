@@ -44,7 +44,7 @@ class RedisAdapterCluster: public IRedisAdapter {
 	*  Note: These use the config connection
 	*
 	*/
-	virtual string getValue(string key);
+	virtual optional<string> getValue(string key);
 	virtual void setValue(string key, string val);
 	virtual int getUniqueValue(string key);
 	virtual unordered_map<string, string> getHash(string key);
