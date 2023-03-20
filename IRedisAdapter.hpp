@@ -12,9 +12,11 @@
 #include <string>
 #include <functional>
 #include <unordered_set>
-#include <optional>
 #include <unordered_map>
 #include <vector>
+
+#include "/usr/local/include/sw/redis++/cxx_utils.h"
+
 
 using namespace std;
 //using Attrs = std::unordered_map<std::string, std::string>;
@@ -42,7 +44,7 @@ class IRedisAdapter {
 	*  Note: These use the config connection
 	*
 	*/
-	virtual optional<string> getValue(string key) = 0;
+	virtual sw::redis::Optional<string> getValue(string key) = 0;
 	virtual void setValue(string key, string val) = 0;
 	virtual int getUniqueValue(string key) = 0;
 	virtual unordered_map<string, string> getHash(string key) = 0;

@@ -10,20 +10,21 @@
 #ifndef RedisAdapterSingle_HPP
 #define RedisAdapterSingle_HPP
 
+#if __cplusplus >= 202002L
+#define CPLUSPLUS20_SUPPORTED
+#endif
+
 #include <string>
-#include <errno.h>
-#include <stdexcept>
-#include <unistd.h>
-#include <sstream>
-#include <iostream>
-#include <thread>
 #include <sw/redis++/redis++.h>
 #include "IRedisAdapter.hpp"
 #include <TRACE/trace.h>
-#include <span>
-#include <optional>
+#if defined(CPLUSPLUS20_SUPPORTED)
 #include <ranges>
+#endif
 #include <vector>
+#include <time.h>
+
+#include <sw/redis++/utils.h>
 
 using namespace std;
 using namespace sw::redis;
@@ -50,7 +51,7 @@ class RedisAdapterSingle: public IRedisAdapter {
 	*  Note: These use the config connection
 	*
 	*/
-	virtual optional<string> getValue(string key);
+	virtual sw::redis::Optional<string> getValue(string key);
 	virtual void setValue(string key, string val);
 	virtual int getUniqueValue(string key);
 	virtual unordered_map<string, string> getHash(string key);
@@ -66,6 +67,8 @@ class RedisAdapterSingle: public IRedisAdapter {
 
 	virtual void streamWrite(vector<pair<string,string>> data, string timeID, string key, uint trim = 0);
 	void streamWriteOneField(const string& data, const string& timeID, const string& key, const string& field);
+	
+	#if defined(CPLUSPLUS20_SUPPORTED)
 	// Simplified version of streamWrite when you only have one element in the item you want to add to the stream, and you have binary data.
 	// When this is called an element is appended to the stream named 'key' that has one field named 'field' with the value data in binary form. 
 	// This is in the header to make it compile, if you move this to the source file, then it causes really wierd linker errors.
@@ -79,6 +82,8 @@ class RedisAdapterSingle: public IRedisAdapter {
 	  std::string temp(view);
 	  streamWriteOneField(temp, timeID, key, field);
 	}
+	#endif
+
 	virtual string streamReadBlock(std::unordered_map<string,string> keysID, int count, std::unordered_map<string,vector<float>>& result);
 	virtual void streamRead(string key, string time, int count, vector<float>& result);
 	virtual void streamRead(string key, string time, int count, ItemStream& dest);
@@ -89,16 +94,16 @@ class RedisAdapterSingle: public IRedisAdapter {
 	// Read a single field from the element at desiredTime and return the actual time. 
 	// If this fails then return an empty optional
 	template<typename T>
-	std::optional<string> streamReadOneField(string key, string desiredTime, string field, vector<T>& dest)
+	sw::redis::Optional<string> streamReadOneField(string key, string desiredTime, string field, vector<T>& dest)
 	{
 	  ItemStream result;
 	  streamRead(key,desiredTime,1, result);
 	  assert(result.size() != 0);
-	  std::optional<string> time = result.at(0).first;  
+	  sw::redis::Optional<string> time = result.at(0).first;  
 	  Attrs attributes = result.at(0).second;
 	  // Find the field named field or return an empty optional
 	  auto fieldPointer = attributes.find(field);
-	  if (fieldPointer == attributes.end()) [[unlikely]]
+	  if (fieldPointer == attributes.end()) // if the field isn't in the item in the st
 	  {
 	    time.reset();
 	    return time;
@@ -135,6 +140,7 @@ class RedisAdapterSingle: public IRedisAdapter {
 	* Time
 	*/
 	virtual vector<string> getServerTime();
+	sw::redis::Optional<timespec> getServerTimespec();
 
 	/* Key getters and setters*/
 	virtual string getBaseKey() const { return _baseKey;} 

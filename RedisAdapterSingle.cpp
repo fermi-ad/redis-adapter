@@ -11,7 +11,6 @@
 
 #include <exception>
 
-
 using namespace sw::redis;
 using namespace std;
 
@@ -71,9 +70,7 @@ void RedisAdapterSingle::clearDevices(string devicelist)
 * Get Device Config
 */
 void RedisAdapterSingle::setDeviceConfig(std::unordered_map<std::string, std::string> map){
-
     setHash(_configKey, map);
-
 }
 
 std::unordered_map<std::string, std::string> RedisAdapterSingle::getDeviceConfig(){
@@ -84,11 +81,7 @@ void RedisAdapterSingle::setDevice(string name){
   setSet(_deviceKey, name);
 }
 
-
-
- optional<string> RedisAdapterSingle::getValue(string key){
-
-  //return *(_redis.get(key));
+sw::redis::Optional<string> RedisAdapterSingle::getValue(string key){
   return _redis.get(key);
 }
 
@@ -235,7 +228,6 @@ void RedisAdapterSingle::logWrite(string key, string msg, string source){
 }
 
 IRedisAdapter::ItemStream RedisAdapterSingle::logRead(uint count){
-
   ItemStream is ;
   try{ 
     _redis.xrevrange(getLogKey(), "+","-", count, back_inserter(is));
@@ -259,7 +251,6 @@ void RedisAdapterSingle::streamTrim(string key, int size){
 void RedisAdapterSingle::publish(string msg){
   try{
       _redis.publish(_channelKey, msg);
-
   }catch (const std::exception &err) {
     TRACE(1,"publish(" + _channelKey + ", " +msg+ ", ...) failed: " + err.what());
   }
@@ -319,6 +310,19 @@ vector<string> RedisAdapterSingle::getServerTime(){
   return result;
 }
 
+sw::redis::Optional<timespec> RedisAdapterSingle::getServerTimespec()
+{
+  std::vector<string> result;
+  _redis.command("time", std::back_inserter(result));
+  // The redis command time is returns an array with the first element being the time in seconds and the second being the microseconds within that second
+  if (result.size() != 2) { return std::nullopt; }
+  timespec ts;
+  ts.tv_sec  = stoll(result.at(0));        // first element contains unix time
+  ts.tv_nsec = stoll(result.at(1)) * 1000; // second element contains microseconds in the second
+
+  return ts;
+}
+
 void RedisAdapterSingle::psubscribe(std::string pattern, std::function<void(std::string,std::string,std::string)> func){
   patternSubscriptions.push_back({ .pattern=pattern, .function=func });
 }
@@ -356,19 +360,32 @@ void RedisAdapterSingle::listener(){
             search->second(key, msg);
           }
           else{
-            // Loop over the members of patternSubscriptions that have the same pattern as this event
-            for (auto function : patternSubscriptions | std::views::filter([&](patternFunctionPair pair){ return pair.pattern == pattern; }))
+            vector<patternFunctionPair> matchingPatterns;
+            for (patternFunctionPair patternSubscription : patternSubscriptions)
             {
-              function.function(pattern, key, msg);
+              if (patternSubscription.pattern == pattern) { matchingPatterns.push_back(patternSubscription); }
+            }
+    
+            // Loop over the members of patternSubscriptions that have the same pattern as this event
+            for (patternFunctionPair patternFunction : matchingPatterns)
+            {
+              patternFunction.function(pattern, key, msg);
             }
           }
         });
 
         _sub.on_message([&](std::string key, std::string msg) {
-          // Loop over the members of subscriptions that have the same key as this event
-          for (auto function : subscriptions | std::views::filter([&](keyFunctionPair pair){ return pair.key == key; }))
+          
+          vector<keyFunctionPair> matchingSubscriptions;
+          for (keyFunctionPair subscription : subscriptions)
           {
-            function.function(key, msg);
+            if (subscription.key == key) { matchingSubscriptions.push_back(subscription); }
+          }
+
+          // Loop over the members of subscriptions that have the same key as this event
+          for (keyFunctionPair keyFunction : matchingSubscriptions)
+          {
+            keyFunction.function(key, msg);
           }
         });
         //The default is everything published on ChannelKey

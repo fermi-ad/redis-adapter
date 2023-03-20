@@ -83,7 +83,7 @@ void RedisAdapter::setDevice(string name){
 
 
 
- optional<string> RedisAdapter::getValue(string key){
+ sw::redis::Optional<string> RedisAdapter::getValue(string key){
 
   return *(_redisCluster.get(key));
 }
