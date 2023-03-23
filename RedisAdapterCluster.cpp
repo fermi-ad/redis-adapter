@@ -84,7 +84,7 @@ void RedisAdapterCluster::setDevice(string name){
 
 
 
- string RedisAdapterCluster::getValue(string key){
+ sw::redis::Optional<string> RedisAdapterCluster::getValue(string key){
 
   return *(_redisCluster.get(key));
 }
@@ -262,7 +262,7 @@ inline bool const StringToBool(string const& s){
     return s != "0";
   }
 bool RedisAdapterCluster::getDeviceStatus() {
-  return StringToBool(getValue(_statusKey));
+  return StringToBool(getValue(_statusKey).value());
 }
 void RedisAdapterCluster::setDeviceStatus(bool status){
   setValue(getStatusKey(), to_string((int)status));
@@ -281,7 +281,7 @@ void RedisAdapterCluster::copyKey( string src, string dest, bool data){
 //    return s != "0";
 //  }
 bool RedisAdapterCluster::getAbortFlag(){
-  return StringToBool(getValue(_abortKey));
+  return StringToBool(getValue(_abortKey).value());
 }
 
 inline const char * const BoolToString(bool b){
