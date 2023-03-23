@@ -314,6 +314,7 @@ void RedisAdapter<T>::publish(string msg){
   }catch (const std::exception &err) {
     TRACE(1,"publish(" + _channelKey + ", " +msg+ ", ...) failed: " + err.what());
   }
+
 }
 
 template<typename T>
@@ -340,14 +341,19 @@ void RedisAdapter<T>::setDeviceStatus(bool status){
   setValue(getStatusKey(), to_string((int)status));
 }
 
-template<typename T>
-void RedisAdapter<T>::copyKey( string src, string dest, bool data){
+template<>
+void RedisAdapter<Redis>::copyKey( string src, string dest, bool data){
+    _redis.command<void>("copy", src, dest);
+}
+
+template<>
+void RedisAdapter<RedisCluster>::copyKey( string src, string dest, bool data){
     _redis.command<void>("copy", src, dest);
 }
 
 template<typename T>
 void RedisAdapter<T>::deleteKey( string key ){
-  _redis.command<long long>("del", key);
+  _redis.del(key);
 }
 
 template<typename T>

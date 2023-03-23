@@ -95,7 +95,6 @@ class RedisAdapter: public IRedisAdapter {
 
 	// Read a single field from the element at desiredTime and return the actual time. 
 	// If this fails then return an empty optional
-	template<typename T>
 	sw::redis::Optional<string> streamReadOneField(string key, string desiredTime, string field, vector<T>& dest)
 	{
 	  ItemStream result;
@@ -215,5 +214,7 @@ class RedisAdapter: public IRedisAdapter {
 	std::string	 _dataBaseKey;
 	std::string _connection;
   };
+using RedisAdapterSingle = RedisAdapter<Redis>;
+using RedisAdapterCluster = RedisAdapter<RedisCluster>;
 
 #endif

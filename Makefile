@@ -17,7 +17,7 @@ BI_OUT =
 # specify all header files to be installed in the includes directory
 HEADERS      = $(wildcard [!_]*.hpp)
 
-BI_CPPFLAGS = 			-I. \
+BI_CPPFLAGS = 	-I. \
 				-I$(BI_INC) \
 				-DLINUX \
 				-g \
@@ -27,7 +27,7 @@ BI_CPPFLAGS = 			-I. \
 				-fPIC \
 				-Wno-format-extra-args \
 				-Wno-literal-suffix \
-				-std=c++11 \
+				-std=c++2a \
 				-D_REENTRANT \
 				-DVERSION_ID=$(REDISADAPTER_VERSION)
 
