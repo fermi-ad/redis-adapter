@@ -17,7 +17,7 @@ BI_OUT =
 # specify all header files to be installed in the includes directory
 HEADERS      = $(wildcard [!_]*.hpp)
 
-BI_CPPFLAGS = 			-I. \
+BI_CPPFLAGS = 	-I. \
 				-I$(BI_INC) \
 				-DLINUX \
 				-g \
@@ -57,10 +57,9 @@ all: clean libredisadapter
 test: test.o 
 	$(CXX) ./test.o -o test $(BI_LDFLAGS) -lredisAdapter
 
-libredisadapter: RedisAdapter.o RedisAdapterCluster.o RedisAdapterSingle.o
-	$(CXX) -shared -Wl,-soname,$(SO_NAME) -o $(SO_LONG_NAME)  RedisAdapter.o RedisAdapterCluster.o RedisAdapterSingle.o -lm $(BI_LDFLAGS)
-	$(AR) rcs libredisAdapter.a RedisAdapter.o RedisAdapterCluster.o RedisAdapterSingle.o
-
+libredisadapter: RedisAdapter.o 
+	$(BI_OUT) $(CXX) -shared -Wl,-soname,$(SO_NAME) -o $(SO_LONG_NAME)  RedisAdapter.o -lm $(BI_LDFLAGS) 
+	$(AR) rcs libredisAdapter.a RedisAdapter.o 
 
 clean:
 	rm -f *.o *.a *.so* test
