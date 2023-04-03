@@ -19,10 +19,6 @@
 
 
 using namespace std;
-//using Attrs = std::unordered_map<std::string, std::string>;
-//using Item = std::pair<std::string, Attrs>;
-//using ItemStream = std::vector<Item>;
-
 
   /**
    * RedisAdapter
@@ -32,6 +28,7 @@ class IRedisAdapter {
 	using Attrs = std::unordered_map<std::string, std::string>;
 	using Item = std::pair<std::string, Attrs>;
 	using ItemStream = std::vector<Item>;
+	using Streams =  std::unordered_map<std::string, ItemStream>;
 
 	virtual vector<string> getDevices() = 0;
     virtual void clearDevices(string devicelist) = 0;
@@ -59,7 +56,6 @@ class IRedisAdapter {
 	*/
 
 	virtual void streamWrite(vector<pair<string,string>> data, string timeID, string key, uint trim = 0) = 0;
-	virtual string streamReadBlock(std::unordered_map<string,string> keysID, int count, std::unordered_map<string,vector<float>>& result) = 0;
 	virtual void streamRead(string key, string time, int count, vector<float>& result) = 0;
 	virtual void streamRead(string key, string time, int count, ItemStream& dest) = 0;
 	virtual void streamTrim(string key, int size) = 0;
@@ -75,6 +71,7 @@ class IRedisAdapter {
 	virtual void psubscribe(std::string pattern, std::function<void(std::string,std::string,std::string)> f) = 0;
 	virtual void subscribe(std::string channel, std::function<void(std::string,std::string)> f) = 0;
 	virtual void registerCommand(std::string command, std::function<void(std::string, std::string)> f) = 0;
+	virtual void addReader(string streamKey,  std::function<void(ItemStream)> func);
 
 	/*
 	* Copy Functions
