@@ -86,7 +86,7 @@ class RedisAdapter: public IRedisAdapter {
 	}
 	#endif
 
-	void streamReadBlock(T redisConnection, std::unordered_map<string,string>& keysID, Streams& result);
+	void streamReadBlock(T& redisConnection, std::unordered_map<string,string>& keysID, Streams& result);
 	virtual void streamRead(string key, string time, int count, vector<float>& result);
 	virtual void streamRead(string key, string time, int count, ItemStream& dest);
 	virtual void streamTrim(string key, int size);

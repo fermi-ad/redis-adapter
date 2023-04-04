@@ -227,7 +227,7 @@ void RedisAdapter<T>::streamWriteOneField(const string& data, const string& time
 }
 
 template<typename T>
-void RedisAdapter<T>::streamReadBlock(T redisConnection, std::unordered_map<string,string>& keysID, Streams& dest){
+void RedisAdapter<T>::streamReadBlock(T& redisConnection, std::unordered_map<string,string>& keysID, Streams& dest){
 
   try{
     redisConnection.xread(keysID.begin(), keysID.end(), std::chrono::seconds(0), 10, std::inserter(dest, dest.end()));
@@ -503,7 +503,7 @@ void RedisAdapter<T>::reader(){
   while (true) {
     try {
         streamsBuffer.clear();
-        streamReadBlock(move(streamRedis), streamKeyID, streamsBuffer);
+        streamReadBlock(streamRedis, streamKeyID, streamsBuffer);
         //iterate thorugh the buffer and pass onto the correct handler
         for(auto is : streamsBuffer){
           for (streamKeyFunctionPair streamSubscription : streamSubscriptions){
