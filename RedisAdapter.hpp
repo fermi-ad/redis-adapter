@@ -90,12 +90,13 @@ class RedisAdapter: public IRedisAdapter {
 	virtual void streamRead(string key, string time, int count, vector<float>& result);
 	virtual void streamRead(string key, string time, int count, ItemStream& dest);
 	virtual void streamTrim(string key, int size);
-	IRedisAdapter::ItemStream logRead(uint count);
+	virtual IRedisAdapter::ItemStream logRead(uint count);
 	virtual void logWrite(string key, string msg, string source);
 
 	// Read a single field from the element at desiredTime and return the actual time. 
 	// If this fails then return an empty optional
-	sw::redis::Optional<string> streamReadOneField(string key, string desiredTime, string field, vector<T>& dest)
+	template<typename Type>
+	sw::redis::Optional<string> streamReadOneField(string key, string desiredTime, string field, vector<Type>& dest)
 	{
 	  ItemStream result;
 	  streamRead(key,desiredTime,1, result);

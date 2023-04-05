@@ -71,12 +71,12 @@ class IRedisAdapter {
 	virtual void psubscribe(std::string pattern, std::function<void(std::string,std::string,std::string)> f) = 0;
 	virtual void subscribe(std::string channel, std::function<void(std::string,std::string)> f) = 0;
 	virtual void registerCommand(std::string command, std::function<void(std::string, std::string)> f) = 0;
-	virtual void addReader(string streamKey,  std::function<void(ItemStream)> func);
+	virtual void addReader(string streamKey,  std::function<void(ItemStream)> func) = 0;
 
 	/*
 	* Copy Functions
 	*/
-	virtual void copyKey(string src, string dest, bool data = false) = 0;;
+	virtual void copyKey(string src, string dest, bool data = false) = 0;
 
 	/*
 	*	Abort Flag
