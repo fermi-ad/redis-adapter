@@ -26,6 +26,8 @@
 
 #include <sw/redis++/utils.h>
 
+#include <thread>
+
 using namespace std;
 using namespace sw::redis;
 
