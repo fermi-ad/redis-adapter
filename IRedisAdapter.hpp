@@ -58,6 +58,8 @@ class IRedisAdapter {
 	virtual void streamWrite(vector<pair<string,string>> data, string timeID, string key, uint trim = 0) = 0;
 	virtual void streamRead(string key, string time, int count, vector<float>& result) = 0;
 	virtual void streamRead(string key, string time, int count, ItemStream& dest) = 0;
+	virtual void streamRead(string key, int count, ItemStream& dest) = 0;
+	virtual void streamRead(string key, string timeA, string timeB, ItemStream& dest) = 0;
 	virtual void streamTrim(string key, int size) = 0;
 	virtual ItemStream logRead(uint count) = 0;
 	virtual void logWrite(string key, string msg, string source) = 0;

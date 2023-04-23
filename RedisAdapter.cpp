@@ -246,12 +246,32 @@ void RedisAdapter<T>::streamReadBlock(T& redisConnection, std::unordered_map<str
 }
 
 template<typename T>
-void RedisAdapter<T>::streamRead(string key, string time, int count, ItemStream& dest) {
+void RedisAdapter<T>::streamRead(string key, int count, ItemStream& dest) {
 
   try{
     _redis.xrevrange(key, "+","-", count, back_inserter(dest));
   }catch (const std::exception &err) {
+    TRACE(1,"xadd(" + key + ",:" + to_string(count) + ", ...) failed: " + err.what());
+  }
+}
+
+template<typename T>
+void RedisAdapter<T>::streamRead(string key, string time, int count, ItemStream& dest) {
+
+  try{
+    _redis.xrevrange(key, "+",time, count, back_inserter(dest));
+  }catch (const std::exception &err) {
     TRACE(1,"xadd(" + key + ", " +time + ":" + to_string(count) + ", ...) failed: " + err.what());
+  }
+}
+
+template<typename T>
+void RedisAdapter<T>::streamRead(string key, string timeA, string timeB, ItemStream& dest) {
+
+  try{
+    _redis.xrevrange(key, timeB, timeA, back_inserter(dest));
+  }catch (const std::exception &err) {
+    TRACE(1,"xadd(" + key + ", " +timeA + ", ...) failed: " + err.what());
   }
 }
 
