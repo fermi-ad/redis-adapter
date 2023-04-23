@@ -190,8 +190,8 @@ class RedisAdapter: public IRedisAdapter {
     T _redis;
 	std::string _conenction;
 
-	thread _reader;
-    thread _listener;
+	std::thread _reader;
+    std::thread _listener;
 
 
     typedef struct
