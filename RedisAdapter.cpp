@@ -29,7 +29,6 @@ RedisAdapter<Redis>::RedisAdapter( string key, string connection )
   _dataBaseKey= _baseKey + ":DATA";
   _deviceKey = _baseKey + ":DEVICES";
 
-  TRACE(2,"Loaded Redis Adapters");
 
 }
 
@@ -47,7 +46,6 @@ RedisAdapter<RedisCluster>::RedisAdapter( string key, string connection )
   _dataBaseKey= _baseKey + ":DATA";
   _deviceKey = _baseKey + ":DEVICES";
 
-  TRACE(2,"Loaded Redis Adapters");
 
 }
 
@@ -209,7 +207,6 @@ void RedisAdapter<T>::streamWrite(vector<pair<string,string>> data, string timeI
     if(trim)
       streamTrim(key, trim);
   }catch (const std::exception &err) {
-    TRACE(1,"xadd(" + key + ", " + ", ...) failed: " + err.what());
   }
 }
 
@@ -241,7 +238,6 @@ void RedisAdapter<T>::streamReadBlock(T& redisConnection, std::unordered_map<str
     }
 
   }catch (const std::exception &err) {
-    TRACE(1,"streamReadBlock fail time: err: " + string(err.what()));
   }
 }
 
@@ -251,7 +247,6 @@ void RedisAdapter<T>::streamRead(string key, int count, ItemStream& dest) {
   try{
     _redis.xrevrange(key, "+","-", count, back_inserter(dest));
   }catch (const std::exception &err) {
-    TRACE(1,"xadd(" + key + ",:" + to_string(count) + ", ...) failed: " + err.what());
   }
 }
 
@@ -261,7 +256,6 @@ void RedisAdapter<T>::streamRead(string key, string time, int count, ItemStream&
   try{
     _redis.xrevrange(key, "+",time, count, back_inserter(dest));
   }catch (const std::exception &err) {
-    TRACE(1,"xadd(" + key + ", " +time + ":" + to_string(count) + ", ...) failed: " + err.what());
   }
 }
 
@@ -271,7 +265,6 @@ void RedisAdapter<T>::streamRead(string key, string timeA, string timeB, ItemStr
   try{
     _redis.xrevrange(key, timeB, timeA, back_inserter(dest));
   }catch (const std::exception &err) {
-    TRACE(1,"xadd(" + key + ", " +timeA + ", ...) failed: " + err.what());
   }
 }
 
@@ -292,7 +285,6 @@ void RedisAdapter<T>::streamRead(string key, string time, int count, vector<floa
         }
     }
   }catch (const std::exception &err) {
-    TRACE(1,"xadd(" + key + ", " +time + ":" + to_string(count) + ", ...) failed: " + err.what());
   }
 }
 
@@ -309,7 +301,6 @@ IRedisAdapter::ItemStream RedisAdapter<T>::logRead(uint count){
   try{ 
     _redis.xrevrange(getLogKey(), "+","-", count, back_inserter(is));
   } catch (const std::exception &err) {
-    TRACE(1,"logRead(" + getLogKey()  + "," + to_string(count) + ") failed: " + err.what());
   }
   return is;
 }
@@ -320,7 +311,6 @@ void RedisAdapter<T>::streamTrim(string key, int size){
       _redis.xtrim(key, size, false);
 
   }catch (const std::exception &err) {
-    TRACE(1,"xtrim(" + key + ", " +to_string(size)+ ", ...) failed: " + err.what());
   }
 }
 
@@ -330,7 +320,6 @@ void RedisAdapter<T>::publish(string msg){
   try{
       _redis.publish(_channelKey, msg);
   }catch (const std::exception &err) {
-    TRACE(1,"publish(" + _channelKey + ", " +msg+ ", ...) failed: " + err.what());
   }
 
 }
@@ -341,7 +330,6 @@ void RedisAdapter<T>::publish(string key, string msg){
       _redis.publish(_channelKey + ":" + key, msg);
 
   }catch (const std::exception &err) {
-    TRACE(1,"publish(" + _channelKey + ", " +msg+ ", ...) failed: " + err.what());
   }
 }
 

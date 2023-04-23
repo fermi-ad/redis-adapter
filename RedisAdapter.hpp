@@ -24,6 +24,13 @@
 #include <vector>
 #include <time.h>
 
+
+#include <string>
+#include <errno.h>
+#include <stdexcept>
+#include <unistd.h>
+#include <sstream>
+#include <iostream>
 #include <sw/redis++/utils.h>
 
 #include <thread>
