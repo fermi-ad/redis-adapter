@@ -17,6 +17,7 @@ using namespace std;
 template<>
 RedisAdapter<Redis>::RedisAdapter( string key, string connection )
 :_redis(connection),
+ _connection(connection),
  _baseKey(key)
 {
   _connection = connection;
@@ -28,7 +29,6 @@ RedisAdapter<Redis>::RedisAdapter( string key, string connection )
   _dataBaseKey= _baseKey + ":DATA";
   _deviceKey = _baseKey + ":DEVICES";
 
-  TRACE(2,"Loaded Redis Adapters");
 
 }
 
@@ -46,7 +46,6 @@ RedisAdapter<RedisCluster>::RedisAdapter( string key, string connection )
   _dataBaseKey= _baseKey + ":DATA";
   _deviceKey = _baseKey + ":DEVICES";
 
-  TRACE(2,"Loaded Redis Adapters");
 
 }
 
@@ -69,6 +68,7 @@ RedisAdapter<Redis>::RedisAdapter(const RedisAdapter<Redis>& ra)
   _timeKey  = _baseKey + ":TIME";
   _dataBaseKey  = _baseKey + ":DATA";
   _deviceKey = _baseKey + ":DEVICES";
+
 }
 
 template<>
@@ -207,7 +207,6 @@ void RedisAdapter<T>::streamWrite(vector<pair<string,string>> data, string timeI
     if(trim)
       streamTrim(key, trim);
   }catch (const std::exception &err) {
-    TRACE(1,"xadd(" + key + ", " + ", ...) failed: " + err.what());
   }
 }
 
@@ -225,25 +224,29 @@ void RedisAdapter<T>::streamWriteOneField(const string& data, const string& time
 }
 
 template<typename T>
-string RedisAdapter<T>::streamReadBlock(std::unordered_map<string,string> keysID, int count, std::unordered_map<string,vector<float>>& dest){
-  string timeID = "";
+void RedisAdapter<T>::streamReadBlock(T& redisConnection, std::unordered_map<string,string>& keysID, Streams& dest){
+
   try{
-    std::unordered_map<std::string, ItemStream> result;
-    _redis.xread(keysID.begin(),keysID.end(), count, std::inserter(result, result.end()) );
-    for(auto key : result){
-      string dataKey = key.first;
-      for(auto data : key.second){
-        timeID = data.first;
-        for (auto val : data.second){
-          dest[dataKey].resize(val.second.length() / sizeof(float));
-          memcpy(dest[dataKey].data(),val.second.data(),val.second.length());
-        }
-      }
+    redisConnection.xread(keysID.begin(), keysID.end(), std::chrono::seconds(0), 10, std::inserter(dest, dest.end()));
+    //Update the time of last message, multiple different streams can return at once, default times use "$"
+    //this is equivalent to saying start from where the stream is now. Listen for only new input.
+    //We will get the newest time from the last element in an ItemStream
+    //Messages are returned simlar to tail -f, newest message is last. Update last time
+    for( auto val : dest){
+      if (!val.second.empty())
+        keysID[val.first] = val.second.back().first;
     }
-    return timeID;  
+
   }catch (const std::exception &err) {
-    TRACE(1,"streamReadBlock fail time: " +timeID+" err: " + err.what());
-    return "$";
+  }
+}
+
+template<typename T>
+void RedisAdapter<T>::streamRead(string key, int count, ItemStream& dest) {
+
+  try{
+    _redis.xrevrange(key, "+","-", count, back_inserter(dest));
+  }catch (const std::exception &err) {
   }
 }
 
@@ -251,9 +254,17 @@ template<typename T>
 void RedisAdapter<T>::streamRead(string key, string time, int count, ItemStream& dest) {
 
   try{
-    _redis.xrevrange(key, "+","-", count, back_inserter(dest));
+    _redis.xrevrange(key, "+",time, count, back_inserter(dest));
   }catch (const std::exception &err) {
-    TRACE(1,"xadd(" + key + ", " +time + ":" + to_string(count) + ", ...) failed: " + err.what());
+  }
+}
+
+template<typename T>
+void RedisAdapter<T>::streamRead(string key, string timeA, string timeB, ItemStream& dest) {
+
+  try{
+    _redis.xrevrange(key, timeB, timeA, back_inserter(dest));
+  }catch (const std::exception &err) {
   }
 }
 
@@ -274,7 +285,6 @@ void RedisAdapter<T>::streamRead(string key, string time, int count, vector<floa
         }
     }
   }catch (const std::exception &err) {
-    TRACE(1,"xadd(" + key + ", " +time + ":" + to_string(count) + ", ...) failed: " + err.what());
   }
 }
 
@@ -291,7 +301,6 @@ IRedisAdapter::ItemStream RedisAdapter<T>::logRead(uint count){
   try{ 
     _redis.xrevrange(getLogKey(), "+","-", count, back_inserter(is));
   } catch (const std::exception &err) {
-    TRACE(1,"logRead(" + getLogKey()  + "," + to_string(count) + ") failed: " + err.what());
   }
   return is;
 }
@@ -302,7 +311,6 @@ void RedisAdapter<T>::streamTrim(string key, int size){
       _redis.xtrim(key, size, false);
 
   }catch (const std::exception &err) {
-    TRACE(1,"xtrim(" + key + ", " +to_string(size)+ ", ...) failed: " + err.what());
   }
 }
 
@@ -312,7 +320,6 @@ void RedisAdapter<T>::publish(string msg){
   try{
       _redis.publish(_channelKey, msg);
   }catch (const std::exception &err) {
-    TRACE(1,"publish(" + _channelKey + ", " +msg+ ", ...) failed: " + err.what());
   }
 
 }
@@ -323,7 +330,6 @@ void RedisAdapter<T>::publish(string key, string msg){
       _redis.publish(_channelKey + ":" + key, msg);
 
   }catch (const std::exception &err) {
-    TRACE(1,"publish(" + _channelKey + ", " +msg+ ", ...) failed: " + err.what());
   }
 }
 
@@ -490,21 +496,35 @@ void RedisAdapter<T>::listener(){
   }
 }
 
+
+template<typename T>
+void RedisAdapter<T>::addReader(string streamKey,  std::function<void(ItemStream)> func){
+  streamKeyID.emplace(streamKey,"$");
+  streamSubscriptions.push_back(streamKeyFunctionPair{ .streamKey=streamKey, .function=func});
+}
+
 template<typename T>
 void RedisAdapter<T>::reader(){
-  // Read the stream for data
-
+  //Create a new redis connection only used for streams
+  auto streamRedis = T(_connection);
+  Streams streamsBuffer;
   while (true) {
     try {
-        //streamtime = _redis.streamReadBlock(streamKeys, 1, buffer);
+        streamsBuffer.clear();
+        streamReadBlock(streamRedis, streamKeyID, streamsBuffer);
+        //iterate thorugh the buffer and pass onto the correct handler
+        for(auto is : streamsBuffer){
+          for (streamKeyFunctionPair streamSubscription : streamSubscriptions){
+            if (streamSubscription.streamKey == is.first){ 
+              streamSubscription.function(is.second);
+            }
+          }
+        }
 
     }
-    catch(const TimeoutError &e) {
-        continue;
-    }
-    catch (...) {
+    catch (std::exception &e) {
         // Handle unrecoverable exceptions. Need to re create redis connection
-        std::cout << "AN ERROR OCCURED, trying to recover" << std::endl;
+        std::cout << "ERROR " << e.what() << " occured, trying to recover" << std::endl;
         continue;
     }
   }

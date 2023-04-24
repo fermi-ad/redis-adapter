@@ -50,8 +50,8 @@ if (NOT TRACE_HEADER_PATH)
 endif()
 
 # Create a lists of headers and sources with complete path based on our source files
-file(GLOB REDIS_ADAPTER_SOURCES RedisAdapterCluster.cpp RedisAdapter.cpp RedisAdapterSingle.cpp)
-file(GLOB REDIS_ADAPTER_HEADERS IRedisAdapter.hpp RedisAdapterCluster.hpp RedisAdapter.hpp RedisAdapterSingle.hpp)
+file(GLOB REDIS_ADAPTER_SOURCES RedisAdapter.cpp)
+file(GLOB REDIS_ADAPTER_HEADERS IRedisAdapter.hpp RedisAdapter.hpp)
 
 # Create a list of the directories our headers are in
 get_directories_of_files("${REDIS_ADAPTER_HEADERS}" REDIS_ADAPTER_INCLUDE_DIRS)

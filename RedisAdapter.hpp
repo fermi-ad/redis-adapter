@@ -24,7 +24,16 @@
 #include <vector>
 #include <time.h>
 
+
+#include <string>
+#include <errno.h>
+#include <stdexcept>
+#include <unistd.h>
+#include <sstream>
+#include <iostream>
 #include <sw/redis++/utils.h>
+
+#include <thread>
 
 using namespace std;
 using namespace sw::redis;
@@ -86,16 +95,19 @@ class RedisAdapter: public IRedisAdapter {
 	}
 	#endif
 
-	virtual string streamReadBlock(std::unordered_map<string,string> keysID, int count, std::unordered_map<string,vector<float>>& result);
+	void streamReadBlock(T& redisConnection, std::unordered_map<string,string>& keysID, Streams& result);
 	virtual void streamRead(string key, string time, int count, vector<float>& result);
 	virtual void streamRead(string key, string time, int count, ItemStream& dest);
+	virtual void streamRead(string key, int count, ItemStream& dest);
+	virtual void streamRead(string key, string timeA, string timeB, ItemStream& dest);
 	virtual void streamTrim(string key, int size);
-	IRedisAdapter::ItemStream logRead(uint count);
+	virtual IRedisAdapter::ItemStream logRead(uint count);
 	virtual void logWrite(string key, string msg, string source);
 
 	// Read a single field from the element at desiredTime and return the actual time. 
 	// If this fails then return an empty optional
-	sw::redis::Optional<string> streamReadOneField(string key, string desiredTime, string field, vector<T>& dest)
+	template<typename Type>
+	sw::redis::Optional<string> streamReadOneField(string key, string desiredTime, string field, vector<Type>& dest)
 	{
 	  ItemStream result;
 	  streamRead(key,desiredTime,1, result);
@@ -124,6 +136,7 @@ class RedisAdapter: public IRedisAdapter {
 	virtual void psubscribe(std::string pattern, std::function<void(std::string,std::string,std::string)> f);
 	virtual void subscribe(std::string channel, std::function<void(std::string,std::string)> f);
 	virtual void registerCommand(std::string command, std::function<void(std::string, std::string)> f);
+	virtual void addReader(string streamKey,  std::function<void(ItemStream)> func);
 
 	/*
 	* Copy & Delete Functions
@@ -182,9 +195,10 @@ class RedisAdapter: public IRedisAdapter {
 	virtual void setDeviceStatus(bool status = true);
 
     T _redis;
+	std::string _conenction;
 
-	thread _reader;
-    thread _listener;
+	std::thread _reader;
+    std::thread _listener;
 
 
     typedef struct
@@ -204,15 +218,23 @@ class RedisAdapter: public IRedisAdapter {
 	map<string, std::function<void(std::string,std::string)>> commands;
 
 
-	vector<string> streamKeys;
-	ItemStream buffer;
+	typedef struct
+    {
+        std::string streamKey;
+        std::function<void(ItemStream)> function;
+    } streamKeyFunctionPair;
+
+	vector<streamKeyFunctionPair> streamSubscriptions;
+	std::unordered_map<std::string, std::string> streamKeyID;
+	std::mutex m_streamKeys;
+	ItemStream itemStreamBuffer;
 	std::mutex m_buffer;
 	std::string _lastTimeID = "$"; 
     std::mutex m_lastTimeID;
 
+	std::string _connection;
 	std::string  _baseKey, _configKey, _logKey, _channelKey, _statusKey, _timeKey, _deviceKey, _abortKey;
 	std::string	 _dataBaseKey;
-	std::string _connection;
   };
 using RedisAdapterSingle = RedisAdapter<Redis>;
 using RedisAdapterCluster = RedisAdapter<RedisCluster>;
