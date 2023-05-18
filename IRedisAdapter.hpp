@@ -18,8 +18,6 @@
 #include "/usr/local/include/sw/redis++/cxx_utils.h"
 
 
-//using namespace std;
-
   /**
    * RedisAdapter
    */

@@ -78,6 +78,7 @@ class RedisAdapter: public IRedisAdapter {
 	*/
 
 	virtual void streamWrite(std::vector<std::pair<std::string,std::string>> data, std::string timeID, std::string key, uint trim = 0);
+
 	void streamWriteOneField(const std::string& data, const std::string& timeID, const std::string& key, const std::string& field)
 	{
 		// Single element vector formated the way that streamWrite wants it.

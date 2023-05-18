@@ -210,19 +210,6 @@ void RedisAdapter<T>::streamWrite(vector<pair<string,string>> data, string timeI
   }
 }
 
-// Simlified version of streamWrite when you only have one element in the item you want to add to the stream, and you have binary data.
-// When this is called an element is appended to the stream named 'key' that has one field named 'field' with the value data in binary form. 
-/*
-template<typename T>
-void RedisAdapter<T>::streamWriteOneField(const string& data, const string& timeID, const string& key, const string& field)
-{
-  // Single element vector formated the way that streamWrite wants it.
-  std::vector<pair<string, string>> wrapperVector = { {field, data }};
-  // When you give * as your time in redis the server generates the timestamp for you. Here we do the same if timeID is empty.
-  if (0 == timeID.length()) { streamWrite(wrapperVector,    "*", key, false); }
-  else                      { streamWrite(wrapperVector, timeID, key, false); }
-}
-*/
 
 template<typename T>
 void RedisAdapter<T>::streamReadBlock(T& redisConnection, std::unordered_map<string,string>& keysID, Streams& dest){
@@ -392,20 +379,7 @@ vector<string> RedisAdapter<RedisCluster>::getServerTime(){
   return result;
 }
 
-/*
-template<typename T>
-sw::redis::Optional<timespec> RedisAdapter<T>::getServerTimespec()
-{
-  vector<string> result = getServerTime();
-  // The redis command time is returns an array with the first element being the time in seconds and the second being the microseconds within that second
-  if (result.size() != 2) { return std::nullopt; }
-  timespec ts;
-  ts.tv_sec  = stoll(result.at(0));        // first element contains unix time
-  ts.tv_nsec = stoll(result.at(1)) * 1000; // second element contains microseconds in the second
 
-  return ts;
-}
-*/
 
 template<typename T>
 void RedisAdapter<T>::psubscribe(std::string pattern, std::function<void(std::string,std::string,std::string)> func){
@@ -490,7 +464,6 @@ void RedisAdapter<T>::listener(){
     catch(const TimeoutError &e) {
         continue;
     }
-    /*
     catch (std::exception &e) {
         // Handle unrecoverable exceptions. Need to re create redis connection
         std::cout << "ERROR " << e.what() << " occured, trying to recover" << std::endl;
@@ -498,7 +471,6 @@ void RedisAdapter<T>::listener(){
         _sub = _redis.subscriber();
         continue;
     }
-    */
   }
 }
 
@@ -515,7 +487,7 @@ void RedisAdapter<T>::reader(){
   auto streamRedis = T(_connection);
   Streams streamsBuffer;
   while (true) {
-    //try {
+    try {
         streamsBuffer.clear();
         streamReadBlock(streamRedis, streamKeyID, streamsBuffer);
         //iterate thorugh the buffer and pass onto the correct handler
@@ -527,14 +499,12 @@ void RedisAdapter<T>::reader(){
           }
         }
 
-    //}
-    /*
+    }
     catch (std::exception &e) {
         // Handle unrecoverable exceptions. Need to re create redis connection
         std::cout << "ERROR " << e.what() << " occured, trying to recover" << std::endl;
         continue;
     }
-    */
   }
 }
 
