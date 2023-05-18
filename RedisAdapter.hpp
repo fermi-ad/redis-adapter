@@ -36,7 +36,6 @@
 
 #include <thread>
 
-//using namespace std;
 using namespace sw::redis;
 
   /**
