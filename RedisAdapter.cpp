@@ -253,8 +253,6 @@ void RedisAdapter<T>::streamRead(string key, string timeA, string timeB, ItemStr
   try{
     _redis.xrevrange(key, timeB, timeA, back_inserter(dest));
   }catch (const std::exception &err) {
-    std::cout << "In file: " << __FILE__ << " in function: " << __FUNCTION__ << " on line: " << __LINE__ << std::endl;
-    std::cout << err.what() << std::endl;
   }
 }
 
@@ -507,6 +505,19 @@ void RedisAdapter<T>::reader(){
     }
   }
 }
+
+template<typename T>
+sw::redis::Optional<timespec> RedisAdapter<T>::getServerTimespec()
+	{
+		std::vector<std::string> result = getServerTime();
+		// The redis command time is returns an array with the first element being the time in seconds and the second being the microseconds within that second
+		if (result.size() != 2) { return std::nullopt; }
+		timespec ts;
+		ts.tv_sec  = stoll(result.at(0));        // first element contains unix time
+		ts.tv_nsec = stoll(result.at(1)) * 1000; // second element contains microseconds in the second
+
+		return ts;
+	}
 
 
 

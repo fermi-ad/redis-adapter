@@ -121,21 +121,19 @@ class RedisAdapter: public IRedisAdapter {
 	  //streamRead(key,desiredTime,1, result);
 	  streamRead(key,1, result);
 	  if (0 == result.size())
-	    { std::cout << "Key:" << key << " empty" << std::endl; return std::nullopt; }
+	    {  return std::nullopt; }
 	  sw::redis::Optional<std::string> time = result.at(0).first;
 	  Attrs attributes = result.at(0).second;
 	  // Find the field named field or return an empty optional
 	  auto fieldPointer = attributes.find(field);
 	  if (fieldPointer == attributes.end()) // if the field isn't in the item in the stream
 	  {
-		std::cout << "Key:" << key << " no field: " << field << std::endl;
 	    time.reset();
 	    return time;
 	  }
 	  std::string& str = fieldPointer->second;
 	  dest.resize(str.length() / sizeof(Type));
 	  memcpy(dest.data(), str.c_str(), str.length());
-	  //memcpy_s(dest.data(), dest.size() * sizeof(dest.at(0)), str.c_str(), str.length());
 	  return time;
 	}
 
@@ -166,17 +164,7 @@ class RedisAdapter: public IRedisAdapter {
 	* Time
 	*/
 	virtual std::vector<std::string> getServerTime();
-	sw::redis::Optional<timespec> getServerTimespec()
-	{
-		std::vector<std::string> result = getServerTime();
-		// The redis command time is returns an array with the first element being the time in seconds and the second being the microseconds within that second
-		if (result.size() != 2) { return std::nullopt; }
-		timespec ts;
-		ts.tv_sec  = stoll(result.at(0));        // first element contains unix time
-		ts.tv_nsec = stoll(result.at(1)) * 1000; // second element contains microseconds in the second
-
-		return ts;
-	}
+	sw::redis::Optional<timespec> getServerTimespec();
 
 	/* Key getters and setters*/
 	virtual std::string getBaseKey() const { return _baseKey;} 
