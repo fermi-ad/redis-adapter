@@ -8,7 +8,7 @@
 
 #include "RedisAdapter.hpp"
 
-#include <iostream>
+#include <syslog.h>
 
 using namespace sw::redis;
 using namespace std;
@@ -150,7 +150,10 @@ unordered_set<string> RedisAdapter<T>::getSet(string key)
   {
     _redis.smembers(key, inserter(set, set.begin()));
   }
-  catch (...) {}
+  catch (const exception &e)
+  {
+    //  TODO: handle exceptions
+  }
   return set;
 }
 
@@ -186,7 +189,10 @@ void RedisAdapter<T>::streamWrite(vector<pair<string,string>> data, string timeI
       streamTrim(key, trim);
     }
   }
-  catch (...) {}
+  catch (const exception &e)
+  {
+    //  TODO: handle exceptions
+  }
 }
 
 template <typename T>
@@ -207,7 +213,10 @@ void RedisAdapter<T>::streamReadBlock(T& redisConnection, unordered_map<string,s
       }
     }
   }
-  catch (...) {}
+  catch (const exception &e)
+  {
+    //  TODO: handle exceptions
+  }
 }
 
 template <typename T>
@@ -217,7 +226,10 @@ void RedisAdapter<T>::streamRead(string key, int count, ItemStream& dest)
   {
     _redis.xrevrange(key, "+", "-", count, back_inserter(dest));
   }
-  catch (...) {}
+  catch (const exception &e)
+  {
+    //  TODO: handle exceptions
+  }
 }
 
 template <typename T>
@@ -227,7 +239,10 @@ void RedisAdapter<T>::streamRead(string key, string time, int count, ItemStream&
   {
     _redis.xrevrange(key, "+", time, count, back_inserter(dest));
   }
-  catch (...) {}
+  catch (const exception &e)
+  {
+    //  TODO: handle exceptions
+  }
 }
 
 template <typename T>
@@ -237,7 +252,10 @@ void RedisAdapter<T>::streamRead(string key, string timeA, string timeB, ItemStr
   {
     _redis.xrevrange(key, timeB, timeA, back_inserter(dest));
   }
-  catch (...) {}
+  catch (const exception &e)
+  {
+    //  TODO: handle exceptions
+  }
 }
 
 template <typename T>
@@ -261,7 +279,10 @@ void RedisAdapter<T>::streamRead(string key, string time, int count, vector<floa
       }
     }
   }
-  catch (...) {}
+  catch (const exception &e)
+  {
+    //  TODO: handle exceptions
+  }
 }
 
 template <typename T>
@@ -280,7 +301,10 @@ IRedisAdapter::ItemStream RedisAdapter<T>::logRead(uint count)
   {
     _redis.xrevrange(getLogKey(), "+", "-", count, back_inserter(is));
   }
-  catch (...) {}
+  catch (const exception &e)
+  {
+    //  TODO: handle exceptions
+  }
   return is;
 }
 
@@ -291,7 +315,10 @@ void RedisAdapter<T>::streamTrim(string key, int size)
   {
     _redis.xtrim(key, size, false);
   }
-  catch (...) {}
+  catch (const exception &e)
+  {
+    //  TODO: handle exceptions
+  }
 }
 
 template <typename T>
@@ -301,7 +328,10 @@ void RedisAdapter<T>::publish(string msg)
   {
     _redis.publish(_channelKey, msg);
   }
-  catch (...) {}
+  catch (const exception &e)
+  {
+    //  TODO: handle exceptions
+  }
 }
 
 template <typename T>
@@ -311,7 +341,10 @@ void RedisAdapter<T>::publish(string key, string msg)
   {
     _redis.publish(_channelKey + ":" + key, msg);
   }
-  catch (...) {}
+  catch (const exception &e)
+  {
+    //  TODO: handle exceptions
+  }
 }
 
 inline bool const StringToBool(string const& s)
@@ -488,10 +521,10 @@ void RedisAdapter<T>::listener()
     {
       continue;
     }
-    catch (exception &e)
+    catch (const exception &e)
     {
       // Handle unrecoverable exceptions. Need to re create redis connection
-      cout << "ERROR " << e.what() << " occured, trying to recover" << endl;
+      syslog(LOG_ERR, "ERROR %s occured, trying to recover", e.what());
       flag = false;
       _sub = _redis.subscriber();
       continue;
@@ -530,10 +563,10 @@ void RedisAdapter<T>::reader()
         }
       }
     }
-    catch (exception &e)
+    catch (const exception &e)
     {
       // Handle unrecoverable exceptions. Need to re create redis connection
-      cout << "ERROR " << e.what() << " occured, trying to recover" << endl;
+      syslog(LOG_ERR, "ERROR %s occured, trying to recover", e.what());
       continue;
     }
   }
