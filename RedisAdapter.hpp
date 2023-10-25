@@ -25,8 +25,9 @@
  * RedisAdapter
  */
 template <typename T_REDIS>
-struct RedisAdapter: public IRedisAdapter
+class RedisAdapter: public IRedisAdapter
 {
+public:
   /* Constructor / Destructor */
   RedisAdapter(std::string key, std::string = "tcp://127.0.0.1:6379");
   RedisAdapter(const RedisAdapter& ra);

@@ -20,8 +20,9 @@
 /**
  * IRedisAdapter
  */
-struct IRedisAdapter
+class IRedisAdapter
 {
+public:
   using Attrs = std::unordered_map<std::string, std::string>;
   using Item = std::pair<std::string, Attrs>;
   using ItemStream = std::vector<Item>;
