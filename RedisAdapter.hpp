@@ -6,7 +6,6 @@
  * @author rsantucc
  */
 
-#pragma once
 #ifndef RedisAdapter_HPP
 #define RedisAdapter_HPP
 
@@ -14,40 +13,24 @@
 #define CPLUSPLUS20_SUPPORTED
 #endif
 
-#include <string>
-#include <sw/redis++/redis++.h>
 #include "IRedisAdapter.hpp"
-#include <TRACE/trace.h>
 
 #if defined(CPLUSPLUS20_SUPPORTED)
 #include <ranges>
 #endif
 
-#include <time.h>
-#include <errno.h>
-#include <unistd.h>
-
-#include <vector>
-#include <functional>
-#include <optional>
-#include <stdexcept>
-#include <sstream>
-#include <iostream>
 #include <thread>
-
-#include <sw/redis++/utils.h>
-
 
 /**
  * RedisAdapter
  */
 template <typename T_REDIS>
-struct RedisAdapter: public IRedisAdapter
+class RedisAdapter: public IRedisAdapter
 {
+public:
   /* Constructor / Destructor */
   RedisAdapter(std::string key, std::string = "tcp://127.0.0.1:6379");
   RedisAdapter(const RedisAdapter& ra);
-  ~RedisAdapter();
 
   /* Wrapper Functions */
   virtual std::vector<std::string> getDevices();
@@ -71,7 +54,7 @@ struct RedisAdapter: public IRedisAdapter
   /*
    * Stream Functions
    * Note: All stream functions use the cluster connection.
-   *    logRead and logWrite are stream functions, but use the config connection
+   *       logRead and logWrite are stream functions, but use the config connection
    */
   virtual void streamWrite(std::vector<std::pair<std::string,std::string>> data, std::string timeID, std::string key, uint trim = 0);
 
@@ -117,8 +100,7 @@ struct RedisAdapter: public IRedisAdapter
     ItemStream result;
     //streamRead(key,desiredTime, 1, result);
     streamRead(key, 1, result);
-    if (0 == result.size())
-      {  return std::nullopt; }
+    if (0 == result.size()) { return std::nullopt; }
     sw::redis::Optional<std::string> time = result.at(0).first;
     Attrs attributes = result.at(0).second;
     // Find the field named field or return an empty optional
@@ -143,7 +125,7 @@ struct RedisAdapter: public IRedisAdapter
   virtual void psubscribe(std::string pattern, std::function<void(std::string,std::string,std::string)> f);
   virtual void subscribe(std::string channel, std::function<void(std::string,std::string)> f);
   virtual void registerCommand(std::string command, std::function<void(std::string, std::string)> f);
-  virtual void addReader(std::string streamKey,  std::function<void(ItemStream)> func);
+  virtual void addReader(std::string streamKey,  std::function<void(ItemStream)> f);
 
   /*
    * Copy & Delete Functions
@@ -164,47 +146,50 @@ struct RedisAdapter: public IRedisAdapter
   sw::redis::Optional<timespec> getServerTimespec();
 
   /* Key getters and setters */
-  virtual std::string getBaseKey() const { return _baseKey;}
-  virtual void setBaseKey(std::string baseKey) { _baseKey = baseKey;}
+  virtual std::string getBaseKey() const { return _baseKey; }
+  virtual void setBaseKey(std::string baseKey) { _baseKey = baseKey; }
 
-  virtual std::string getChannelKey() const { return _channelKey;}
-  virtual void setChannelKey(std::string channelKey) { _channelKey = channelKey;}
+  virtual std::string getChannelKey() const { return _channelKey; }
+  virtual void setChannelKey(std::string channelKey) { _channelKey = channelKey; }
 
-  virtual  std::string getConfigKey()  const {return _configKey;}
-  virtual void setConfigKey(std::string configKey) { _configKey = configKey;}
+  virtual  std::string getConfigKey() const { return _configKey; }
+  virtual void setConfigKey(std::string configKey) { _configKey = configKey; }
 
-  virtual std::string getLogKey()  const   {return _logKey;}
-  virtual void setLogKey(std::string logKey) { _logKey = logKey;}
+  virtual std::string getLogKey() const { return _logKey; }
+  virtual void setLogKey(std::string logKey) { _logKey = logKey; }
 
-  virtual std::string getStatusKey() const {return _statusKey;}
-  virtual void setStatusKey(std::string statusKey) { _statusKey = statusKey;}
+  virtual std::string getStatusKey() const { return _statusKey; }
+  virtual void setStatusKey(std::string statusKey) { _statusKey = statusKey; }
 
-  virtual std::string getTimeKey()  const  {return _timeKey;}
-  virtual void setTimeKey(std::string timeKey) { _timeKey = timeKey;}
+  virtual std::string getTimeKey()  const  { return _timeKey; }
+  virtual void setTimeKey(std::string timeKey) { _timeKey = timeKey; }
 
-  virtual std::string getDeviceKey()  const  {return _deviceKey;}
-  virtual void setDeviceKey(std::string deviceKey) { _deviceKey = deviceKey;}
+  virtual std::string getDeviceKey()  const {return _deviceKey; }
+  virtual void setDeviceKey(std::string deviceKey) { _deviceKey = deviceKey; }
 
-  virtual std::string getDataBaseKey() const {return _dataBaseKey;}
-  virtual void setDataBaseKey(std::string dataBaseKey) {_dataBaseKey = dataBaseKey;}
-  virtual std::string getDataKey(std::string subkey) {return _dataBaseKey + ":" + subkey;}
+  virtual std::string getDataKey() const { return _dataKey; }
+  virtual void setDataKey(std::string dataKey) { _dataKey = dataKey; }
+  virtual std::string getDataSubKey(std::string subKey) const { return _dataKey + ":" + subKey; }
 
-  virtual std::string getAbortKey()  const  {return _abortKey;}
-  virtual void setAbortKey(std::string abortKey) { _abortKey = abortKey;}
+  virtual std::string getAbortKey() const { return _abortKey; }
+  virtual void setAbortKey(std::string abortKey) { _abortKey = abortKey; }
 
   virtual bool getDeviceStatus();
   virtual void setDeviceStatus(bool status = true);
 
-  /* stream(s) listener */
-  void  listener();
-  void  reader();
   virtual void startListener();
   virtual void startReader();
 
   T_REDIS _redis;
 
-  std::thread _reader;
+private:
+  void initKeys(std::string baseKey);
+
   std::thread _listener;
+  void listener();
+
+  std::thread _reader;
+  void reader();
 
   struct patternFunctionPair
   {
@@ -232,8 +217,16 @@ struct RedisAdapter: public IRedisAdapter
   std::unordered_map<std::string, std::string> _streamKeyID;
 
   std::string _connection;
-  std::string _baseKey, _configKey, _logKey, _channelKey, _statusKey, _timeKey, _deviceKey, _abortKey;
-  std::string _dataBaseKey;
+
+  std::string _baseKey;
+  std::string _configKey;
+  std::string _logKey;
+  std::string _channelKey;
+  std::string _statusKey;
+  std::string _timeKey;
+  std::string _deviceKey;
+  std::string _dataKey;
+  std::string _abortKey;
 };
 
 using RedisAdapterSingle = RedisAdapter<sw::redis::Redis>;
