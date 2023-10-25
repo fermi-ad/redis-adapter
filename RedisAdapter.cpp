@@ -1,48 +1,32 @@
 /**
- * RedisAdapter.C
+ * RedisAdapter.cpp
  *
  * This file contains the implementation of the RedisAdapter class.
  *
  * @author rsantucc
  */
 
-
 #include "RedisAdapter.hpp"
 
-#include <exception>
+#include <iostream>
 
 using namespace sw::redis;
 using namespace std;
 
 template <>
-RedisAdapter<Redis>::RedisAdapter( string key, string connection )
+RedisAdapter<Redis>::RedisAdapter(string key, string connection)
 : _redis(connection),
-  _connection(connection),
-  _baseKey(key)
+  _connection(connection)
 {
-  _connection = connection;
-  _configKey  = _baseKey + ":CONFIG";
-  _logKey     = _baseKey + ":LOG";
-  _channelKey = _baseKey + ":CHANNEL";
-  _statusKey  = _baseKey + ":STATUS";
-  _timeKey    = _baseKey + ":TIME";
-  _dataBaseKey= _baseKey + ":DATA";
-  _deviceKey = _baseKey + ":DEVICES";
+  initKeys(key);
 }
 
 template <>
-RedisAdapter<RedisCluster>::RedisAdapter( string key, string connection )
+RedisAdapter<RedisCluster>::RedisAdapter(string key, string connection)
 : _redis(connection),
-  _baseKey(key)
+  _connection(connection)
 {
-  _connection = connection;
-  _configKey  = _baseKey + ":CONFIG";
-  _logKey     = _baseKey + ":LOG";
-  _channelKey = _baseKey + ":CHANNEL";
-  _statusKey  = _baseKey + ":STATUS";
-  _timeKey    = _baseKey + ":TIME";
-  _dataBaseKey= _baseKey + ":DATA";
-  _deviceKey = _baseKey + ":DEVICES";
+  initKeys(key);
 }
 
 template <typename T>
@@ -53,37 +37,32 @@ RedisAdapter<T>::RedisAdapter(string key, string connection)
 
 template <>
 RedisAdapter<Redis>::RedisAdapter(const RedisAdapter<Redis>& ra)
-: _redis(ra._connection)
+: _redis(ra._connection),
+  _connection(ra._connection)
 {
-  _baseKey    = ra.getBaseKey();
-  _configKey  = _baseKey + ":CONFIG";
-  _logKey     = _baseKey + ":LOG";
-  _channelKey = _baseKey + ":CHANNEL";
-  _statusKey  = _baseKey + ":STATUS";
-  _timeKey  = _baseKey + ":TIME";
-  _dataBaseKey  = _baseKey + ":DATA";
-  _deviceKey = _baseKey + ":DEVICES";
+  initKeys(ra._baseKey);
 }
 
 template <>
 RedisAdapter<RedisCluster>::RedisAdapter(const RedisAdapter<RedisCluster>& ra)
-:_redis(ra._connection)
+: _redis(ra._connection),
+  _connection(ra._connection)
 {
-  _baseKey    = ra.getBaseKey();
-  _configKey  = _baseKey + ":CONFIG";
-  _logKey     = _baseKey + ":LOG";
-  _channelKey = _baseKey + ":CHANNEL";
-  _statusKey  = _baseKey + ":STATUS";
-  _timeKey  = _baseKey + ":TIME";
-  _dataBaseKey  = _baseKey + ":DATA";
-  _deviceKey = _baseKey + ":DEVICES";
+  initKeys(ra._baseKey);
 }
 
-template <>
-RedisAdapter<Redis>::~RedisAdapter() {}
-
-template <>
-RedisAdapter<RedisCluster>::~RedisAdapter() {}
+template <typename T>
+void RedisAdapter<T>::initKeys(std::string baseKey)
+{
+  _baseKey    = baseKey;
+  _configKey  = baseKey + ":CONFIG";
+  _logKey     = baseKey + ":LOG";
+  _channelKey = baseKey + ":CHANNEL";
+  _statusKey  = baseKey + ":STATUS";
+  _timeKey    = baseKey + ":TIME";
+  _dataKey    = baseKey + ":DATA";
+  _deviceKey  = baseKey + ":DEVICES";
+}
 
 template <typename T>
 vector<string> RedisAdapter<T>::getDevices()
