@@ -38,7 +38,7 @@ RUN make
 RUN make install
 #Build Trace
 WORKDIR /usr/src/redisAdapter/trace
-RUN make OUT=$PWD -j4 
+RUN make OUT=$PWD -j4
 RUN cp -r include/TRACE /usr/include/
 
 
@@ -47,7 +47,7 @@ RUN mkdir /usr/local/lib64
 COPY . /usr/src/redisAdapter
 
 WORKDIR /usr/src/redisAdapter
-RUN make 
+RUN make
 RUN make install
 RUN make test
 

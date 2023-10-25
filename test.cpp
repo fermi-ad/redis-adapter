@@ -20,6 +20,8 @@
 #include "IRedisAdapter.hpp"
 #include "RedisAdapter.hpp"
 
+using namespace std;
+
 /**
  * Main
  *
@@ -41,7 +43,7 @@ int main( int argc, char* argv[] ){
   static double time_old = 0.0;
   static uint32_t totalEvents = 0;
   //Subscribe to the 0x02 event, pass a callback as a lambda or a free function
-  redisAdapter->subscribe("TCLK:02", [&](string key, string msg){ 
+  redisAdapter->subscribe("TCLK:02", [&](string key, string msg){
   									double time_new;
   									double delta_time;
   									struct timeval tv;
@@ -56,7 +58,7 @@ int main( int argc, char* argv[] ){
   });
 
   //Pattern Subscribe to messages, similar call as above
-  
+
   redisAdapter->psubscribe("TCLK:*", [&](string pattern, string key, string msg){ ++totalEvents; if (totalEvents % 5) printf("Total Events Received: %d", totalEvents);});
 
   redisAdapter->startListener();
@@ -98,7 +100,7 @@ int main( int argc, char* argv[] ){
         // generate a random number between 1 and 1,000,000
         int randomNumber = rand() % 1000000 + 1;
 
-        string streamKey = key + ":pipe:" ;//+ to_string(randomNumber); 
+        string streamKey = key + ":pipe:" ;//+ to_string(randomNumber);
         auto pipe = adapter._redis.pipeline(streamKey);
         vector<float> vec2(size,9.99);
         for (int j = 0; j < numXadds; j++) {
