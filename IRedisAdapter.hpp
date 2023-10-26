@@ -89,6 +89,7 @@ public:
    * Time
    */
   virtual std::vector<std::string> getServerTime() = 0;
+  virtual sw::redis::Optional<timespec> getServerTimespec() = 0;
 
   /*
    * Device Status
