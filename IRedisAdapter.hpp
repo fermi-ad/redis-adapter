@@ -77,7 +77,7 @@ public:
    * Copy & Delete Functions
    */
   virtual void copyKey(std::string src, std::string dest, bool data = false) = 0;
-  virtual void deleteKey(std::string key);
+  virtual void deleteKey(std::string key) = 0;
 
   /*
    *  Abort Flag
