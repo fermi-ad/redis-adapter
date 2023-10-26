@@ -144,7 +144,7 @@ public:
    * Time
    */
   virtual std::vector<std::string> getServerTime();
-  sw::redis::Optional<timespec> getServerTimespec();  //  not in IRedisAdapter because returns Optional?
+  sw::redis::Optional<timespec> getServerTimespec();
 
   /*
    * Device Status
