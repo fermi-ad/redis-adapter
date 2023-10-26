@@ -8,17 +8,9 @@
 
  */
 
-#include <pthread.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <sys/io.h>
-#include <sys/time.h>
-#include <unistd.h>
-#include <thread>
-#include <utility>
-#include <cstdlib>
-#include "IRedisAdapter.hpp"
 #include "RedisAdapter.hpp"
+
+#include <iostream>
 
 using namespace std;
 
@@ -98,7 +90,7 @@ int main( int argc, char* argv[] ){
         srand(seed);
 
         // generate a random number between 1 and 1,000,000
-        int randomNumber = rand() % 1000000 + 1;
+        // int randomNumber = rand() % 1000000 + 1;
 
         string streamKey = key + ":pipe:" ;//+ to_string(randomNumber);
         auto pipe = adapter._redis.pipeline(streamKey);
