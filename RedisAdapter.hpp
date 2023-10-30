@@ -84,6 +84,7 @@ public:
   #endif
 
   void streamReadBlock(T_REDIS& redisConnection, std::unordered_map<std::string,std::string>& keysID, Streams& result);
+
   virtual void streamRead(std::string key, std::string time, int count, std::vector<float>& result);
   virtual void streamRead(std::string key, std::string time, int count, ItemStream& dest);
   virtual void streamRead(std::string key, int count, ItemStream& dest);
@@ -143,7 +144,13 @@ public:
    * Time
    */
   virtual std::vector<std::string> getServerTime();
-  sw::redis::Optional<timespec> getServerTimespec();
+  virtual sw::redis::Optional<timespec> getServerTimespec();
+
+  /*
+   * Device Status
+   */
+  virtual bool getDeviceStatus();
+  virtual void setDeviceStatus(bool status = true);
 
   /* Key getters and setters */
   virtual std::string getBaseKey() const { return _baseKey; }
@@ -173,9 +180,6 @@ public:
 
   virtual std::string getAbortKey() const { return _abortKey; }
   virtual void setAbortKey(std::string abortKey) { _abortKey = abortKey; }
-
-  virtual bool getDeviceStatus();
-  virtual void setDeviceStatus(bool status = true);
 
   virtual void startListener();
   virtual void startReader();

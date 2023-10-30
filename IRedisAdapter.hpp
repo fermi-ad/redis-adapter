@@ -53,6 +53,7 @@ public:
    */
 
   virtual void streamWrite(std::vector<std::pair<std::string,std::string>> data, std::string timeID, std::string key, uint trim = 0) = 0;
+
   virtual void streamRead(std::string key, std::string time, int count, std::vector<float>& result) = 0;
   virtual void streamRead(std::string key, std::string time, int count, ItemStream& dest) = 0;
   virtual void streamRead(std::string key, int count, ItemStream& dest) = 0;
@@ -73,9 +74,10 @@ public:
   virtual void addReader(std::string streamKey,  std::function<void(ItemStream)> f) = 0;
 
   /*
-   * Copy Functions
+   * Copy & Delete Functions
    */
   virtual void copyKey(std::string src, std::string dest, bool data = false) = 0;
+  virtual void deleteKey(std::string key) = 0;
 
   /*
    *  Abort Flag
@@ -87,6 +89,7 @@ public:
    * Time
    */
   virtual std::vector<std::string> getServerTime() = 0;
+  virtual sw::redis::Optional<timespec> getServerTimespec() = 0;
 
   /*
    * Device Status
@@ -115,9 +118,12 @@ public:
   virtual std::string getDeviceKey() const  = 0;
   virtual void setDeviceKey(std::string deviceKey) = 0;
 
-  virtual std::string getDataBaseKey() const = 0;
-  virtual void setDataBaseKey(std::string dataBaseKey) = 0;
-  virtual std::string getDataKey(std::string subkey) = 0;
+  virtual std::string getDataKey() const = 0;
+  virtual void setDataKey(std::string dataKey) = 0;
+  virtual std::string getDataSubKey(std::string subKey) const = 0;
+
+  virtual std::string getAbortKey() const = 0;
+  virtual void setAbortKey(std::string abortKey) = 0;
 
   virtual void startListener() = 0;
   virtual void startReader() = 0;
