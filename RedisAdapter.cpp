@@ -13,11 +13,15 @@
 using namespace sw::redis;
 using namespace std;
 
+//  Needed to add constructor with args for Redis/RedisCluster
+//  initializations in RedisAdapter constructors below
 struct RAConnOptions : public ConnectionOptions
 {
   RAConnOptions(string host, int port) { this->host = host; this->port = port; }
 };
 
+//  Needed to add constructor with args for Redis/RedisCluster
+//  initializations in RedisAdapter constructors below
 struct RAConnPoolOptions : public ConnectionPoolOptions
 {
   RAConnPoolOptions(size_t size) { this->size = size; }

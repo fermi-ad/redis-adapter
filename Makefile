@@ -37,7 +37,7 @@ BI_LDFLAGS  = 	-L/usr/local/lib/ \
 				-lredis++ \
 				-lhiredis \
 				-pthread \
-				-lrt 
+				-lrt
 
 
 LIB_STATIC   = lib$(BI_PROJECT).a
@@ -46,23 +46,26 @@ SO_VER_NAME  = lib$(BI_PROJECT).so.$(BI_VERSION)
 SO_LONG_NAME = lib$(BI_PROJECT).so.$(BI_VERSION).$(BI_MINOR).$(BI_RELEASE)
 
 # List of modules (.o files)
-BI_CPPSOURCES_A = $(wildcard *.cpp) 
+BI_CPPSOURCES_A = $(wildcard *.cpp)
 BI_OBJS = $(BI_CPPSOURCES_A:.cpp=.o)
 
-all: clean libredisadapter 
+all: clean libredisadapter
 
 %.o: %.cpp Makefile
 	$(BI_OUT) $(CXX) -c -o $*.o $(BI_CPPFLAGS) $<
 
-test: test.o 
+test: test.o
 	$(CXX) ./test.o -o test $(BI_LDFLAGS) -lredisAdapter
 
-libredisadapter: RedisAdapter.o 
-	$(BI_OUT) $(CXX) -shared -Wl,-soname,$(SO_NAME) -o $(SO_LONG_NAME)  RedisAdapter.o -lm $(BI_LDFLAGS) 
-	$(AR) rcs libredisAdapter.a RedisAdapter.o 
+test2: test2.o
+	$(CXX) ./test2.o -o test2 $(BI_LDFLAGS) -lredisAdapter
+
+libredisadapter: RedisAdapter.o
+	$(BI_OUT) $(CXX) -shared -Wl,-soname,$(SO_NAME) -o $(SO_LONG_NAME)  RedisAdapter.o -lm $(BI_LDFLAGS)
+	$(AR) rcs libredisAdapter.a RedisAdapter.o
 
 clean:
-	rm -f *.o *.a *.so* test
+	rm -f *.o *.a *.so* test test2
 
 install:
 	install -d $(BI_LIB)
