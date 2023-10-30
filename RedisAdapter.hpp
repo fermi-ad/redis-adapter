@@ -74,14 +74,7 @@ public:
    */
   virtual void streamWrite(std::vector<std::pair<std::string,std::string>> data, std::string timeID, std::string key, uint trim = 0);
 
-  virtual void streamWriteOneField(const std::string& data, const std::string& timeID, const std::string& key, const std::string& field)
-  {
-    // Single element vector formated the way that streamWrite wants it.
-    std::vector<std::pair<std::string, std::string>> wrapperVector = { {field, data }};
-    // When you give * as your time in redis the server generates the timestamp for you. Here we do the same if timeID is empty.
-    if (0 == timeID.length()) { streamWrite(wrapperVector,    "*", key, false); }
-    else                      { streamWrite(wrapperVector, timeID, key, false); }
-  }
+  virtual void streamWriteOneField(const std::string& data, const std::string& timeID, const std::string& key, const std::string& field);
 
   #if defined(CPLUSPLUS20_SUPPORTED)
   // Simplified version of streamWrite when you only have one element in the item you want to add to the stream, and you have binary data.
@@ -112,7 +105,7 @@ public:
   // Read a single field from the element at desiredTime and return the actual time.
   // If this fails then return an empty optional
   template <typename T_VAL>
-  swr::OptionalString streamReadOneField(std::string key, std::string desiredTime, std::string field, std::vector<T_VAL>& dest)
+  swr::Optional<std::string> streamReadOneField(std::string key, std::string desiredTime, std::string field, std::vector<T_VAL>& dest)
   {
     swr::ItemStream result;
     //streamRead(key,desiredTime, 1, result);
