@@ -31,6 +31,12 @@ namespace swr = sw::redis;
 
 /**
  * RedisAdapter
+ *
+ * Methods are marked 'virtual' to force linker to include them?
+ * I don't understand why this is happening, but the test.cpp
+ * app fails to link any of the methods not marked 'virtual'.
+ * Any other solution would be welcome.
+ *
  */
 template <typename T_REDIS>
 class RedisAdapter
