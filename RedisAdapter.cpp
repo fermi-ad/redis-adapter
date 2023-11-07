@@ -533,7 +533,7 @@ void RedisAdapter<T>::listener()
 }
 
 template <typename T>
-void RedisAdapter<T>::addReader(string streamKey,  function<void(ItemStream)> func)
+void RedisAdapter<T>::addReader(string streamKey,  function<void(std::string, ItemStream)> func)
 {
   _streamKeyID.emplace(streamKey, "$");
   _streamSubscriptions.push_back({ .streamKey = streamKey, .function = func});
@@ -557,7 +557,7 @@ void RedisAdapter<T>::reader()
         {
           if (streamSubscription.streamKey == is.first)
           {
-            streamSubscription.function(is.second);
+            streamSubscription.function(streamSubscription.streamKey, is.second);
           }
         }
       }
