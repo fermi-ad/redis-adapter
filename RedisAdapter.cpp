@@ -13,42 +13,32 @@
 using namespace sw::redis;
 using namespace std;
 
+//  Needed to add constructor with args for Redis/RedisCluster
+//  initializations in RedisAdapter constructors below
+struct RAConnOptions : public ConnectionOptions
+{
+  RAConnOptions(string host, int port) { this->host = host; this->port = port; }
+};
+
+//  Needed to add constructor with args for Redis/RedisCluster
+//  initializations in RedisAdapter constructors below
+struct RAConnPoolOptions : public ConnectionPoolOptions
+{
+  RAConnPoolOptions(size_t size) { this->size = size; }
+};
+
 template <>
-RedisAdapter<Redis>::RedisAdapter(string key, string connection)
-: _redis(connection),
-  _connection(connection)
+RedisAdapter<Redis>::RedisAdapter(string key, string host, int port, size_t size)
+: _redis(RAConnOptions(host, port), RAConnPoolOptions(size))
 {
   initKeys(key);
 }
 
 template <>
-RedisAdapter<RedisCluster>::RedisAdapter(string key, string connection)
-: _redis(connection),
-  _connection(connection)
+RedisAdapter<RedisCluster>::RedisAdapter(string key, string host, int port, size_t size)
+: _redis(RAConnOptions(host, port), RAConnPoolOptions(size))
 {
   initKeys(key);
-}
-
-template <typename T>
-RedisAdapter<T>::RedisAdapter(string key, string connection)
-{
-  static_assert(!is_same<T, Redis>::value || is_same<T, RedisCluster>::value, "You can't use that type here");
-}
-
-template <>
-RedisAdapter<Redis>::RedisAdapter(const RedisAdapter<Redis>& ra)
-: _redis(ra._connection),
-  _connection(ra._connection)
-{
-  initKeys(ra._baseKey);
-}
-
-template <>
-RedisAdapter<RedisCluster>::RedisAdapter(const RedisAdapter<RedisCluster>& ra)
-: _redis(ra._connection),
-  _connection(ra._connection)
-{
-  initKeys(ra._baseKey);
 }
 
 template <typename T>
@@ -196,11 +186,21 @@ void RedisAdapter<T>::streamWrite(vector<pair<string,string>> data, string timeI
 }
 
 template <typename T>
-void RedisAdapter<T>::streamReadBlock(T& redisConnection, unordered_map<string,string>& keysID, Streams& dest)
+void RedisAdapter<T>::streamWriteOneField(const std::string& data, const std::string& timeID, const std::string& key, const std::string& field)
+{
+  // Single element vector formated the way that streamWrite wants it.
+  std::vector<std::pair<std::string, std::string>> wrapperVector = {{ field, data }};
+  // When you give * as your time in redis the server generates the timestamp for you. Here we do the same if timeID is empty.
+  if (0 == timeID.length()) { streamWrite(wrapperVector,    "*", key, false); }
+  else                      { streamWrite(wrapperVector, timeID, key, false); }
+}
+
+template <typename T>
+void RedisAdapter<T>::streamReadBlock(unordered_map<string,string>& keysID, Streams& dest)
 {
   try
   {
-    redisConnection.xread(keysID.begin(), keysID.end(), chrono::seconds(0), 10, inserter(dest, dest.end()));
+    _redis.xread(keysID.begin(), keysID.end(), chrono::seconds(0), 10, inserter(dest, dest.end()));
     // Update the time of last message, multiple different streams can return at once, default times use "$"
     // this is equivalent to saying start from where the stream is now. Listen for only new input.
     // We will get the newest time from the last element in an ItemStream
@@ -294,7 +294,7 @@ void RedisAdapter<T>::logWrite(string key, string msg, string source)
 }
 
 template <typename T>
-IRedisAdapter::ItemStream RedisAdapter<T>::logRead(uint count)
+ItemStream RedisAdapter<T>::logRead(uint count)
 {
   ItemStream is;
   try
@@ -543,14 +543,13 @@ template <typename T>
 void RedisAdapter<T>::reader()
 {
   // Create a new redis connection only used for streams
-  auto streamRedis = T(_connection);
   Streams streamsBuffer;
   while (true)
   {
     try
     {
       streamsBuffer.clear();
-      streamReadBlock(streamRedis, _streamKeyID, streamsBuffer);
+      streamReadBlock(_streamKeyID, streamsBuffer);
       // iterate thorugh the buffer and pass onto the correct handler
       for (auto is : streamsBuffer)
       {

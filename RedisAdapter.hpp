@@ -13,24 +13,40 @@
 #define CPLUSPLUS20_SUPPORTED
 #endif
 
-#include "IRedisAdapter.hpp"
+#include <sw/redis++/redis++.h>
 
 #if defined(CPLUSPLUS20_SUPPORTED)
 #include <ranges>
 #endif
 
-#include <thread>
+namespace sw::redis
+{
+  using Attrs = std::unordered_map<std::string, std::string>;
+  using Item = std::pair<std::string, Attrs>;
+  using ItemStream = std::vector<Item>;
+  using Streams =  std::unordered_map<std::string, ItemStream>;
+};
+
+namespace swr = sw::redis;
 
 /**
  * RedisAdapter
+ *
+ * Methods are marked 'virtual' to force linker to include them?
+ * I don't understand why this is happening, but the test.cpp
+ * app fails to link any of the methods not marked 'virtual'.
+ * Any other solution would be welcome.
+ *
  */
 template <typename T_REDIS>
-class RedisAdapter: public IRedisAdapter
+class RedisAdapter
 {
 public:
   /* Constructor / Destructor */
-  RedisAdapter(std::string key, std::string = "tcp://127.0.0.1:6379");
-  RedisAdapter(const RedisAdapter& ra);
+  RedisAdapter(std::string key, std::string host = "127.0.0.1", int port = 6379, size_t size = 5);
+
+  RedisAdapter(const RedisAdapter& ra) = delete;
+  RedisAdapter& operator=(const RedisAdapter& ra) = delete;
 
   /* Wrapper Functions */
   virtual std::vector<std::string> getDevices();
@@ -43,7 +59,7 @@ public:
    * Single Value Functions
    * Note: These use the config connection
    */
-  virtual sw::redis::Optional<std::string> getValue(std::string key);
+  virtual swr::Optional<std::string> getValue(std::string key);
   virtual void setValue(std::string key, std::string val);
   virtual int getUniqueValue(std::string key);
   virtual std::unordered_map<std::string, std::string> getHash(std::string key);
@@ -58,14 +74,7 @@ public:
    */
   virtual void streamWrite(std::vector<std::pair<std::string,std::string>> data, std::string timeID, std::string key, uint trim = 0);
 
-  void streamWriteOneField(const std::string& data, const std::string& timeID, const std::string& key, const std::string& field)
-  {
-    // Single element vector formated the way that streamWrite wants it.
-    std::vector<std::pair<std::string, std::string>> wrapperVector = { {field, data }};
-    // When you give * as your time in redis the server generates the timestamp for you. Here we do the same if timeID is empty.
-    if (0 == timeID.length()) { streamWrite(wrapperVector,    "*", key, false); }
-    else                      { streamWrite(wrapperVector, timeID, key, false); }
-  }
+  virtual void streamWriteOneField(const std::string& data, const std::string& timeID, const std::string& key, const std::string& field);
 
   #if defined(CPLUSPLUS20_SUPPORTED)
   // Simplified version of streamWrite when you only have one element in the item you want to add to the stream, and you have binary data.
@@ -83,27 +92,27 @@ public:
   }
   #endif
 
-  void streamReadBlock(T_REDIS& redisConnection, std::unordered_map<std::string,std::string>& keysID, Streams& result);
+  virtual void streamReadBlock(std::unordered_map<std::string,std::string>& keysID, swr::Streams& result);
 
   virtual void streamRead(std::string key, std::string time, int count, std::vector<float>& result);
-  virtual void streamRead(std::string key, std::string time, int count, ItemStream& dest);
-  virtual void streamRead(std::string key, int count, ItemStream& dest);
-  virtual void streamRead(std::string key, std::string timeA, std::string timeB, ItemStream& dest);
+  virtual void streamRead(std::string key, std::string time, int count, swr::ItemStream& dest);
+  virtual void streamRead(std::string key, int count, swr::ItemStream& dest);
+  virtual void streamRead(std::string key, std::string timeA, std::string timeB, swr::ItemStream& dest);
   virtual void streamTrim(std::string key, int size);
-  virtual IRedisAdapter::ItemStream logRead(uint count);
+  virtual swr::ItemStream logRead(uint count);
   virtual void logWrite(std::string key, std::string msg, std::string source);
 
   // Read a single field from the element at desiredTime and return the actual time.
   // If this fails then return an empty optional
   template <typename T_VAL>
-  sw::redis::Optional<std::string> streamReadOneField(std::string key, std::string desiredTime, std::string field, std::vector<T_VAL>& dest)
+  swr::Optional<std::string> streamReadOneField(std::string key, std::string desiredTime, std::string field, std::vector<T_VAL>& dest)
   {
-    ItemStream result;
+    swr::ItemStream result;
     //streamRead(key,desiredTime, 1, result);
     streamRead(key, 1, result);
     if (0 == result.size()) { return std::nullopt; }
-    sw::redis::Optional<std::string> time = result.at(0).first;
-    Attrs attributes = result.at(0).second;
+    swr::Optional<std::string> time = result.at(0).first;
+    swr::Attrs attributes = result.at(0).second;
     // Find the field named field or return an empty optional
     auto fieldPointer = attributes.find(field);
     if (fieldPointer == attributes.end()) // if the field isn't in the item in the stream
@@ -126,7 +135,7 @@ public:
   virtual void psubscribe(std::string pattern, std::function<void(std::string,std::string,std::string)> f);
   virtual void subscribe(std::string channel, std::function<void(std::string,std::string)> f);
   virtual void registerCommand(std::string command, std::function<void(std::string, std::string)> f);
-  virtual void addReader(std::string streamKey,  std::function<void(ItemStream)> f);
+  virtual void addReader(std::string streamKey,  std::function<void(swr::ItemStream)> f);
 
   /*
    * Copy & Delete Functions
@@ -144,7 +153,7 @@ public:
    * Time
    */
   virtual std::vector<std::string> getServerTime();
-  virtual sw::redis::Optional<timespec> getServerTimespec();
+  virtual swr::Optional<timespec> getServerTimespec();
 
   /*
    * Device Status
@@ -159,7 +168,7 @@ public:
   virtual std::string getChannelKey() const { return _channelKey; }
   virtual void setChannelKey(std::string channelKey) { _channelKey = channelKey; }
 
-  virtual  std::string getConfigKey() const { return _configKey; }
+  virtual std::string getConfigKey() const { return _configKey; }
   virtual void setConfigKey(std::string configKey) { _configKey = configKey; }
 
   virtual std::string getLogKey() const { return _logKey; }
@@ -214,13 +223,11 @@ private:
   struct streamKeyFunctionPair
   {
       std::string streamKey;
-      std::function<void(ItemStream)> function;
+      std::function<void(swr::ItemStream)> function;
   };
   std::vector<streamKeyFunctionPair> _streamSubscriptions;
 
   std::unordered_map<std::string, std::string> _streamKeyID;
-
-  std::string _connection;
 
   std::string _baseKey;
   std::string _configKey;
@@ -233,7 +240,7 @@ private:
   std::string _abortKey;
 };
 
-using RedisAdapterSingle = RedisAdapter<sw::redis::Redis>;
-using RedisAdapterCluster = RedisAdapter<sw::redis::RedisCluster>;
+using RedisAdapterSingle = RedisAdapter<swr::Redis>;
+using RedisAdapterCluster = RedisAdapter<swr::RedisCluster>;
 
 #endif

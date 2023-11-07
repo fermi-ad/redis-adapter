@@ -1,11 +1,7 @@
 /**
-
  * test.c
-
  *
-
  * This module contains the entry point for the mm32xdaq_lxrt test application.
-
  */
 
 #include "RedisAdapter.hpp"
@@ -27,7 +23,7 @@ int main( int argc, char* argv[] ){
   printf( "Acquiring Messages for 10 seconds.\n\n" );
 
   //Create a new adapter with base key TEST
-  IRedisAdapter* redisAdapter = new RedisAdapterCluster("TEST");
+  RedisAdapterCluster* redisAdapter = new RedisAdapterCluster("TEST");
 
   //Redis Adapter will connect to a redis config database at 127.0.0.1:6379
   //and a redsi cluster database at 127.0.0.1:30001
