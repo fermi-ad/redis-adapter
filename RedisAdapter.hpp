@@ -135,7 +135,7 @@ public:
   virtual void psubscribe(std::string pattern, std::function<void(std::string,std::string,std::string)> f);
   virtual void subscribe(std::string channel, std::function<void(std::string,std::string)> f);
   virtual void registerCommand(std::string command, std::function<void(std::string, std::string)> f);
-  virtual void addReader(std::string streamKey,  std::function<void(swr::ItemStream)> f);
+  virtual void addReader(std::string streamKey,  std::function<void(std::string, swr::ItemStream)> f);
 
   /*
    * Copy & Delete Functions
@@ -223,7 +223,7 @@ private:
   struct streamKeyFunctionPair
   {
       std::string streamKey;
-      std::function<void(swr::ItemStream)> function;
+      std::function<void(std::string, swr::ItemStream)> function;
   };
   std::vector<streamKeyFunctionPair> _streamSubscriptions;
 
