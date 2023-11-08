@@ -5,9 +5,7 @@
  *
  * @author rsantucc
  */
-
-#ifndef RedisAdapter_HPP
-#define RedisAdapter_HPP
+#pragma once
 
 #if __cplusplus >= 202002L
 #define CPLUSPLUS20_SUPPORTED
@@ -72,9 +70,9 @@ public:
    * Note: All stream functions use the cluster connection.
    *       logRead and logWrite are stream functions, but use the config connection
    */
-  virtual void streamWrite(std::vector<std::pair<std::string,std::string>> data, std::string timeID, std::string key, uint trim = 0);
+  virtual void streamWrite(std::vector<std::pair<std::string,std::string>> data, std::string timeID, std::string key, uint trim = defaultTrimSize);
 
-  virtual void streamWriteOneField(const std::string& data, const std::string& timeID, const std::string& key, const std::string& field);
+  virtual void streamWriteOneField(const std::string& data, const std::string& timeID, const std::string& key, const std::string& field, uint trim = defaultTrimSize);
 
   #if defined(CPLUSPLUS20_SUPPORTED)
   // Simplified version of streamWrite when you only have one element in the item you want to add to the stream, and you have binary data.
@@ -83,12 +81,12 @@ public:
   // @todo Consider performing host to network conversion for data compatibility.
   static_assert(BYTE_ORDER == __LITTLE_ENDIAN); // Arm and x86 use the same byte order. If this ever fails we should look into this problem.
   template <std::ranges::input_range T_RANGE>
-  void streamWriteOneFieldRange(T_RANGE&& data, const std::string& timeID, const std::string& key, const std::string& field)
+  void streamWriteOneFieldRange(T_RANGE&& data, const std::string& timeID, const std::string& key, const std::string& field, uint trim = defaultTrimSize)
   {
     // Copy data from the caller to a string so that it can be used by the redis++ API
     std::string_view view((char *)data.data(), data.size() * sizeof(*data.begin()));
     std::string temp(view);
-    streamWriteOneField(temp, timeID, key, field);
+    streamWriteOneField(temp, timeID, key, field, trim);
   }
   #endif
 
@@ -238,9 +236,9 @@ private:
   std::string _deviceKey;
   std::string _dataKey;
   std::string _abortKey;
+
+  static const uint defaultTrimSize = 1;
 };
 
 using RedisAdapterSingle = RedisAdapter<swr::Redis>;
 using RedisAdapterCluster = RedisAdapter<swr::RedisCluster>;
-
-#endif

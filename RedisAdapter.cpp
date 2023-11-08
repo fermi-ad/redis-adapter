@@ -186,13 +186,13 @@ void RedisAdapter<T>::streamWrite(vector<pair<string,string>> data, string timeI
 }
 
 template <typename T>
-void RedisAdapter<T>::streamWriteOneField(const std::string& data, const std::string& timeID, const std::string& key, const std::string& field)
+void RedisAdapter<T>::streamWriteOneField(const std::string& data, const std::string& timeID, const std::string& key, const std::string& field, uint trim)
 {
   // Single element vector formated the way that streamWrite wants it.
   std::vector<std::pair<std::string, std::string>> wrapperVector = {{ field, data }};
   // When you give * as your time in redis the server generates the timestamp for you. Here we do the same if timeID is empty.
-  if (0 == timeID.length()) { streamWrite(wrapperVector,    "*", key, false); }
-  else                      { streamWrite(wrapperVector, timeID, key, false); }
+  if (0 == timeID.length()) { streamWrite(wrapperVector,    "*", key, trim); }
+  else                      { streamWrite(wrapperVector, timeID, key, trim); }
 }
 
 template <typename T>
