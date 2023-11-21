@@ -47,11 +47,8 @@ public:
   RedisAdapter& operator=(const RedisAdapter& ra) = delete;
 
   /* Wrapper Functions */
-  virtual std::vector<std::string> getDevices();
-  virtual void clearDevices(std::string devicelist);
   virtual void setDeviceConfig(std::unordered_map<std::string, std::string> map);
   virtual std::unordered_map<std::string, std::string> getDeviceConfig();
-  virtual void setDevice(std::string name);
 
   /*
    * Single Value Functions
@@ -158,35 +155,6 @@ public:
    */
   virtual bool getDeviceStatus();
   virtual void setDeviceStatus(bool status = true);
-
-  /* Key getters and setters */
-  virtual std::string getBaseKey() const { return _baseKey; }
-  virtual void setBaseKey(std::string baseKey) { _baseKey = baseKey; }
-
-  virtual std::string getChannelKey() const { return _channelKey; }
-  virtual void setChannelKey(std::string channelKey) { _channelKey = channelKey; }
-
-  virtual std::string getConfigKey() const { return _configKey; }
-  virtual void setConfigKey(std::string configKey) { _configKey = configKey; }
-
-  virtual std::string getLogKey() const { return _logKey; }
-  virtual void setLogKey(std::string logKey) { _logKey = logKey; }
-
-  virtual std::string getStatusKey() const { return _statusKey; }
-  virtual void setStatusKey(std::string statusKey) { _statusKey = statusKey; }
-
-  virtual std::string getTimeKey()  const  { return _timeKey; }
-  virtual void setTimeKey(std::string timeKey) { _timeKey = timeKey; }
-
-  virtual std::string getDeviceKey()  const {return _deviceKey; }
-  virtual void setDeviceKey(std::string deviceKey) { _deviceKey = deviceKey; }
-
-  virtual std::string getDataKey() const { return _dataKey; }
-  virtual void setDataKey(std::string dataKey) { _dataKey = dataKey; }
-  virtual std::string getDataSubKey(std::string subKey) const { return _dataKey + ":" + subKey; }
-
-  virtual std::string getAbortKey() const { return _abortKey; }
-  virtual void setAbortKey(std::string abortKey) { _abortKey = abortKey; }
 
   virtual void startListener();
   virtual void startReader();

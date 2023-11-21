@@ -51,26 +51,6 @@ void RedisAdapter<T>::initKeys(std::string baseKey)
   _statusKey  = baseKey + ":STATUS";
   _timeKey    = baseKey + ":TIME";
   _dataKey    = baseKey + ":DATA";
-  _deviceKey  = baseKey + ":DEVICES";
-}
-
-template <typename T>
-vector<string> RedisAdapter<T>::getDevices()
-{
-  unordered_set<string> set = getSet(_deviceKey);
-  vector<string> devices(set.begin(), set.end());
-  return devices;
-}
-
-template <typename T>
-void RedisAdapter<T>::clearDevices(string devicelist)
-{
-  unordered_map<string, string> nameMap;
-  _redis.hgetall(devicelist, inserter(nameMap, nameMap.begin()));
-  for (const auto& name : nameMap)
-  {
-    _redis.del(name.first);
-  }
 }
 
 /*
@@ -86,12 +66,6 @@ template <typename T>
 unordered_map<string, string> RedisAdapter<T>::getDeviceConfig()
 {
   return getHash(_configKey);
-}
-
-template <typename T>
-void RedisAdapter<T>::setDevice(string name)
-{
-  setSet(_deviceKey, name);
 }
 
 template <typename T>
@@ -299,7 +273,7 @@ ItemStream RedisAdapter<T>::logRead(uint count)
   ItemStream is;
   try
   {
-    _redis.xrevrange(getLogKey(), "+", "-", count, back_inserter(is));
+    _redis.xrevrange(_logKey, "+", "-", count, back_inserter(is));
   }
   catch (const exception &e)
   {
@@ -361,7 +335,7 @@ bool RedisAdapter<T>::getDeviceStatus()
 template <typename T>
 void RedisAdapter<T>::setDeviceStatus(bool status)
 {
-  setValue(getStatusKey(), to_string((int)status));
+  setValue(_statusKey, to_string((int)status));
 }
 
 template <>
