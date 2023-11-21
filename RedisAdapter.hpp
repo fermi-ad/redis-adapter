@@ -195,15 +195,11 @@ private:
 
   std::unordered_map<std::string, std::string> _streamKeyID;
 
-  std::string _baseKey;
-  std::string _configKey;
+  std::string _settingsKey;
   std::string _logKey;
-  std::string _channelKey;
+  std::string _commandsKey;
   std::string _statusKey;
-  std::string _timeKey;
-  std::string _deviceKey;
   std::string _dataKey;
-  std::string _abortKey;
 
   static const uint defaultTrimSize = 1;
 };

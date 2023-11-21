@@ -44,13 +44,13 @@ RedisAdapter<RedisCluster>::RedisAdapter(string key, string host, int port, size
 template <typename T>
 void RedisAdapter<T>::initKeys(std::string baseKey)
 {
-  _baseKey    = baseKey;
-  _configKey  = baseKey + ":CONFIG";
-  _logKey     = baseKey + ":LOG";
-  _channelKey = baseKey + ":CHANNEL";
-  _statusKey  = baseKey + ":STATUS";
-  _timeKey    = baseKey + ":TIME";
-  _dataKey    = baseKey + ":DATA";
+  baseKey = "{" + baseKey + "}";  //  for cluster hashing
+
+  _settingsKey  = baseKey + ":SETTINGS:";
+  _logKey       = baseKey + ":LOG";
+  _commandsKey  = baseKey + ":COMMANDS:";
+  _statusKey    = baseKey + ":STATUS";
+  _dataKey      = baseKey + ":DATA:";
 }
 
 /*
@@ -59,13 +59,13 @@ void RedisAdapter<T>::initKeys(std::string baseKey)
 template <typename T>
 void RedisAdapter<T>::setDeviceConfig(unordered_map<string, string> map)
 {
-  setHash(_configKey, map);
+  setHash(_settingsKey, map);
 }
 
 template <typename T>
 unordered_map<string, string> RedisAdapter<T>::getDeviceConfig()
 {
-  return getHash(_configKey);
+  return getHash(_settingsKey);
 }
 
 template <typename T>
@@ -300,7 +300,7 @@ void RedisAdapter<T>::publish(string msg)
 {
   try
   {
-    _redis.publish(_channelKey, msg);
+    _redis.publish(_commandsKey, msg);
   }
   catch (const exception &e)
   {
@@ -313,7 +313,7 @@ void RedisAdapter<T>::publish(string key, string msg)
 {
   try
   {
-    _redis.publish(_channelKey + ":" + key, msg);
+    _redis.publish(_commandsKey + ":" + key, msg);
   }
   catch (const exception &e)
   {
@@ -354,23 +354,6 @@ template <typename T>
 void RedisAdapter<T>::deleteKey( string key )
 {
   _redis.del(key);
-}
-
-template <typename T>
-bool RedisAdapter<T>::getAbortFlag()
-{
-  return StringToBool(getValue(_abortKey).value());
-}
-
-inline const char* const BoolToString(bool b)
-{
-  return b ? "1" : "0";
-}
-
-template <typename T>
-void RedisAdapter<T>::setAbortFlag(bool flag)
-{
-  setValue(_abortKey, BoolToString(flag));
 }
 
 template <>
@@ -415,7 +398,7 @@ void RedisAdapter<T>::startReader()
 template <typename T>
 void RedisAdapter<T>::registerCommand(string command, function<void(string, string)> func)
 {
-  _commands.emplace(_channelKey + ":" + command, func);
+  _commands.emplace(_commandsKey + ":" + command, func);
 }
 
 template <typename T>
@@ -437,10 +420,11 @@ void RedisAdapter<T>::listener()
         flag = true;
         _sub.on_pmessage([&](string pattern, string key, string msg)
         {
+          string suffix = key.substr(_commandsKey.size());
           auto search = _commands.find(key);
           if (search != _commands.end())
           {
-            search->second(key, msg);
+            search->second(suffix, msg);
           }
           else
           {
@@ -456,12 +440,13 @@ void RedisAdapter<T>::listener()
             // that have the same pattern as this event
             for (patternFunctionPair patternFunction : matchingPatterns)
             {
-              patternFunction.function(pattern, key, msg);
+              patternFunction.function(pattern, suffix, msg);
             }
           }
         });
         _sub.on_message([&](string key, string msg)
         {
+          string suffix = key.substr(_commandsKey.size());
           vector<keyFunctionPair> matchingSubscriptions;
           for (keyFunctionPair subscription : _subscriptions)
           {
@@ -474,11 +459,11 @@ void RedisAdapter<T>::listener()
           // that have the same key as this event
           for (keyFunctionPair keyFunction : matchingSubscriptions)
           {
-            keyFunction.function(key, msg);
+            keyFunction.function(suffix, msg);
           }
         });
         // The default is everything published on ChannelKey
-        _sub.psubscribe(_channelKey + "*");
+        _sub.psubscribe(_commandsKey + "*");
         // Subscribe to the pattens in _patternSubscriptions
         for (auto element : _patternSubscriptions)
         {
@@ -531,7 +516,8 @@ void RedisAdapter<T>::reader()
         {
           if (streamSubscription.streamKey == is.first)
           {
-            streamSubscription.function(streamSubscription.streamKey, is.second);
+            string suffix = is.first.substr(_dataKey.size());
+            streamSubscription.function(suffix, is.second);
           }
         }
       }
