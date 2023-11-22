@@ -47,12 +47,11 @@ public:
   RedisAdapter& operator=(const RedisAdapter& ra) = delete;
 
   /* Wrapper Functions */
-  virtual void setDeviceConfig(std::unordered_map<std::string, std::string> map);
-  virtual std::unordered_map<std::string, std::string> getDeviceConfig();
+  virtual void setSetting(std::unordered_map<std::string, std::string> map);
+  virtual std::unordered_map<std::string, std::string> getSetting();
 
   /*
    * Single Value Functions
-   * Note: These use the config connection
    */
   virtual swr::Optional<std::string> getValue(std::string key);
   virtual void setValue(std::string key, std::string val);
@@ -65,7 +64,6 @@ public:
   /*
    * Stream Functions
    * Note: All stream functions use the cluster connection.
-   *       logRead and logWrite are stream functions, but use the config connection
    */
   virtual void streamWrite(std::vector<std::pair<std::string,std::string>> data, std::string timeID, std::string key, uint trim = defaultTrimSize);
 
@@ -123,7 +121,6 @@ public:
 
   /*
    * Publish / Subscribe Functions
-   * Note: All publish / subscribe functions use the config connection
    */
   virtual void publish(std::string msg);
   virtual void publish(std::string key, std::string msg);

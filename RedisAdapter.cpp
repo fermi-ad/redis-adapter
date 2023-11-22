@@ -57,13 +57,13 @@ void RedisAdapter<T>::initKeys(std::string baseKey)
 * Get Device Config
 */
 template <typename T>
-void RedisAdapter<T>::setDeviceConfig(unordered_map<string, string> map)
+void RedisAdapter<T>::setSetting(unordered_map<string, string> map)
 {
   setHash(_settingsKey, map);
 }
 
 template <typename T>
-unordered_map<string, string> RedisAdapter<T>::getDeviceConfig()
+unordered_map<string, string> RedisAdapter<T>::getSetting()
 {
   return getHash(_settingsKey);
 }
