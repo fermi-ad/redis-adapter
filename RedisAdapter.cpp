@@ -46,11 +46,11 @@ void RedisAdapter<T>::initKeys(std::string baseKey)
 {
   baseKey = "{" + baseKey + "}";  //  for cluster hashing
 
-  _settingsKey  = baseKey + ":SETTINGS:";
+  _settingsKey  = baseKey + ":SETTINGS";
   _logKey       = baseKey + ":LOG";
-  _commandsKey  = baseKey + ":COMMANDS:";
+  _commandsKey  = baseKey + ":COMMANDS";
   _statusKey    = baseKey + ":STATUS";
-  _dataKey      = baseKey + ":DATA:";
+  _dataKey      = baseKey + ":DATA";
 }
 
 /*
@@ -420,11 +420,10 @@ void RedisAdapter<T>::listener()
         flag = true;
         _sub.on_pmessage([&](string pattern, string key, string msg)
         {
-          string suffix = key.substr(_commandsKey.size());
           auto search = _commands.find(key);
           if (search != _commands.end())
           {
-            search->second(suffix, msg);
+            search->second(key, msg);
           }
           else
           {
@@ -440,13 +439,12 @@ void RedisAdapter<T>::listener()
             // that have the same pattern as this event
             for (patternFunctionPair patternFunction : matchingPatterns)
             {
-              patternFunction.function(pattern, suffix, msg);
+              patternFunction.function(pattern, key, msg);
             }
           }
         });
         _sub.on_message([&](string key, string msg)
         {
-          string suffix = key.substr(_commandsKey.size());
           vector<keyFunctionPair> matchingSubscriptions;
           for (keyFunctionPair subscription : _subscriptions)
           {
@@ -459,7 +457,7 @@ void RedisAdapter<T>::listener()
           // that have the same key as this event
           for (keyFunctionPair keyFunction : matchingSubscriptions)
           {
-            keyFunction.function(suffix, msg);
+            keyFunction.function(key, msg);
           }
         });
         // The default is everything published on ChannelKey
@@ -516,8 +514,7 @@ void RedisAdapter<T>::reader()
         {
           if (streamSubscription.streamKey == is.first)
           {
-            string suffix = is.first.substr(_dataKey.size());
-            streamSubscription.function(suffix, is.second);
+            streamSubscription.function(streamSubscription.streamKey, is.second);
           }
         }
       }
