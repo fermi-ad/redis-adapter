@@ -11,7 +11,7 @@
 #define CPLUSPLUS20_SUPPORTED
 #endif
 
-#include <sw/redis++/redis++.h>
+#include "RedisConnection.h"
 
 #if defined(CPLUSPLUS20_SUPPORTED)
 #include <ranges>
@@ -25,49 +25,25 @@ namespace sw::redis
   using Streams =  std::unordered_map<std::string, ItemStream>;
 };
 
-namespace swr = sw::redis;
-
 /**
  * RedisAdapter
- *
- * Methods are marked 'virtual' to force linker to include them?
- * I don't understand why this is happening, but the test.cpp
- * app fails to link any of the methods not marked 'virtual'.
- * Any other solution would be welcome.
- *
  */
-template <typename T_REDIS>
 class RedisAdapter
 {
 public:
   /* Constructor / Destructor */
-  RedisAdapter(std::string key, std::string host = "127.0.0.1", int port = 6379, size_t size = 5);
+  RedisAdapter(const std::string& baseKey, const std::string& host = "", uint16_t port = 0, uint16_t size = 0);
 
   RedisAdapter(const RedisAdapter& ra) = delete;
   RedisAdapter& operator=(const RedisAdapter& ra) = delete;
-
-  /* Wrapper Functions */
-  virtual void setSetting(std::unordered_map<std::string, std::string> map);
-  virtual std::unordered_map<std::string, std::string> getSetting();
-
-  /*
-   * Single Value Functions
-   */
-  virtual swr::Optional<std::string> getValue(std::string key);
-  virtual void setValue(std::string key, std::string val);
-  virtual int getUniqueValue(std::string key);
-  virtual std::unordered_map<std::string, std::string> getHash(std::string key);
-  virtual void setHash(std::string key, std::unordered_map<std::string, std::string> m);
-  virtual std::unordered_set<std::string> getSet(std::string key);
-  virtual void setSet(std::string key, std::string val);
 
   /*
    * Stream Functions
    * Note: All stream functions use the cluster connection.
    */
-  virtual void streamWrite(std::vector<std::pair<std::string,std::string>> data, std::string timeID, std::string key, uint trim = defaultTrimSize);
+  void streamWrite(std::vector<std::pair<std::string,std::string>> data, std::string timeID, std::string key, uint trim = defaultTrimSize);
 
-  virtual void streamWriteOneField(const std::string& data, const std::string& timeID, const std::string& key, const std::string& field, uint trim = defaultTrimSize);
+  void streamWriteOneField(const std::string& data, const std::string& timeID, const std::string& key, const std::string& field, uint trim = defaultTrimSize);
 
   #if defined(CPLUSPLUS20_SUPPORTED)
   // Simplified version of streamWrite when you only have one element in the item you want to add to the stream, and you have binary data.
@@ -85,15 +61,15 @@ public:
   }
   #endif
 
-  virtual void streamReadBlock(std::unordered_map<std::string,std::string>& keysID, swr::Streams& result);
+  void streamReadBlock(std::unordered_map<std::string,std::string>& keysID, swr::Streams& result);
 
-  virtual void streamRead(std::string key, std::string time, int count, std::vector<float>& result);
-  virtual void streamRead(std::string key, std::string time, int count, swr::ItemStream& dest);
-  virtual void streamRead(std::string key, int count, swr::ItemStream& dest);
-  virtual void streamRead(std::string key, std::string timeA, std::string timeB, swr::ItemStream& dest);
-  virtual void streamTrim(std::string key, int size);
-  virtual swr::ItemStream logRead(uint count);
-  virtual void logWrite(std::string key, std::string msg, std::string source);
+  void streamRead(std::string key, std::string time, int count, std::vector<float>& result);
+  void streamRead(std::string key, std::string time, int count, swr::ItemStream& dest);
+  void streamRead(std::string key, int count, swr::ItemStream& dest);
+  void streamRead(std::string key, std::string timeA, std::string timeB, swr::ItemStream& dest);
+  void streamTrim(std::string key, int size);
+  swr::ItemStream logRead(uint count);
+  void logWrite(std::string key, std::string msg, std::string source);
 
   // Read a single field from the element at desiredTime and return the actual time.
   // If this fails then return an empty optional
@@ -122,44 +98,36 @@ public:
   /*
    * Publish / Subscribe Functions
    */
-  virtual void publish(std::string msg);
-  virtual void publish(std::string key, std::string msg);
-  virtual void psubscribe(std::string pattern, std::function<void(std::string,std::string,std::string)> f);
-  virtual void subscribe(std::string channel, std::function<void(std::string,std::string)> f);
-  virtual void registerCommand(std::string command, std::function<void(std::string, std::string)> f);
-  virtual void addReader(std::string streamKey,  std::function<void(std::string, swr::ItemStream)> f);
+  void publish(std::string msg);
+  void publish(std::string key, std::string msg);
+  void psubscribe(std::string pattern, std::function<void(std::string,std::string,std::string)> f);
+  void subscribe(std::string channel, std::function<void(std::string,std::string)> f);
+  void registerCommand(std::string command, std::function<void(std::string, std::string)> f);
+  void addReader(std::string streamKey,  std::function<void(std::string, swr::ItemStream)> f);
 
   /*
    * Copy & Delete Functions
    */
-  virtual void copyKey(std::string src, std::string dest, bool data = false);
-  virtual void deleteKey(std::string key);
-
-  /*
-   *  Abort Flag
-   */
-  virtual void setAbortFlag(bool flag = false);
-  virtual bool getAbortFlag();
+  void copyKey(std::string src, std::string dst);
+  void deleteKey(std::string key);
 
   /*
    * Time
    */
-  virtual std::vector<std::string> getServerTime();
-  virtual swr::Optional<timespec> getServerTimespec();
+  // virtual std::vector<std::string> getServerTime();
+  // virtual swr::Optional<timespec> getServerTimespec();
 
   /*
    * Device Status
    */
-  virtual bool getDeviceStatus();
-  virtual void setDeviceStatus(bool status = true);
+  bool getDeviceStatus();
+  void setDeviceStatus(bool status = true);
 
-  virtual void startListener();
-  virtual void startReader();
-
-  T_REDIS _redis;
+  void startListener();
+  void startReader();
 
 private:
-  void initKeys(std::string baseKey);
+  RedisConnection _redis;
 
   std::thread _listener;
   void listener();
@@ -201,5 +169,5 @@ private:
   static const uint defaultTrimSize = 1;
 };
 
-using RedisAdapterSingle = RedisAdapter<swr::Redis>;
-using RedisAdapterCluster = RedisAdapter<swr::RedisCluster>;
+using RedisAdapterSingle = RedisAdapter;
+using RedisAdapterCluster = RedisAdapter;
