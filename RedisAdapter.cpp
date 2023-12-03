@@ -21,6 +21,44 @@ RedisAdapter::RedisAdapter(const string& baseKey, const string& host, uint16_t p
   _dataKey      = baseKey + ":DATA";
 }
 
+
+string RedisAdapter::getStatus(const string& subKey)
+{
+  return {};
+}
+
+string RedisAdapter::getForeignStatus(const string& baseKey, const string& subKey)
+{
+  return {};
+}
+
+bool RedisAdapter::setStatus(const string& subkey, const string& value)
+{
+  return {};
+}
+
+
+Result<string> RedisAdapter::getLog(string minID, string maxID)
+{
+  return {};
+}
+
+Result<string> RedisAdapter::getLogAfter(string minID, uint32_t count)
+{
+  return {};
+}
+
+Result<string> RedisAdapter::getLogBefore(string maxID, uint32_t count)
+{
+  return {};
+}
+
+bool RedisAdapter::addLog(string message, uint32_t trim)
+{
+  return {};
+}
+
+
 /*
 * Stream Functions
 */
@@ -52,10 +90,10 @@ void RedisAdapter::streamWrite(vector<pair<string,string>> data, string timeID ,
   }
 }
 
-void RedisAdapter::streamWriteOneField(const std::string& data, const std::string& timeID, const std::string& key, const std::string& field, uint trim)
+void RedisAdapter::streamWriteOneField(const string& data, const string& timeID, const string& key, const string& field, uint trim)
 {
   // Single element vector formated the way that streamWrite wants it.
-  std::vector<std::pair<std::string, std::string>> wrapperVector = {{ field, data }};
+  vector<pair<string, string>> wrapperVector = {{ field, data }};
   // When you give * as your time in redis the server generates the timestamp for you. Here we do the same if timeID is empty.
   if (0 == timeID.length()) { streamWrite(wrapperVector,    "*", key, trim); }
   else                      { streamWrite(wrapperVector, timeID, key, trim); }
@@ -203,16 +241,6 @@ void RedisAdapter::publish(string key, string msg)
   }
 }
 
-bool RedisAdapter::getDeviceStatus()
-{
-  return true;  //  TODO
-}
-
-void RedisAdapter::setDeviceStatus(bool status)
-{
-  //  TODO
-}
-
 void RedisAdapter::copyKey(string src, string dst)
 {
   _redis.copy(src, dst);
@@ -223,13 +251,10 @@ void RedisAdapter::deleteKey(string key)
   _redis.del(key);
 }
 
-// template <>
-// vector<string> RedisAdapter<RedisCluster>::getServerTime()
-// {
-//   vector<string> result;
-//   _redis.redis("hash-tag", false).command("time", back_inserter(result));
-//   return result;
-// }
+vector<string> RedisAdapter::getServerTime()
+{
+  return _redis.time();
+}
 
 void RedisAdapter::psubscribe(string pattern, function<void(string, string, string)> func)
 {
@@ -343,7 +368,7 @@ void RedisAdapter::listener()
   }
 }
 
-void RedisAdapter::addReader(string streamKey,  function<void(std::string, ItemStream)> func)
+void RedisAdapter::addReader(string streamKey,  function<void(string, ItemStream)> func)
 {
   _streamKeyID.emplace(streamKey, "$");
   _streamSubscriptions.push_back({ .streamKey = streamKey, .function = func});
@@ -380,15 +405,14 @@ void RedisAdapter::reader()
   }
 }
 
-// template <typename T>
-// Optional<timespec> RedisAdapter<T>::getServerTimespec()
-// {
-//   vector<string> result = getServerTime();
-//   // The redis command time is returns an array with the first element being
-//   // the time in seconds and the second being the microseconds within that second
-//   if (result.size() != 2) { return nullopt; }
-//   timespec ts;
-//   ts.tv_sec  = stoll(result.at(0));        // first element contains unix time
-//   ts.tv_nsec = stoll(result.at(1)) * 1000; // second element contains microseconds in the second
-//   return ts;
-// }
+Optional<timespec> RedisAdapter::getServerTimespec()
+{
+  vector<string> result = getServerTime();
+  // The redis command time is returns an array with the first element being
+  // the time in seconds and the second being the microseconds within that second
+  if (result.size() != 2) { return nullopt; }
+  timespec ts;
+  ts.tv_sec  = stoll(result.at(0));        // first element contains unix time
+  ts.tv_nsec = stoll(result.at(1)) * 1000; // second element contains microseconds in the second
+  return ts;
+}
