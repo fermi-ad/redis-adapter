@@ -25,5 +25,7 @@ int main(int argc, char* argv[])
 
   redis.setSetting<float>("abc", 1.23);
 
+  redis.getData<int>("abc", "1", "2");
+
   return 0;
 }

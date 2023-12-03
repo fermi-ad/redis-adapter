@@ -14,13 +14,12 @@ using namespace std;
 RedisAdapter::RedisAdapter(const string& baseKey, const string& host, uint16_t port, uint16_t size)
 : _redis(RedisConnection::Options{ .host = host, .port = port, .size = size })
 {
-  _settingsKey  = baseKey + ":SETTINGS";
+  _settingsKey  = baseKey + ":SETTINGS:";
   _logKey       = baseKey + ":LOG";
   _commandsKey  = baseKey + ":COMMANDS";
   _statusKey    = baseKey + ":STATUS";
-  _dataKey      = baseKey + ":DATA";
+  _dataKey      = baseKey + ":DATA:";
 }
-
 
 string RedisAdapter::getStatus(const string& subKey)
 {
@@ -37,18 +36,17 @@ bool RedisAdapter::setStatus(const string& subkey, const string& value)
   return {};
 }
 
-
-Result<string> RedisAdapter::getLog(string minID, string maxID)
+ItemStreamT<string> RedisAdapter::getLog(string minID, string maxID)
 {
   return {};
 }
 
-Result<string> RedisAdapter::getLogAfter(string minID, uint32_t count)
+ItemStreamT<string> RedisAdapter::getLogAfter(string minID, uint32_t count)
 {
   return {};
 }
 
-Result<string> RedisAdapter::getLogBefore(string maxID, uint32_t count)
+ItemStreamT<string> RedisAdapter::getLogBefore(string maxID, uint32_t count)
 {
   return {};
 }
@@ -57,7 +55,6 @@ bool RedisAdapter::addLog(string message, uint32_t trim)
 {
   return {};
 }
-
 
 /*
 * Stream Functions
@@ -164,7 +161,7 @@ void RedisAdapter::streamRead(string key, string time, int count, vector<float>&
   {
     ItemStream result;
     streamRead(key, time, 1, result);
-    for (Item data : result)
+    for (auto data : result)
     {
       string timeID = data.first;
       for (auto val : data.second)
