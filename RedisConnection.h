@@ -100,7 +100,7 @@ public:
   bool ping(const std::string& key = "ping")
   {
     try
-    { //  for cluster explicitly choose a slot since there's no key
+    {
       if (_cluster) return _cluster->redis(key, false).ping().compare("PONG") == 0;
       if (_singler) return _singler->ping().compare("PONG") == 0;
     }
@@ -332,6 +332,23 @@ public:
     }
     catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
     return -1;
+  }
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  time() - gets current server time
+  //
+  //    return : vector<string> = { seconds, microseconds }
+  //
+  std::vector<std::string> time(const std::string& key = "time")
+  {
+    std::vector<std::string> ret;
+    try
+    {
+      if (_cluster) _cluster->redis(key, false).command("time", std::back_inserter(ret));
+      if (_singler) _singler->command("time", std::back_inserter(ret));
+    }
+    catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
+    return ret;
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

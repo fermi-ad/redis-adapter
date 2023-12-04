@@ -22,7 +22,11 @@ namespace sw::redis
   using Attrs = std::unordered_map<std::string, std::string>;
   using Item = std::pair<std::string, Attrs>;
   using ItemStream = std::vector<Item>;
-  using Streams =  std::unordered_map<std::string, ItemStream>;
+  using Streams = std::unordered_map<std::string, ItemStream>;
+
+  template <typename T> using ItemT = std::pair<std::string, T>;
+  template <typename T> using ItemStreamT = std::vector<ItemT<T>>;
+  template <typename T> using StreamsT = std::unordered_map<std::string, ItemStreamT<T>>;
 };
 
 /**
@@ -31,11 +35,58 @@ namespace sw::redis
 class RedisAdapter
 {
 public:
-  /* Constructor / Destructor */
-  RedisAdapter(const std::string& baseKey, const std::string& host = "", uint16_t port = 0, uint16_t size = 0);
+  /* Constructors */
+  RedisAdapter(const std::string& baseKey, const std::string& host = "", uint16_t port = 0);
+  RedisAdapter(const std::string& baseKey, const RedisConnection::Options& opts);
 
   RedisAdapter(const RedisAdapter& ra) = delete;
   RedisAdapter& operator=(const RedisAdapter& ra) = delete;
+
+
+  std::string getStatus(const std::string& subKey);
+  std::string getForeignStatus(const std::string& baseKey, const std::string& subKey);
+
+  bool setStatus(const std::string& subkey, const std::string& value);
+
+
+  swr::ItemStreamT<std::string> getLog(std::string minID, std::string maxID = "+");
+  swr::ItemStreamT<std::string> getLogAfter(std::string minID, uint32_t count);
+  swr::ItemStreamT<std::string> getLogBefore(std::string maxID, uint32_t count = 1);
+
+  bool addLog(std::string message, uint32_t trim = 1000);
+
+
+  template<typename T> T getSetting(const std::string& subKey);
+  template<typename T> std::vector<T> getSettingList(const std::string& subKey);
+
+  template<typename T> T getForeignSetting(const std::string& baseKey, const std::string& subKey);
+  template<typename T> std::vector<T> getForeignSettingList(const std::string& baseKey, const std::string& subKey);
+
+  template<typename T> bool setSetting(const std::string& subKey, const T& value);
+  template<typename T> bool setSettingList(const std::string& subKey, const std::vector<T>& value);
+
+
+  template<typename T> swr::ItemStreamT<T> getData(const std::string& subkey, const std::string& minID, const std::string& maxID);
+  template<typename T> swr::ItemStreamT<std::vector<T>> getDataList(const std::string& subkey, const std::string& minID, const std::string& maxID);
+
+  template<typename T> swr::ItemStreamT<T> getForeignData(const std::string& baseKey, const std::string& subkey, const std::string& minID, const std::string& maxID);
+  template<typename T> swr::ItemStreamT<std::vector<T>> getForeignDataList(const std::string& baseKey, const std::string& subkey, const std::string& minID, const std::string& maxID);
+
+  template<typename T> swr::ItemStreamT<T> getDataBefore(const std::string& subkey, const std::string& maxID = "+", uint32_t count = 1);
+  template<typename T> swr::ItemStreamT<std::vector<T>> getDataListBefore(const std::string& subkey, const std::string& maxID = "+", uint32_t count = 1);
+
+  template<typename T> swr::ItemStreamT<T> getForeignDataBefore(const std::string& baseKey, const std::string& subkey, const std::string& maxID = "+", uint32_t count = 1);
+  template<typename T> swr::ItemStreamT<std::vector<T>> getForeignDataListBefore(const std::string& baseKey, const std::string& subkey, const std::string& maxID = "+", uint32_t count = 1);
+
+  template<typename T> swr::ItemStreamT<T> getDataAfter(const std::string& subkey, const std::string& minID = "-", uint32_t count = 1);
+  template<typename T> swr::ItemStreamT<std::vector<T>> getDataListAfter(const std::string& subkey, const std::string& minID = "-", uint32_t count = 1);
+
+  template<typename T> swr::ItemStreamT<T> getForeignDataAfter(const std::string& baseKey, const std::string& subkey, const std::string& minID = "-", uint32_t count = 1);
+  template<typename T> swr::ItemStreamT<std::vector<T>> getForeignDataListAfter(const std::string& baseKey, const std::string& subkey, const std::string& minID = "-", uint32_t count = 1);
+
+  template<typename T> std::string addData(const std::string& subKey, const T& data, const std::string& id = "*", uint32_t trim = 1);
+  template<typename T> std::vector<std::string> addDataList(const std::string& subKey, const swr::ItemStreamT<T>& data, uint32_t trim = 1);
+
 
   /*
    * Stream Functions
@@ -114,14 +165,8 @@ public:
   /*
    * Time
    */
-  // virtual std::vector<std::string> getServerTime();
-  // virtual swr::Optional<timespec> getServerTimespec();
-
-  /*
-   * Device Status
-   */
-  bool getDeviceStatus();
-  void setDeviceStatus(bool status = true);
+  virtual std::vector<std::string> getServerTime();
+  virtual swr::Optional<timespec> getServerTimespec();
 
   void startListener();
   void startReader();
@@ -171,3 +216,123 @@ private:
 
 using RedisAdapterSingle = RedisAdapter;
 using RedisAdapterCluster = RedisAdapter;
+
+template<typename T> T RedisAdapter::getSetting(const std::string& subKey)
+{
+  static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
+  return {};
+}
+
+template<typename T> std::vector<T> RedisAdapter::getSettingList(const std::string& subKey)
+{
+  static_assert(std::is_trivial<T>(), "wrong type T");
+  return {};
+}
+
+
+template<typename T> T RedisAdapter::getForeignSetting(const std::string& baseKey, const std::string& subKey)
+{
+  static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
+  return {};
+}
+
+template<typename T> std::vector<T> RedisAdapter::getForeignSettingList(const std::string& baseKey, const std::string& subKey)
+{
+  static_assert(std::is_trivial<T>(), "wrong type T");
+  return {};
+}
+
+template<typename T> bool RedisAdapter::setSetting(const std::string& subKey, const T& value)
+{
+  static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
+  return {};
+}
+
+template<typename T> bool RedisAdapter::setSettingList(const std::string& subKey, const std::vector<T>& value)
+{
+  static_assert(std::is_trivial<T>(), "wrong type T");
+  return {};
+}
+
+template<typename T> swr::ItemStreamT<T> RedisAdapter::getData(const std::string& subkey, const std::string& minID, const std::string& maxID)
+{
+  static_assert(std::is_trivial<T>() || std::is_same<T, std::string>() || std::is_same<T, swr::Attrs>(), "wrong type T");
+  return {};
+}
+
+template<typename T> swr::ItemStreamT<std::vector<T>> RedisAdapter::getDataList(const std::string& subkey, const std::string& minID, const std::string& maxID)
+{
+  static_assert(std::is_trivial<T>(), "wrong type T");
+  return {};
+}
+
+template<typename T> swr::ItemStreamT<T> RedisAdapter::getForeignData(const std::string& basekey, const std::string& subkey, const std::string& minID, const std::string& maxID)
+{
+  static_assert(std::is_trivial<T>() || std::is_same<T, std::string>() || std::is_same<T, swr::Attrs>(), "wrong type T");
+  return {};
+}
+
+template<typename T> swr::ItemStreamT<std::vector<T>> RedisAdapter::getForeignDataList(const std::string& basekey, const std::string& subkey, const std::string& minID, const std::string& maxID)
+{
+  static_assert(std::is_trivial<T>(), "wrong type T");
+  return {};
+}
+
+template<typename T> swr::ItemStreamT<T> getDataBefore(const std::string& subkey, const std::string& maxID, uint32_t count)
+{
+  static_assert(std::is_trivial<T>() || std::is_same<T, std::string>() || std::is_same<T, swr::Attrs>(), "wrong type T");
+  return {};
+}
+
+template<typename T> swr::ItemStreamT<std::vector<T>> getDataListBefore(const std::string& subkey, const std::string& maxID, uint32_t count)
+{
+  static_assert(std::is_trivial<T>(), "wrong type T");
+  return {};
+}
+
+template<typename T> swr::ItemStreamT<T> getForeignDataBefore(const std::string& baseKey, const std::string& subkey, const std::string& maxID, uint32_t count)
+{
+  static_assert(std::is_trivial<T>() || std::is_same<T, std::string>() || std::is_same<T, swr::Attrs>(), "wrong type T");
+  return {};
+}
+
+template<typename T> swr::ItemStreamT<std::vector<T>> getForeignDataListBefore(const std::string& baseKey, const std::string& subkey, const std::string& maxID, uint32_t count)
+{
+  static_assert(std::is_trivial<T>(), "wrong type T");
+  return {};
+}
+
+template<typename T> swr::ItemStreamT<T> getDataAfter(const std::string& subkey, const std::string& minID, uint32_t count)
+{
+  static_assert(std::is_trivial<T>() || std::is_same<T, std::string>() || std::is_same<T, swr::Attrs>(), "wrong type T");
+  return {};
+}
+
+template<typename T> swr::ItemStreamT<std::vector<T>> getDataListAfter(const std::string& subkey, const std::string& minID, uint32_t count)
+{
+  static_assert(std::is_trivial<T>(), "wrong type T");
+  return {};
+}
+
+template<typename T> swr::ItemStreamT<T> getForeignDataAfter(const std::string& baseKey, const std::string& subkey, const std::string& minID, uint32_t count)
+{
+  static_assert(std::is_trivial<T>() || std::is_same<T, std::string>() || std::is_same<T, swr::Attrs>(), "wrong type T");
+  return {};
+}
+
+template<typename T> swr::ItemStreamT<std::vector<T>> getForeignDataListAfter(const std::string& baseKey, const std::string& subkey, const std::string& minID, uint32_t count)
+{
+  static_assert(std::is_trivial<T>(), "wrong type T");
+  return {};
+}
+
+template<typename T> std::string addData(const std::string& subKey, const T& data, const std::string& id, uint32_t trim)
+{
+  return {};
+}
+
+template<typename T> std::vector<std::string> addDataList(const std::string& subKey, const swr::ItemStreamT<T>& data, uint32_t trim)
+{
+  return {};
+}
+
