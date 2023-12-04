@@ -29,8 +29,9 @@ namespace swr = sw::redis;
 class RedisAdapter
 {
 public:
-  /* Constructor / Destructor */
-  RedisAdapter(const std::string& baseKey, const std::string& host = "", uint16_t port = 0, uint16_t size = 0);
+  /* Constructors */
+  RedisAdapter(const std::string& baseKey, const std::string& host = "", uint16_t port = 0);
+  RedisAdapter(const std::string& baseKey, const RedisConnection::Options& opts);
 
   RedisAdapter(const RedisAdapter& ra) = delete;
   RedisAdapter& operator=(const RedisAdapter& ra) = delete;
