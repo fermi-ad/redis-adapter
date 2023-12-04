@@ -202,6 +202,8 @@ private:
   static const uint defaultTrimSize = 1;
 };
 
+using RedisAdapterSingle = RedisAdapter;
+using RedisAdapterCluster = RedisAdapter;
 
 template<typename T> T RedisAdapter::getSetting(const std::string& subKey)
 {
