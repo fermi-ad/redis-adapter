@@ -244,7 +244,7 @@ template<typename T> bool RedisAdapter::setSettingList(const std::string& subKey
 template<typename T> swr::ItemStream<T>
 RedisAdapter::get_fwd_data_helper(const std::string& baseKey, const std::string& subKey, const std::string& minID, const std::string& maxID, uint32_t count)
 {
-  static_assert(std::is_trivial<T>() || std::is_same<T, std::string>() || std::is_same<T, swr::Attrs>(), "wrong type T");
+  static_assert(std::is_trivial<T>(), "wrong type T");
   return {};
 }
 

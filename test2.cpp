@@ -27,6 +27,8 @@ int main(int argc, char* argv[])
 
   redis.getData<float>("abc", "1", "2");
 
+  redis.getData<std::string>("abc", "1", "2");
+
   redis.getDataList<float>("abc", "1", "2");
 
   redis.getDataBefore<float>("abc");

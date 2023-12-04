@@ -281,3 +281,15 @@ Optional<timespec> RedisAdapter::getServerTimespec()
   ts.tv_nsec = stoll(result.at(1)) * 1000; // second element contains microseconds in the second
   return ts;
 }
+
+template<> ItemStream<string>
+RedisAdapter::get_fwd_data_helper(const string& baseKey, const string& subKey, const string& minID, const string& maxID, uint32_t count)
+{
+  return {};
+}
+
+template<> ItemStream<Attrs>
+RedisAdapter::get_fwd_data_helper(const string& baseKey, const string& subKey, const string& minID, const string& maxID, uint32_t count)
+{
+  return {};
+}
