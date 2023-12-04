@@ -18,11 +18,9 @@ RedisAdapter::RedisAdapter(const string& baseKey, const RedisConnection::Options
 : _redis(opts)
 {
   _baseKey      = baseKey;
-  _settingsKey  = baseKey + ":SETTINGS:";
   _logKey       = baseKey + ":LOG";
   _commandsKey  = baseKey + ":COMMANDS";
   _statusKey    = baseKey + ":STATUS";
-  _dataKey      = baseKey + ":DATA:";
 }
 
 string RedisAdapter::getStatus(const string& subKey)

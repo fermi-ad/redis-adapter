@@ -60,62 +60,212 @@ public:
   template<typename T> bool setSetting(const std::string& subKey, const T& value);
   template<typename T> bool setSettingList(const std::string& subKey, const std::vector<T>& value);
 
-  //  Data
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  getData<T> : get data for home device as type T (T is trivial, string or Attrs)
+  //
+  //    subKey : sub key to get data from
+  //    minID  : lowest time to get data for
+  //    maxID  : highest time to get data for
+  //    return : ItemStream of Item<T>
+  //
   template<typename T> swr::ItemStream<T>
   getData(const std::string& subKey, const std::string& minID, const std::string& maxID)
   { return get_fwd_data_helper<T>("", subKey, minID, maxID, 0); }
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  getDataList<T> : get data for home device as type vector<T> (T is trivial)
+  //
+  //    subKey : sub key to get data from
+  //    minID  : lowest time to get data for
+  //    maxID  : highest time to get data for
+  //    return : ItemStream of Item<vector<T>>
+  //
   template<typename T> swr::ItemStream<std::vector<T>>
   getDataList(const std::string& subKey, const std::string& minID, const std::string& maxID)
   { return get_fwd_data_list_helper<T>("", subKey, minID, maxID, 0); }
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  getForeignData<T> : get data for foreign device as T (T is trivial, string or Attrs)
+  //
+  //    baseKey : base key of foreign device
+  //    subKey  : sub key to get data from
+  //    minID   : lowest time to get data for
+  //    maxID   : highest time to get data for
+  //    return  : ItemStream of Item<T>
+  //
   template<typename T> swr::ItemStream<T>
   getForeignData(const std::string& baseKey, const std::string& subKey, const std::string& minID, const std::string& maxID)
   { return get_fwd_data_helper<T>(baseKey, subKey, minID, maxID, 0); }
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  getForeignDataList<T> : get data for foreign device as vector<T> (T is trivial)
+  //
+  //    baseKey : base key of foreign device
+  //    subKey : sub key to get data from
+  //    minID  : lowest time to get data for
+  //    maxID  : highest time to get data for
+  //    return : ItemStream of Item<vector<T>>
+  //
   template<typename T> swr::ItemStream<std::vector<T>>
   getForeignDataList(const std::string& baseKey, const std::string& subKey, const std::string& minID, const std::string& maxID)
   { return get_fwd_data_list_helper<T>(baseKey, subKey, minID, maxID, 0); }
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  getDataBefore<T> : get data for home device as type T (T is trivial, string or Attrs)
+  //                     that occurred before a specified time
+  //
+  //    subKey : sub key to get data from
+  //    maxID  : highest time to get data for ("+" is highest possible)
+  //    count  : max number of items to get
+  //    return : ItemStream of Item<T>
+  //
   template<typename T> swr::ItemStream<T>
   getDataBefore(const std::string& subKey, const std::string& maxID = "+", uint32_t count = 1)
   { return get_rev_data_helper<T>("", subKey, maxID, count); }
 
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  getDataListBefore<T> : get data for home device as vector<T> (T is trivial)
+  //                         that occurred before a specified time
+  //
+  //    subKey : sub key to get data from
+  //    maxID  : highest time to get data for ("+" is highest possible)
+  //    count  : max number of items to get
+  //    return : ItemStream of Item<vector<T>>
+  //
   template<typename T> swr::ItemStream<std::vector<T>>
   getDataListBefore(const std::string& subKey, const std::string& maxID = "+", uint32_t count = 1)
   { return get_rev_data_list_helper<T>("", subKey, maxID, count); }
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  getForeignDataBefore<T> : get foreign device data as T (T is trivial, string or Attrs)
+  //                            that occurred before a specified time
+  //
+  //    baseKey : base key of foreign device
+  //    subKey : sub key to get data from
+  //    maxID  : highest time to get data for ("+" is highest possible)
+  //    count  : max number of items to get
+  //    return : ItemStream of Item<T>
+  //
   template<typename T> swr::ItemStream<T>
   getForeignDataBefore(const std::string& baseKey, const std::string& subKey, const std::string& maxID = "+", uint32_t count = 1)
   { return get_rev_data_helper<T>(baseKey, subKey, maxID, count); }
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  getForeignDataListBefore<T> : get foreign device data as vector<T> (T is trivial)
+  //                                that occurred before a specified time
+  //
+  //    baseKey : base key of foreign device
+  //    subKey : sub key to get data from
+  //    maxID  : highest time to get data for ("+" is highest possible)
+  //    count  : max number of items to get
+  //    return : ItemStream of Item<T>
+  //
   template<typename T> swr::ItemStream<std::vector<T>>
   getForeignDataListBefore(const std::string& baseKey, const std::string& subKey, const std::string& maxID = "+", uint32_t count = 1)
   { return get_rev_data_list_helper<T>(baseKey, subKey, maxID, count); }
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  getDataAfter<T> : get data for home device as type T (T is trivial, string or Attrs)
+  //                    that occurred after a specified time
+  //
+  //    subKey : sub key to get data from
+  //    minID  : lowest time to get data for ("-" is lowest possible)
+  //    count  : max number of items to get
+  //    return : ItemStream of Item<T>
+  //
   template<typename T> swr::ItemStream<T>
   getDataAfter(const std::string& subKey, const std::string& minID = "-", uint32_t count = 1)
   { return get_fwd_data_helper<T>("", subKey, minID, "+", count); }
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  getDataListAfter<T> : get data for home device as vector<T> (T is trivial)
+  //                        that occurred after a specified time
+  //
+  //    subKey : sub key to get data from
+  //    minID  : lowest time to get data for ("-" is lowest possible)
+  //    count  : max number of items to get
+  //    return : ItemStream of Item<vector<T>>
+  //
   template<typename T> swr::ItemStream<std::vector<T>>
   getDataListAfter(const std::string& subKey, const std::string& minID = "-", uint32_t count = 1)
   { return get_fwd_data_list_helper<T>("", subKey, minID, "+", count); }
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  getForeignDataAfter<T> : get foreign device data as T (T is trivial, string or Attrs)
+  //                           that occurred after a specified time
+  //
+  //    baseKey : base key of foreign device
+  //    subKey : sub key to get data from
+  //    minID  : lowest time to get data for ("-" is lowest possible)
+  //    count  : max number of items to get
+  //    return : ItemStream of Item<T>
+  //
   template<typename T> swr::ItemStream<T>
   getForeignDataAfter(const std::string& baseKey, const std::string& subKey, const std::string& minID = "-", uint32_t count = 1)
   { return get_fwd_data_helper<T>(baseKey, subKey, minID, "+", count); }
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  getForeignDataListAfter<T> : get foreign device data as vector<T> (T is trivial)
+  //                               that occurred after a specified time
+  //
+  //    baseKey : base key of foreign device
+  //    subKey : sub key to get data from
+  //    minID  : lowest time to get data for ("-" is highest possible)
+  //    count  : max number of items to get
+  //    return : ItemStream of Item<T>
+  //
   template<typename T> swr::ItemStream<std::vector<T>>
   getForeignDataListAfter(const std::string& baseKey, const std::string& subKey, const std::string& minID = "-", uint32_t count = 1)
   { return get_fwd_data_list_helper<T>(baseKey, subKey, minID, "+", count); }
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  addData<T> : add a data item of type T (T is trivial, string, or Attrs)
+  //
+  //    subKey : sub key to add data to
+  //    data   : data to add (non-Attr will be added at DEFAULT_FIELD)
+  //    id     : time to add the data at ("*" is current redis time)
+  //    trim   : number of items to trim the stream to
+  //
   template<typename T> std::string
   addData(const std::string& subKey, const T& data, const std::string& id = "*", uint32_t trim = 1)
   { return add_data_helper<T>(subKey, data, id, trim); }
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  addDataList<T> : add a vector<T> as a data item (T is trivial)
+  //
+  //    subKey : sub key to add data to
+  //    data   : data to add
+  //    id     : time to add the data at ("*" is current redis time)
+  //    trim   : number of items to trim the stream to
+  //
   template<typename T> std::vector<std::string>
-  addDataList(const std::string& subKey, const swr::ItemStream<T>& data, uint32_t trim = 1)
+  addDataList(const std::string& subKey, const std::vector<T>& data, const std::string& id = "*", uint32_t trim = 1)
   { return add_data_list_helper<T>(subKey, data, trim); }
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  addMultiData<T> : add multiple data items of type T (T is trivial, string, or Attrs)
+  //
+  //    subKey : sub key to add data to
+  //    data   : ids and data to add (empty ids treated as "*")
+  //    trim   : trim to greater of this value or number of data items
+  //
+  template<typename T> std::vector<std::string>
+  addMultiData(const std::string& subKey, const swr::ItemStream<T>& data, uint32_t trim = 1)
+  { return add_multi_data_helper<T>(subKey, data, trim); }
+
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  addMultiDataList<T> : add multiple vector<T> as data items (T is trivial)
+  //
+  //    subKey : sub key to add data to
+  //    data   : ids and data to add (empty ids treated as "*")
+  //    trim   : trim to greater of this value or number of data items
+  //
+  template<typename T> std::vector<std::string>
+  addMultiDataList(const std::string& subKey, const swr::ItemStream<std::vector<T>>& data, uint32_t trim = 1)
+  { return add_multi_data_list_helper<T>(subKey, data, trim); }
+
 
   //  Publish / Subscribe Functions
   void publish(std::string msg);
@@ -143,6 +293,10 @@ private:
 
   const std::string DEFAULT_FIELD = "_";
 
+  const std::string SETTINGS_STUB = ":SETTINGS:";
+  const std::string DATA_STUB     = ":DATA:";
+  const std::string COMMANDS_STUB = ":COMMANDS:";
+
   template<typename T> T default_field_value(const swr::Item<swr::Attrs> item);
 
   template<typename T> swr::Attrs default_field_attrs(const T& data);
@@ -162,8 +316,14 @@ private:
   template<typename T> std::string
   add_data_helper(const std::string& subKey, const T& data, const std::string& id, uint32_t trim);
 
+  template<typename T> std::string
+  add_data_list_helper(const std::string& subKey, const std::vector<T>& data, const std::string& id, uint32_t trim);
+
   template<typename T> std::vector<std::string>
-  add_data_list_helper(const std::string& subKey, const swr::ItemStream<T>& data, uint32_t trim);
+  add_multi_data_helper(const std::string& subKey, const swr::ItemStream<T>& data, uint32_t trim);
+
+  template<typename T> std::vector<std::string>
+  add_multi_data_list_helper(const std::string& subKey, const swr::ItemStream<std::vector<T>>& data, const std::string& id, uint32_t trim);
 
   void streamReadBlock(std::unordered_map<std::string, std::string>& keysID, swr::Streams<swr::Attrs>& result);
 
@@ -257,7 +417,7 @@ template <> inline swr::ItemStream<swr::Attrs>
 RedisAdapter::get_fwd_data_helper(const std::string& baseKey, const std::string& subKey, const std::string& minID, const std::string& maxID, uint32_t count)
 {
   swr::ItemStream<swr::Attrs> ret;
-  std::string key = (baseKey.size() ? baseKey : _baseKey) + ":DATA:" + subKey;
+  std::string key = (baseKey.size() ? baseKey : _baseKey) + DATA_STUB + subKey;
   if (count) { _redis.xrange(key, minID, maxID, count, std::back_inserter(ret)); }
   else       { _redis.xrange(key, minID, maxID, std::back_inserter(ret)); }
   return ret;
@@ -268,7 +428,7 @@ RedisAdapter::get_fwd_data_helper(const std::string& baseKey, const std::string&
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
   swr::ItemStream<swr::Attrs> raw;
-  std::string key = (baseKey.size() ? baseKey : _baseKey) + ":DATA:" + subKey;
+  std::string key = (baseKey.size() ? baseKey : _baseKey) + DATA_STUB + subKey;
   bool ok = count ? _redis.xrange(key, minID, maxID, count, std::back_inserter(raw))
                   : _redis.xrange(key, minID, maxID, std::back_inserter(raw));
   if (ok)
@@ -294,7 +454,7 @@ RedisAdapter::get_fwd_data_list_helper(const std::string& baseKey, const std::st
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
   swr::ItemStream<swr::Attrs> raw;
-  std::string key = (baseKey.size() ? baseKey : _baseKey) + ":DATA:" + subKey;
+  std::string key = (baseKey.size() ? baseKey : _baseKey) + DATA_STUB + subKey;
   bool ok = count ? _redis.xrange(key, minID, maxID, count, std::back_inserter(raw))
                   : _redis.xrange(key, minID, maxID, std::back_inserter(raw));
   if (ok)
@@ -320,7 +480,7 @@ template <> inline swr::ItemStream<swr::Attrs>
 RedisAdapter::get_rev_data_helper(const std::string& baseKey, const std::string& subKey, const std::string& maxID, uint32_t count)
 {
   swr::ItemStream<swr::Attrs> ret;
-  std::string key = (baseKey.size() ? baseKey : _baseKey) + ":DATA:" + subKey;
+  std::string key = (baseKey.size() ? baseKey : _baseKey) + DATA_STUB + subKey;
   if (count) { _redis.xrevrange(key, maxID, "-", count, std::back_inserter(ret)); }
   else       { _redis.xrevrange(key, maxID, "-", std::back_inserter(ret)); }
   std::reverse(ret.begin(), ret.end());   //  reverse in place
@@ -332,7 +492,7 @@ RedisAdapter::get_rev_data_helper(const std::string& baseKey, const std::string&
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
   swr::ItemStream<swr::Attrs> raw;
-  std::string key = (baseKey.size() ? baseKey : _baseKey) + ":DATA:" + subKey;
+  std::string key = (baseKey.size() ? baseKey : _baseKey) + DATA_STUB + subKey;
   bool ok = count ? _redis.xrevrange(key, maxID, "-", count, std::back_inserter(raw))
                   : _redis.xrevrange(key, maxID, "-", count, std::back_inserter(raw));
   if (ok)
@@ -358,7 +518,7 @@ RedisAdapter::get_rev_data_list_helper(const std::string& baseKey, const std::st
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
   swr::ItemStream<swr::Attrs> raw;
-  std::string key = (baseKey.size() ? baseKey : _baseKey) + ":DATA:" + subKey;
+  std::string key = (baseKey.size() ? baseKey : _baseKey) + DATA_STUB + subKey;
   bool ok = count ? _redis.xrevrange(key, maxID, "-", count, std::back_inserter(raw))
                   : _redis.xrevrange(key, maxID, "-", std::back_inserter(raw));
   if (ok)
@@ -376,13 +536,14 @@ RedisAdapter::get_rev_data_list_helper(const std::string& baseKey, const std::st
       }
     }
     return ret;
-  }  return {};
+  }
+  return {};
 }
 
 template<> inline std::string
 RedisAdapter::add_data_helper(const std::string& subKey, const swr::Attrs& attrs, const std::string& id, uint32_t trim)
 {
-  std::string key = _baseKey + ":DATA:" + subKey;
+  std::string key = _baseKey + DATA_STUB + subKey;
   if (trim) { return _redis.xaddTrim(key, id, attrs.begin(), attrs.end(), trim); }
   else      { return _redis.xadd(key, id, attrs.begin(), attrs.end()); }
   return {};
@@ -392,23 +553,50 @@ template<typename T> std::string
 RedisAdapter::add_data_helper(const std::string& subKey, const T& data, const std::string& id, uint32_t trim)
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
-  std::string key = _baseKey + ":DATA:" + subKey;
+  std::string key = _baseKey + DATA_STUB + subKey;
   swr::Attrs attrs = default_field_attrs<T>(data);
   if (trim) { return _redis.xaddTrim(key, id, attrs.begin(), attrs.end(), trim); }
   else      { return _redis.xadd(key, id, attrs.begin(), attrs.end()); }
   return {};
 }
 
-template<typename T> std::vector<std::string>
-RedisAdapter::add_data_list_helper(const std::string& subKey, const swr::ItemStream<T>& data, uint32_t trim)
+template<typename T> std::string
+RedisAdapter::add_data_list_helper(const std::string& subKey, const std::vector<T>& data, const std::string& id, uint32_t trim)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
+  std::string key = _baseKey + DATA_STUB + subKey;
+  swr::Attrs attrs = {{ DEFAULT_FIELD, std::string(data.data(), data.size() * sizeof(T)) }};
+  if (trim) { return _redis.xaddTrim(key, id, attrs.begin(), attrs.end(), trim); }
+  else      { return _redis.xadd(key, id, attrs.begin(), attrs.end()); }
+  return {};
+}
+
+template<typename T> std::vector<std::string>
+RedisAdapter::add_multi_data_helper(const std::string& subKey, const swr::ItemStream<T>& data, uint32_t trim)
+{
+  static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
   std::vector<std::string> ret;
-  std::string key = _baseKey + ":DATA:" + subKey;
+  std::string key = _baseKey + DATA_STUB + subKey;
   for (const auto& item : data)
   {
     std::string id = item.first.size() ? item.first : "*";
-    swr::Attrs attrs = {{ DEFAULT_FIELD, std::string((const char*)item.second.data(), item.second.size() * sizeof(T)) }};
+    swr::Attrs attrs = default_field_attrs<T>(item.second);
+    if (trim) { ret.push_back(_redis.xaddTrim(key, id, attrs.begin(), attrs.end(), trim)); }
+    else      { ret.push_back(_redis.xadd(key, id, attrs.begin(), attrs.end())); }
+  }
+  return ret;
+}
+
+template<typename T> std::vector<std::string>
+RedisAdapter::add_multi_data_list_helper(const std::string& subKey, const swr::ItemStream<std::vector<T>>& data, const std::string& id, uint32_t trim)
+{
+  static_assert(std::is_trivial<T>(), "wrong type T");
+  std::vector<std::string> ret;
+  std::string key = _baseKey + DATA_STUB + subKey;
+  for (const auto& item : data)
+  {
+    std::string id = item.first.size() ? item.first : "*";
+    swr::Attrs attrs = {{ DEFAULT_FIELD, std::string(item.second.data(), item.second.size() * sizeof(T)) }};
     if (trim) { ret.push_back(_redis.xaddTrim(key, id, attrs.begin(), attrs.end(), trim)); }
     else      { ret.push_back(_redis.xadd(key, id, attrs.begin(), attrs.end())); }
   }
