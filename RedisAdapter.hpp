@@ -9,6 +9,7 @@
 #pragma once
 
 #include "RedisConnection.h"
+#include <algorithm>
 
 namespace sw
 {
@@ -29,24 +30,27 @@ namespace swr = sw::redis;
 class RedisAdapter
 {
 public:
-  /* Constructors */
+  //  Constructors
   RedisAdapter(const std::string& baseKey, const std::string& host = "", uint16_t port = 0);
   RedisAdapter(const std::string& baseKey, const RedisConnection::Options& opts);
 
   RedisAdapter(const RedisAdapter& ra) = delete;
   RedisAdapter& operator=(const RedisAdapter& ra) = delete;
 
+  //  Status
   std::string getStatus(const std::string& subKey);
   std::string getForeignStatus(const std::string& baseKey, const std::string& subKey);
 
   bool setStatus(const std::string& subKey, const std::string& value);
 
+  //  Log
   swr::ItemStream<std::string> getLog(std::string minID, std::string maxID = "+");
   swr::ItemStream<std::string> getLogAfter(std::string minID, uint32_t count);
   swr::ItemStream<std::string> getLogBefore(std::string maxID, uint32_t count = 1);
 
   bool addLog(std::string message, uint32_t trim = 1000);
 
+  //  Settings
   template<typename T> T getSetting(const std::string& subKey);
   template<typename T> std::vector<T> getSettingList(const std::string& subKey);
 
@@ -56,6 +60,7 @@ public:
   template<typename T> bool setSetting(const std::string& subKey, const T& value);
   template<typename T> bool setSettingList(const std::string& subKey, const std::vector<T>& value);
 
+  //  Data
   template<typename T> swr::ItemStream<T>
   getData(const std::string& subKey, const std::string& minID, const std::string& maxID)
   { return get_fwd_data_helper<T>("", subKey, minID, maxID, 0); }
@@ -112,9 +117,7 @@ public:
   addDataList(const std::string& subKey, const swr::ItemStream<T>& data, uint32_t trim = 1)
   { return add_data_list_helper<T>(subKey, data, trim); }
 
-  /*
-   * Publish / Subscribe Functions
-   */
+  //  Publish / Subscribe Functions
   void publish(std::string msg);
   void publish(std::string key, std::string msg);
 
@@ -124,15 +127,11 @@ public:
   void registerCommand(std::string command, std::function<void(std::string, std::string)> f);
   void addReader(std::string streamKey,  std::function<void(std::string, swr::ItemStream<swr::Attrs>)> f);
 
-  /*
-   * Copy & Delete Functions
-   */
+  //  Copy & Delete Functions
   void copyKey(std::string src, std::string dst);
   void deleteKey(std::string key);
 
-  /*
-   * Time
-   */
+  //  Time
   virtual std::vector<std::string> getServerTime();
   virtual swr::Optional<timespec> getServerTimespec();
 
@@ -140,9 +139,13 @@ public:
   void startReader();
 
 private:
+  RedisConnection _redis;
+
   const std::string DEFAULT_FIELD = "_";
 
-  RedisConnection _redis;
+  template<typename T> T default_field_value(const swr::Item<swr::Attrs> item);
+
+  template<typename T> swr::Attrs default_field_attrs(const T& data);
 
   template<typename T> swr::ItemStream<T>
   get_fwd_data_helper(const std::string& baseKey, const std::string& subKey, const std::string& minID, const std::string& maxID, uint32_t count);
@@ -201,12 +204,18 @@ private:
   std::string _commandsKey;
   std::string _statusKey;
   std::string _dataKey;
-
-  static const uint defaultTrimSize = 1;
 };
 
 using RedisAdapterSingle = RedisAdapter;
 using RedisAdapterCluster = RedisAdapter;
+
+template<> inline std::string RedisAdapter::default_field_value(const swr::Item<swr::Attrs> item) { return item.second.at(DEFAULT_FIELD); }
+
+template<typename T> T RedisAdapter::default_field_value(const swr::Item<swr::Attrs> item) { return *(T*)item.second.at(DEFAULT_FIELD).data(); }
+
+template<> inline swr::Attrs RedisAdapter::default_field_attrs(const std::string& data) { return {{ DEFAULT_FIELD, data }}; }
+
+template<typename T> swr::Attrs RedisAdapter::default_field_attrs(const T& data) { return {{ DEFAULT_FIELD, std::string((const char*)&data, sizeof(T)) }}; }
 
 template<typename T> T RedisAdapter::getSetting(const std::string& subKey)
 {
@@ -244,45 +253,25 @@ template<typename T> bool RedisAdapter::setSettingList(const std::string& subKey
   return {};
 }
 
-template <> inline swr::ItemStream<std::string>
-RedisAdapter::get_fwd_data_helper(const std::string& baseKey, const std::string& subKey, const std::string& minID, const std::string& maxID, uint32_t count)
-{
-  swr::ItemStream<swr::Attrs> raw;
-  std::string key = (baseKey.size() ? baseKey : _baseKey) + ":DATA:" + subKey;
-  if (_redis.xrange(key, minID, maxID, count, std::back_inserter(raw)))
-  {
-    swr::ItemStream<std::string> ret;
-    swr::Item<std::string> retItem;
-    for (const auto& rawItem : raw)
-    {
-      if (rawItem.second.count(DEFAULT_FIELD))
-      {
-        retItem.first = rawItem.first;
-        retItem.second = rawItem.second.at(DEFAULT_FIELD);
-        ret.push_back(retItem);
-      }
-    }
-    return ret;
-  }
-  return {};
-}
-
 template <> inline swr::ItemStream<swr::Attrs>
 RedisAdapter::get_fwd_data_helper(const std::string& baseKey, const std::string& subKey, const std::string& minID, const std::string& maxID, uint32_t count)
 {
   swr::ItemStream<swr::Attrs> ret;
   std::string key = (baseKey.size() ? baseKey : _baseKey) + ":DATA:" + subKey;
-  _redis.xrange(key, minID, maxID, count, std::back_inserter(ret));
+  if (count) { _redis.xrange(key, minID, maxID, count, std::back_inserter(ret)); }
+  else       { _redis.xrange(key, minID, maxID, std::back_inserter(ret)); }
   return ret;
 }
 
 template<typename T> swr::ItemStream<T>
 RedisAdapter::get_fwd_data_helper(const std::string& baseKey, const std::string& subKey, const std::string& minID, const std::string& maxID, uint32_t count)
 {
-  static_assert(std::is_trivial<T>(), "wrong type T");
+  static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
   swr::ItemStream<swr::Attrs> raw;
   std::string key = (baseKey.size() ? baseKey : _baseKey) + ":DATA:" + subKey;
-  if (_redis.xrange(key, minID, maxID, count, std::back_inserter(raw)))
+  bool ok = count ? _redis.xrange(key, minID, maxID, count, std::back_inserter(raw))
+                  : _redis.xrange(key, minID, maxID, std::back_inserter(raw));
+  if (ok)
   {
     swr::ItemStream<T> ret;
     swr::Item<T> retItem;
@@ -291,7 +280,7 @@ RedisAdapter::get_fwd_data_helper(const std::string& baseKey, const std::string&
       if (rawItem.second.count(DEFAULT_FIELD))
       {
         retItem.first = rawItem.first;
-        retItem.second = *(T*)rawItem.second.at(DEFAULT_FIELD).data();
+        retItem.second = default_field_value<T>(rawItem);
         ret.push_back(retItem);
       }
     }
@@ -304,13 +293,63 @@ template<typename T> swr::ItemStream<std::vector<T>>
 RedisAdapter::get_fwd_data_list_helper(const std::string& baseKey, const std::string& subKey, const std::string& minID, const std::string& maxID, uint32_t count)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
+  swr::ItemStream<swr::Attrs> raw;
+  std::string key = (baseKey.size() ? baseKey : _baseKey) + ":DATA:" + subKey;
+  bool ok = count ? _redis.xrange(key, minID, maxID, count, std::back_inserter(raw))
+                  : _redis.xrange(key, minID, maxID, std::back_inserter(raw));
+  if (ok)
+  {
+    swr::ItemStream<std::vector<T>> ret;
+    swr::Item<std::vector<T>> retItem;
+    for (const auto& rawItem : raw)
+    {
+      if (rawItem.second.count(DEFAULT_FIELD))
+      {
+        retItem.first = rawItem.first;
+        const std::string& str = rawItem.second.at(DEFAULT_FIELD);
+        retItem.second.assign(str.data(), str.data() + str.size());
+        ret.push_back(retItem);
+      }
+    }
+    return ret;
+  }
   return {};
+}
+
+template <> inline swr::ItemStream<swr::Attrs>
+RedisAdapter::get_rev_data_helper(const std::string& baseKey, const std::string& subKey, const std::string& maxID, uint32_t count)
+{
+  swr::ItemStream<swr::Attrs> ret;
+  std::string key = (baseKey.size() ? baseKey : _baseKey) + ":DATA:" + subKey;
+  if (count) { _redis.xrevrange(key, maxID, "-", count, std::back_inserter(ret)); }
+  else       { _redis.xrevrange(key, maxID, "-", std::back_inserter(ret)); }
+  std::reverse(ret.begin(), ret.end());   //  reverse in place
+  return ret;
 }
 
 template<typename T> swr::ItemStream<T>
 RedisAdapter::get_rev_data_helper(const std::string& baseKey, const std::string& subKey, const std::string& maxID, uint32_t count)
 {
-  static_assert(std::is_trivial<T>() || std::is_same<T, std::string>() || std::is_same<T, swr::Attrs>(), "wrong type T");
+  static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
+  swr::ItemStream<swr::Attrs> raw;
+  std::string key = (baseKey.size() ? baseKey : _baseKey) + ":DATA:" + subKey;
+  bool ok = count ? _redis.xrevrange(key, maxID, "-", count, std::back_inserter(raw))
+                  : _redis.xrevrange(key, maxID, "-", count, std::back_inserter(raw));
+  if (ok)
+  {
+    swr::ItemStream<T> ret;
+    swr::Item<T> retItem;
+    for (auto rawItem = raw.rbegin(); rawItem != raw.rend(); rawItem++)   //  reverse iterate
+    {
+      if (rawItem->second.count(DEFAULT_FIELD))
+      {
+        retItem.first = rawItem->first;
+        retItem.second = default_field_value<T>(*rawItem);
+        ret.push_back(retItem);
+      }
+    }
+    return ret;
+  }
   return {};
 }
 
@@ -318,13 +357,45 @@ template<typename T> swr::ItemStream<std::vector<T>>
 RedisAdapter::get_rev_data_list_helper(const std::string& baseKey, const std::string& subKey, const std::string& maxID, uint32_t count)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
+  swr::ItemStream<swr::Attrs> raw;
+  std::string key = (baseKey.size() ? baseKey : _baseKey) + ":DATA:" + subKey;
+  bool ok = count ? _redis.xrevrange(key, maxID, "-", count, std::back_inserter(raw))
+                  : _redis.xrevrange(key, maxID, "-", std::back_inserter(raw));
+  if (ok)
+  {
+    swr::ItemStream<std::vector<T>> ret;
+    swr::Item<std::vector<T>> retItem;
+    for (auto rawItem = raw.rbegin(); rawItem != raw.rend(); rawItem++)   //  reverse iterate
+    {
+      if (rawItem->second.count(DEFAULT_FIELD))
+      {
+        retItem.first = rawItem->first;
+        const std::string& str = rawItem->second.at(DEFAULT_FIELD);
+        retItem.second.assign(str.data(), str.data() + str.size());
+        ret.push_back(retItem);
+      }
+    }
+    return ret;
+  }  return {};
+}
+
+template<> inline std::string
+RedisAdapter::add_data_helper(const std::string& subKey, const swr::Attrs& attrs, const std::string& id, uint32_t trim)
+{
+  std::string key = _baseKey + ":DATA:" + subKey;
+  if (trim) { return _redis.xaddTrim(key, id, attrs.begin(), attrs.end(), trim); }
+  else      { return _redis.xadd(key, id, attrs.begin(), attrs.end()); }
   return {};
 }
 
 template<typename T> std::string
 RedisAdapter::add_data_helper(const std::string& subKey, const T& data, const std::string& id, uint32_t trim)
 {
-  static_assert(std::is_trivial<T>() || std::is_same<T, std::string>() || std::is_same<T, swr::Attrs>(), "wrong type T");
+  static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
+  std::string key = _baseKey + ":DATA:" + subKey;
+  swr::Attrs attrs = default_field_attrs<T>(data);
+  if (trim) { return _redis.xaddTrim(key, id, attrs.begin(), attrs.end(), trim); }
+  else      { return _redis.xadd(key, id, attrs.begin(), attrs.end()); }
   return {};
 }
 
@@ -332,5 +403,14 @@ template<typename T> std::vector<std::string>
 RedisAdapter::add_data_list_helper(const std::string& subKey, const swr::ItemStream<T>& data, uint32_t trim)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
-  return {};
+  std::vector<std::string> ret;
+  std::string key = _baseKey + ":DATA:" + subKey;
+  for (const auto& item : data)
+  {
+    std::string id = item.first.size() ? item.first : "*";
+    swr::Attrs attrs = {{ DEFAULT_FIELD, std::string((const char*)item.second.data(), item.second.size() * sizeof(T)) }};
+    if (trim) { ret.push_back(_redis.xaddTrim(key, id, attrs.begin(), attrs.end(), trim)); }
+    else      { ret.push_back(_redis.xadd(key, id, attrs.begin(), attrs.end())); }
+  }
+  return ret;
 }
