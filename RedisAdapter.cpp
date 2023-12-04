@@ -59,6 +59,7 @@ bool RedisAdapter::addLog(string message, uint32_t trim)
   return {};
 }
 
+
 /*
 * Stream Functions
 */

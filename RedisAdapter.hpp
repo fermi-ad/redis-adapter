@@ -29,8 +29,6 @@ namespace sw::redis
   template <typename T> using StreamsT = std::unordered_map<std::string, ItemStreamT<T>>;
 };
 
-namespace swr = sw::redis;
-
 /**
  * RedisAdapter
  */
@@ -167,8 +165,8 @@ public:
   /*
    * Time
    */
-  virtual std::vector<std::string> getServerTime();
-  virtual swr::Optional<timespec> getServerTimespec();
+  // virtual std::vector<std::string> getServerTime();
+  // virtual swr::Optional<timespec> getServerTimespec();
 
   void startListener();
   void startReader();
@@ -335,3 +333,4 @@ template<typename T> std::vector<std::string> addDataList(const std::string& sub
 {
   return {};
 }
+
