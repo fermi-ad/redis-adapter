@@ -22,8 +22,6 @@ namespace sw
   }
 }
 
-namespace swr = sw::redis;
-
 /**
  * RedisAdapter
  */
@@ -414,3 +412,4 @@ RedisAdapter::add_data_list_helper(const std::string& subKey, const swr::ItemStr
   }
   return ret;
 }
+
