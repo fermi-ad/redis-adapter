@@ -165,8 +165,8 @@ public:
   /*
    * Time
    */
-  // virtual std::vector<std::string> getServerTime();
-  // virtual swr::Optional<timespec> getServerTimespec();
+  virtual std::vector<std::string> getServerTime();
+  virtual swr::Optional<timespec> getServerTimespec();
 
   void startListener();
   void startReader();
