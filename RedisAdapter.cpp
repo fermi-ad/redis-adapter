@@ -11,8 +11,11 @@
 using namespace sw::redis;
 using namespace std;
 
-RedisAdapter::RedisAdapter(const string& baseKey, const string& host, uint16_t port, uint16_t size)
-: _redis(RedisConnection::Options{ .host = host, .port = port, .size = size })
+RedisAdapter::RedisAdapter(const string& baseKey, const string& host, uint16_t port)
+: RedisAdapter(baseKey, RedisConnection::Options{ .host = host, .port = port }) {}
+
+RedisAdapter::RedisAdapter(const string& baseKey, const RedisConnection::Options& opts)
+: _redis(opts)
 {
   _settingsKey  = baseKey + ":SETTINGS:";
   _logKey       = baseKey + ":LOG";
