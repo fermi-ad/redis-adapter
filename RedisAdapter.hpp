@@ -140,6 +140,8 @@ public:
   void startReader();
 
 private:
+  const std::string DEFAULT_FIELD = "_";
+
   RedisConnection _redis;
 
   template<typename T> swr::ItemStream<T>
@@ -193,6 +195,7 @@ private:
 
   std::unordered_map<std::string, std::string> _streamKeyID;
 
+  std::string _baseKey;
   std::string _settingsKey;
   std::string _logKey;
   std::string _commandsKey;
@@ -241,10 +244,59 @@ template<typename T> bool RedisAdapter::setSettingList(const std::string& subKey
   return {};
 }
 
+template <> inline swr::ItemStream<std::string>
+RedisAdapter::get_fwd_data_helper(const std::string& baseKey, const std::string& subKey, const std::string& minID, const std::string& maxID, uint32_t count)
+{
+  swr::ItemStream<swr::Attrs> raw;
+  std::string key = (baseKey.size() ? baseKey : _baseKey) + ":DATA:" + subKey;
+  if (_redis.xrange(key, minID, maxID, count, std::back_inserter(raw)))
+  {
+    swr::ItemStream<std::string> ret;
+    swr::Item<std::string> retItem;
+    for (const auto& rawItem : raw)
+    {
+      if (rawItem.second.count(DEFAULT_FIELD))
+      {
+        retItem.first = rawItem.first;
+        retItem.second = rawItem.second.at(DEFAULT_FIELD);
+        ret.push_back(retItem);
+      }
+    }
+    return ret;
+  }
+  return {};
+}
+
+template <> inline swr::ItemStream<swr::Attrs>
+RedisAdapter::get_fwd_data_helper(const std::string& baseKey, const std::string& subKey, const std::string& minID, const std::string& maxID, uint32_t count)
+{
+  swr::ItemStream<swr::Attrs> ret;
+  std::string key = (baseKey.size() ? baseKey : _baseKey) + ":DATA:" + subKey;
+  _redis.xrange(key, minID, maxID, count, std::back_inserter(ret));
+  return ret;
+}
+
 template<typename T> swr::ItemStream<T>
 RedisAdapter::get_fwd_data_helper(const std::string& baseKey, const std::string& subKey, const std::string& minID, const std::string& maxID, uint32_t count)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
+  swr::ItemStream<swr::Attrs> raw;
+  std::string key = (baseKey.size() ? baseKey : _baseKey) + ":DATA:" + subKey;
+  if (_redis.xrange(key, minID, maxID, count, std::back_inserter(raw)))
+  {
+    swr::ItemStream<T> ret;
+    swr::Item<T> retItem;
+    for (const auto& rawItem : raw)
+    {
+      if (rawItem.second.count(DEFAULT_FIELD))
+      {
+        retItem.first = rawItem.first;
+        retItem.second = *(T*)rawItem.second.at(DEFAULT_FIELD).data();
+        ret.push_back(retItem);
+      }
+    }
+    return ret;
+  }
   return {};
 }
 

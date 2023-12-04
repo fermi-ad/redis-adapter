@@ -29,13 +29,7 @@ int main(int argc, char* argv[])
 
   redis.getData<std::string>("abc", "1", "2");
 
-  redis.getDataList<float>("abc", "1", "2");
-
-  redis.getDataBefore<float>("abc");
-
-  redis.getDataListAfter<float>("abc");
-
-  redis.addData("abc", 1.23);
+  redis.getData<swr::Attrs>("abc", "1", "2");
 
   return 0;
 }

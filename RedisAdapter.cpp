@@ -17,6 +17,7 @@ RedisAdapter::RedisAdapter(const string& baseKey, const string& host, uint16_t p
 RedisAdapter::RedisAdapter(const string& baseKey, const RedisConnection::Options& opts)
 : _redis(opts)
 {
+  _baseKey      = baseKey;
   _settingsKey  = baseKey + ":SETTINGS:";
   _logKey       = baseKey + ":LOG";
   _commandsKey  = baseKey + ":COMMANDS";
@@ -280,16 +281,4 @@ Optional<timespec> RedisAdapter::getServerTimespec()
   ts.tv_sec  = stoll(result.at(0));        // first element contains unix time
   ts.tv_nsec = stoll(result.at(1)) * 1000; // second element contains microseconds in the second
   return ts;
-}
-
-template<> ItemStream<string>
-RedisAdapter::get_fwd_data_helper(const string& baseKey, const string& subKey, const string& minID, const string& maxID, uint32_t count)
-{
-  return {};
-}
-
-template<> ItemStream<Attrs>
-RedisAdapter::get_fwd_data_helper(const string& baseKey, const string& subKey, const string& minID, const string& maxID, uint32_t count)
-{
-  return {};
 }
