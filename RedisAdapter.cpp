@@ -51,10 +51,10 @@ ItemStream<string> RedisAdapter::getLog(string minID, string maxID)
   swr::Item<string> retItem;
   for (const auto& rawItem : raw)
   {
-    if (rawItem.second.count(DEFAULT_FIELD))
+    retItem.second = default_field_value<string>(rawItem);
+    if (retItem.second.size())
     {
       retItem.first = rawItem.first;
-      retItem.second = default_field_value<string>(rawItem);
       ret.push_back(retItem);
     }
   }
@@ -69,10 +69,10 @@ ItemStream<string> RedisAdapter::getLogAfter(string minID, uint32_t count)
   swr::Item<string> retItem;
   for (const auto& rawItem : raw)
   {
-    if (rawItem.second.count(DEFAULT_FIELD))
+    retItem.second = default_field_value<string>(rawItem);
+    if (retItem.second.size())
     {
       retItem.first = rawItem.first;
-      retItem.second = default_field_value<string>(rawItem);
       ret.push_back(retItem);
     }
   }
@@ -87,10 +87,10 @@ ItemStream<string> RedisAdapter::getLogBefore(uint32_t count, string maxID)
   swr::Item<string> retItem;
   for (auto rawItem = raw.rbegin(); rawItem != raw.rend(); rawItem++)   //  reverse iterate
   {
-    if (rawItem->second.count(DEFAULT_FIELD))
+    retItem.second = default_field_value<string>(*rawItem);
+    if (retItem.second.size())
     {
       retItem.first = rawItem->first;
-      retItem.second = default_field_value<string>(*rawItem);
       ret.push_back(retItem);
     }
   }
@@ -193,12 +193,12 @@ void RedisAdapter::registerCommand(string command, function<void(string, string)
 void RedisAdapter::listener()
 {
   auto maybe = _redis.subscriber();
-  if (maybe.empty())
+  if ( ! maybe.has_value())
   {
     syslog(LOG_ERR, "Can't get initial subscriber");
     return;
   }
-  Subscriber& sub = maybe.front();
+  Subscriber& sub = maybe.value();
 
   // Consume messages in a loop.
   bool flag = false;
@@ -279,12 +279,12 @@ void RedisAdapter::listener()
       syslog(LOG_ERR, "ERROR %s occured, trying to recover", e.what());
       flag = false;
       auto maybe = _redis.subscriber();
-      if (maybe.empty())
+      if ( ! maybe.has_value())
       {
         syslog(LOG_ERR, "Can't replace subscriber");
         return;
       }
-      sub = move(maybe.front());
+      sub = move(maybe.value());
     }
   }
 }

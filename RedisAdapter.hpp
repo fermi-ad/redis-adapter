@@ -88,21 +88,94 @@ public:
   //
   bool setStatus(const std::string& subKey, const std::string& value);
 
-  //  Log
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  getLog : get log for home device between specified times
+  //
+  //    minID  : lowest time to get log for
+  //    maxID  : highest time to get log for
+  //    return : ItemStream of Item<string>
+  //
   swr::ItemStream<std::string> getLog(std::string minID, std::string maxID = "+");
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  getLogAfter : get log for home device after specified time
+  //
+  //    minID  : lowest time to get log for
+  //    count  : greatest number of log items to get
+  //    return : ItemStream of Item<string>
+  //
   swr::ItemStream<std::string> getLogAfter(std::string minID, uint32_t count = 100);
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  getLogBefore : get log for home device before specified time
+  //
+  //    count  : greatest number of log items to get
+  //    maxID  : highest time to get log for
+  //    return : ItemStream of Item<string>
+  //
   swr::ItemStream<std::string> getLogBefore(uint32_t count = 100, std::string maxID = "+");
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  addLog : add a log message
+  //
+  //    message : log message to add
+  //    trim    : number of items to trim log stream to
+  //    return  : true for success, false for failure
+  //
   bool addLog(std::string message, uint32_t trim = 1000);
 
-  //  Settings
-  template<typename T> T getSetting(const std::string& subKey);
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  getSetting : get setting for home device as type T (T is trivial, string)
+  //
+  //    subKey : sub key to get setting from
+  //    return : Optional with setting value if successful
+  //             empty Optional if unsuccessful
+  //
+  template<typename T> swr::Optional<T> getSetting(const std::string& subKey);
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  getSettingList<T> : get setting for home device as type vector<T> (T is trivial)
+  //
+  //    subKey : sub key to get setting from
+  //    return : setting value as vector<T> or empty on failure
+  //
   template<typename T> std::vector<T> getSettingList(const std::string& subKey);
 
-  template<typename T> T getForeignSetting(const std::string& foreignKey, const std::string& subKey);
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  getForeignSetting : get setting for foreign device as type T (T is trivial, string)
+  //
+  //    foreignKey : base key of foreign device
+  //    subKey     : sub key to get setting from
+  //    return     : Optional with setting value if successful
+  //                 empty Optional if unsuccessful
+  //
+  template<typename T> swr::Optional<T> getForeignSetting(const std::string& foreignKey, const std::string& subKey);
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  getForeignSettingList<T> : get setting for foreign device as type vector<T> (T is trivial)
+  //
+  //    foreignKey : base key of foreign device
+  //    subKey     : sub key to get setting from
+  //    return     : setting value as vector<T> or empty on failure
+  //
   template<typename T> std::vector<T> getForeignSettingList(const std::string& foreignKey, const std::string& subKey);
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  setSetting : set setting for home device as type T (T is trivial, string)
+  //
+  //    subKey : sub key to set setting on
+  //    value  : setting value to set
+  //    return : true on success, false on failure
+  //
   template<typename T> bool setSetting(const std::string& subKey, const T& value);
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  setSettingList : set setting for home device as vector<T> (T is trivial)
+  //
+  //    subKey : sub key to set setting on
+  //    value  : vector of setting values to set
+  //    return : true on success, false on failure
+  //
   template<typename T> bool setSettingList(const std::string& subKey, const std::vector<T>& value);
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -412,9 +485,6 @@ private:
   std::string _commandsKey;
 };
 
-using RedisAdapterSingle = RedisAdapter;
-using RedisAdapterCluster = RedisAdapter;
-
 template<> inline std::string RedisAdapter::default_field_value(const swr::Item<swr::Attrs> item)
 { return item.second.count(DEFAULT_FIELD) ? item.second.at(DEFAULT_FIELD) : ""; }
 
@@ -427,7 +497,7 @@ template<> inline swr::Attrs RedisAdapter::default_field_attrs(const std::string
 template<typename T> swr::Attrs RedisAdapter::default_field_attrs(const T& data)
 { return {{ DEFAULT_FIELD, std::string((const char*)&data, sizeof(T)) }}; }
 
-template<typename T> T RedisAdapter::getSetting(const std::string& subKey)
+template<typename T> swr::Optional<T> RedisAdapter::getSetting(const std::string& subKey)
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
   return {};
@@ -439,7 +509,7 @@ template<typename T> std::vector<T> RedisAdapter::getSettingList(const std::stri
   return {};
 }
 
-template<typename T> T RedisAdapter::getForeignSetting(const std::string& foreignKey, const std::string& subKey)
+template<typename T> swr::Optional<T> RedisAdapter::getForeignSetting(const std::string& foreignKey, const std::string& subKey)
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
   return {};
@@ -513,10 +583,10 @@ RedisAdapter::get_fwd_data_list_helper(const std::string& foreignKey, const std:
   swr::Item<std::vector<T>> retItem;
   for (const auto& rawItem : raw)
   {
-    if (rawItem.second.count(DEFAULT_FIELD))
+    const std::string& str = default_field_value<std::string>(rawItem);
+    if (str.size())
     {
       retItem.first = rawItem.first;
-      const std::string& str = rawItem.second.at(DEFAULT_FIELD);
       retItem.second.assign(str.data(), str.data() + str.size());
       ret.push_back(retItem);
     }
@@ -575,10 +645,10 @@ RedisAdapter::get_rev_data_list_helper(const std::string& foreignKey, const std:
   swr::Item<std::vector<T>> retItem;
   for (auto rawItem = raw.rbegin(); rawItem != raw.rend(); rawItem++)   //  reverse iterate
   {
-    if (rawItem->second.count(DEFAULT_FIELD))
+    const std::string& str = default_field_value<std::string>(*rawItem);
+    if (str.size())
     {
       retItem.first = rawItem->first;
-      const std::string& str = rawItem->second.at(DEFAULT_FIELD);
       retItem.second.assign(str.data(), str.data() + str.size());
       ret.push_back(retItem);
     }

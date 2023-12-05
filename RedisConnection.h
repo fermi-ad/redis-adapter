@@ -401,19 +401,18 @@ public:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  subscriber() : get a Subscriber object for pub/sub
   //
-  //    return : vector with a Subscriber if successful
-  //             vector with no value if unsuccessful or not connected
+  //    return : Optional with a Subscriber if successful
+  //             empty Optional if unsuccessful or not connected
   //
-  std::vector<swr::Subscriber> subscriber()
+  swr::Optional<swr::Subscriber> subscriber()
   {
-    std::vector<swr::Subscriber> sub;
     try
     {
-      if (_cluster) { sub.push_back(_cluster->subscriber()); return sub; }
-      if (_singler) { sub.push_back(_singler->subscriber()); return sub; }
+      if (_cluster) { return swr::Optional<swr::Subscriber>(_cluster->subscriber()); }
+      if (_singler) { return swr::Optional<swr::Subscriber>(_singler->subscriber()); }
     }
     catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
-    return sub;
+    return {};
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
