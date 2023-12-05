@@ -18,44 +18,89 @@ RedisAdapter::RedisAdapter(const string& baseKey, const RedisConnection::Options
 : _redis(opts)
 {
   _baseKey      = baseKey;
-  _logKey       = baseKey + ":LOG";
-  _commandsKey  = baseKey + ":COMMANDS";
-  _statusKey    = baseKey + ":STATUS";
+  _commandsKey  = baseKey + COMMANDS_STUB;
 }
 
 string RedisAdapter::getStatus(const string& subKey)
 {
+  swr::ItemStream<swr::Attrs> raw;
+  _redis.xrevrange(_baseKey + STATUS_STUB + subKey, "+", "-", 1, back_inserter(raw));
+  if (raw.size() ) { return default_field_value<string>(raw.front()); }
   return {};
 }
 
-string RedisAdapter::getForeignStatus(const string& baseKey, const string& subKey)
+string RedisAdapter::getForeignStatus(const string& foreignKey, const string& subKey)
 {
+  swr::ItemStream<swr::Attrs> raw;
+  _redis.xrevrange(foreignKey + STATUS_STUB + subKey, "+", "-", 1, back_inserter(raw));
+  if (raw.size() ) { return default_field_value<string>(raw.front()); }
   return {};
 }
 
-bool RedisAdapter::setStatus(const string& subkey, const string& value)
+bool RedisAdapter::setStatus(const string& subKey, const string& value)
 {
-  return {};
+  swr::Attrs attrs = {{ DEFAULT_FIELD, value }};
+  return _redis.xaddTrim(_baseKey + STATUS_STUB + subKey, "*", attrs.begin(), attrs.end(), 1).size();
 }
 
 ItemStream<string> RedisAdapter::getLog(string minID, string maxID)
 {
-  return {};
+  swr::ItemStream<swr::Attrs> raw;
+  _redis.xrange(_baseKey + LOG_STUB, minID, maxID, back_inserter(raw));
+  swr::ItemStream<string> ret;
+  swr::Item<string> retItem;
+  for (const auto& rawItem : raw)
+  {
+    if (rawItem.second.count(DEFAULT_FIELD))
+    {
+      retItem.first = rawItem.first;
+      retItem.second = default_field_value<string>(rawItem);
+      ret.push_back(retItem);
+    }
+  }
+  return ret;
 }
 
 ItemStream<string> RedisAdapter::getLogAfter(string minID, uint32_t count)
 {
-  return {};
+  swr::ItemStream<swr::Attrs> raw;
+  _redis.xrange(_baseKey + LOG_STUB, minID, "+", count, back_inserter(raw));
+  swr::ItemStream<string> ret;
+  swr::Item<string> retItem;
+  for (const auto& rawItem : raw)
+  {
+    if (rawItem.second.count(DEFAULT_FIELD))
+    {
+      retItem.first = rawItem.first;
+      retItem.second = default_field_value<string>(rawItem);
+      ret.push_back(retItem);
+    }
+  }
+  return ret;
 }
 
-ItemStream<string> RedisAdapter::getLogBefore(string maxID, uint32_t count)
+ItemStream<string> RedisAdapter::getLogBefore(uint32_t count, string maxID)
 {
-  return {};
+  swr::ItemStream<swr::Attrs> raw;
+  _redis.xrevrange(_baseKey + LOG_STUB, maxID, "-", count, back_inserter(raw));
+  swr::ItemStream<string> ret;
+  swr::Item<string> retItem;
+  for (auto rawItem = raw.rbegin(); rawItem != raw.rend(); rawItem++)   //  reverse iterate
+  {
+    if (rawItem->second.count(DEFAULT_FIELD))
+    {
+      retItem.first = rawItem->first;
+      retItem.second = default_field_value<string>(*rawItem);
+      ret.push_back(retItem);
+    }
+  }
+  return ret;
 }
 
 bool RedisAdapter::addLog(string message, uint32_t trim)
 {
-  return {};
+  swr::Attrs attrs = {{ DEFAULT_FIELD, message }};
+  return _redis.xaddTrim(_baseKey + LOG_STUB, "*", attrs.begin(), attrs.end(), trim).size();
 }
 
 void RedisAdapter::streamReadBlock(unordered_map<string,string>& keysID, Streams<Attrs>& dest)
@@ -147,9 +192,16 @@ void RedisAdapter::registerCommand(string command, function<void(string, string)
 
 void RedisAdapter::listener()
 {
+  auto maybe = _redis.subscriber();
+  if (maybe.empty())
+  {
+    syslog(LOG_ERR, "Can't get initial subscriber");
+    return;
+  }
+  Subscriber& sub = maybe.front();
+
   // Consume messages in a loop.
   bool flag = false;
-  Subscriber& sub = _redis.subscriber()[0];
   while (true)
   {
     try
@@ -226,8 +278,13 @@ void RedisAdapter::listener()
       // Handle unrecoverable exceptions. Need to re create redis connection
       syslog(LOG_ERR, "ERROR %s occured, trying to recover", e.what());
       flag = false;
-      sub = move(_redis.subscriber()[0]);
-      continue;
+      auto maybe = _redis.subscriber();
+      if (maybe.empty())
+      {
+        syslog(LOG_ERR, "Can't replace subscriber");
+        return;
+      }
+      sub = move(maybe.front());
     }
   }
 }
