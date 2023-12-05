@@ -123,7 +123,6 @@ public:
   getDataBefore(const std::string& subKey, const std::string& maxID = "+", uint32_t count = 1)
   { return get_rev_data_helper<T>("", subKey, maxID, count); }
 
-
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  getDataListBefore<T> : get data for home device as vector<T> (T is trivial)
   //                         that occurred before a specified time
@@ -254,7 +253,6 @@ public:
   addMultiData(const std::string& subKey, const swr::ItemStream<T>& data, uint32_t trim = 1)
   { return add_multi_data_helper<T>(subKey, data, trim); }
 
-
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  addMultiDataList<T> : add multiple vector<T> as data items (T is trivial)
   //
@@ -265,7 +263,6 @@ public:
   template<typename T> std::vector<std::string>
   addMultiDataList(const std::string& subKey, const swr::ItemStream<std::vector<T>>& data, uint32_t trim = 1)
   { return add_multi_data_list_helper<T>(subKey, data, trim); }
-
 
   //  Publish / Subscribe Functions
   void publish(std::string msg);
@@ -569,6 +566,20 @@ RedisAdapter::add_data_list_helper(const std::string& subKey, const std::vector<
   if (trim) { return _redis.xaddTrim(key, id, attrs.begin(), attrs.end(), trim); }
   else      { return _redis.xadd(key, id, attrs.begin(), attrs.end()); }
   return {};
+}
+
+template<> inline std::vector<std::string>
+RedisAdapter::add_multi_data_helper(const std::string& subKey, const swr::ItemStream<swr::Attrs>& data, uint32_t trim)
+{
+  std::vector<std::string> ret;
+  std::string key = _baseKey + DATA_STUB + subKey;
+  for (const auto& item : data)
+  {
+    std::string id = item.first.size() ? item.first : "*";
+    if (trim) { ret.push_back(_redis.xaddTrim(key, id, item.second.begin(), item.second.end(), trim)); }
+    else      { ret.push_back(_redis.xadd(key, id, item.second.begin(), item.second.end())); }
+  }
+  return ret;
 }
 
 template<typename T> std::vector<std::string>
