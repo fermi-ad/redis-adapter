@@ -25,7 +25,7 @@ string RedisAdapter::getStatus(const string& subKey)
 {
   swr::ItemStream<swr::Attrs> raw;
   _redis.xrevrange(_baseKey + STATUS_STUB + subKey, "+", "-", 1, back_inserter(raw));
-  if (raw.size() ) { return default_field_value<string>(raw.front()); }
+  if (raw.size()) { return default_field_value<string>(raw.front()); }
   return {};
 }
 
@@ -33,7 +33,7 @@ string RedisAdapter::getForeignStatus(const string& foreignKey, const string& su
 {
   swr::ItemStream<swr::Attrs> raw;
   _redis.xrevrange(foreignKey + STATUS_STUB + subKey, "+", "-", 1, back_inserter(raw));
-  if (raw.size() ) { return default_field_value<string>(raw.front()); }
+  if (raw.size()) { return default_field_value<string>(raw.front()); }
   return {};
 }
 
