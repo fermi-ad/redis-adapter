@@ -625,9 +625,10 @@ RedisAdapter::addMultiData(const std::string& subKey, const swr::ItemStream<swr:
   for (const auto& item : data)
   {
     std::string id = item.first.size() ? item.first : "*";
-    if (trim) { ret.push_back(_redis.xaddTrim(key, id, item.second.begin(), item.second.end(), trim)); }
-    else      { ret.push_back(_redis.xadd(key, id, item.second.begin(), item.second.end())); }
+    id = _redis.xadd(key, id, item.second.begin(), item.second.end());
+    if (id.size()) { ret.push_back(id); }
   }
+  if (trim && ret.size()) { _redis.xtrim(key, std::max(trim, (uint32_t)ret.size())); }
   return ret;
 }
 template<typename T> std::vector<std::string>
@@ -640,10 +641,10 @@ RedisAdapter::addMultiData(const std::string& subKey, const swr::ItemStream<T>& 
   {
     std::string id = item.first.size() ? item.first : "*";
     swr::Attrs attrs = default_field_attrs(item.second);
-    if (trim) { id = _redis.xaddTrim(key, id, attrs.begin(), attrs.end(), trim); }
-    else      { id = _redis.xadd(key, id, attrs.begin(), attrs.end()); }
+    id = _redis.xadd(key, id, attrs.begin(), attrs.end());
     if (id.size()) { ret.push_back(id); }
   }
+  if (trim && ret.size()) { _redis.xtrim(key, std::max(trim, (uint32_t)ret.size())); }
   return ret;
 }
 
@@ -666,9 +667,9 @@ RedisAdapter::addMultiDataList(const std::string& subKey, const swr::ItemStream<
     std::string id = item.first.size() ? item.first : "*";
     std::string str((const char*)item.second.data(), item.second.size() * sizeof(T));
     swr::Attrs attrs = default_field_attrs(str);
-    if (trim) { id = _redis.xaddTrim(key, id, attrs.begin(), attrs.end(), trim); }
-    else      { id = _redis.xadd(key, id, attrs.begin(), attrs.end()); }
+    id = _redis.xadd(key, id, attrs.begin(), attrs.end());
     if (id.size()) { ret.push_back(id); }
   }
+  if (trim && ret.size()) { _redis.xtrim(key, std::max(trim, (uint32_t)ret.size())); }
   return ret;
 }
