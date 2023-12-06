@@ -35,7 +35,7 @@ public:
   };
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  RedisConnection() : store connection options and attempt to connect
+  //  RedisConnection : store connection options and attempt to connect
   //
   //    options : see RedisConnection::Options above
   //
@@ -51,22 +51,22 @@ public:
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  RedisConnection() : deleted to prevent copy construction
+  //  RedisConnection : deleted to prevent copy construction
   //
   RedisConnection(const RedisConnection& conn) = delete;
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  operator=() : deleted to prevent copy by assignment
+  //  operator= : deleted to prevent copy by assignment
   //
   RedisConnection& operator=(const RedisConnection&) = delete;
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  RedisConnection() : move allowed
+  //  RedisConnection : move allowed
   //
   RedisConnection(RedisConnection&&) = default;
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  connect() : attempt to make either a cluster or single server connection
+  //  connect : attempt to make either a cluster or single server connection
   //
   //    return : true if live server connected
   //             false if not connected
@@ -152,7 +152,7 @@ public:
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  xrange() : read a forward-id-ordered (newest last) list of elements from a stream
+  //  xrange : read a forward-id-ordered (newest last) list of elements from a stream
   //
   //    key    : the stream to read
   //    beg    : the lowest id to read (subject to cnt)
@@ -176,7 +176,7 @@ public:
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  xrange() : read a forward-id-ordered (newest last) list of elements from a stream
+  //  xrange : read a forward-id-ordered (newest last) list of elements from a stream
   //
   //    key    : the stream to read
   //    beg    : the lowest id to read
@@ -199,7 +199,7 @@ public:
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  xrevrange() : read a reverse-id-ordered (newest first) list of elements from a stream
+  //  xrevrange : read a reverse-id-ordered (newest first) list of elements from a stream
   //
   //    key    : the stream to read
   //    end    : the highest id to read
@@ -223,7 +223,7 @@ public:
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  xrevrange() : read a reverse-id-ordered (newest first) list of elements from a stream
+  //  xrevrange : read a reverse-id-ordered (newest first) list of elements from a stream
   //
   //    key    : the stream to read
   //    end    : the highest id to read
@@ -246,7 +246,7 @@ public:
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  xreadMultiBlock() : read from multiple streams, block until new data on one or more streams
+  //  xreadMultiBlock : read from multiple streams, block until new data on one or more streams
   //
   //    fst    : the first element of map<string, string> of: stream key -> most recent element id read
   //    lst    : the last element of map<string, string> of: stream key -> most recent element id read
@@ -272,7 +272,7 @@ public:
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  xadd() : add an element to the specified stream
+  //  xadd : add an element to the specified stream
   //
   //    key    : the stream to add an element to
   //    id     : the id for the element, must exceed current highest id, "*" means server will generate
@@ -294,7 +294,7 @@ public:
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  xtrim() : trim older elements from a stream
+  //  xtrim : trim older elements from a stream
   //
   //    key    : the stream to add an element to
   //    thr    : the threshold (number of elements) to trim stream to (zero works but is silly)
@@ -314,7 +314,7 @@ public:
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  xaddTrim() : add an element to the specified stream and trim older elements
+  //  xaddTrim : add an element to the specified stream and trim older elements
   //
   //    key    : the stream to add an element to
   //    id     : the id for the element, must exceed current highest id, "*" means server will generate
@@ -339,7 +339,7 @@ public:
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  keyslot() : find the cluster slot for a key
+  //  keyslot : find the cluster slot for a key
   //
   //    key    : the key to find a slot for
   //    return : the slot number if successful
@@ -358,7 +358,7 @@ public:
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  copy() : copy a key to another key
+  //  copy : copy a key to another key
   //
   //    src    : the key to copy from
   //    dst    : the key to copy to
@@ -399,7 +399,7 @@ public:
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  subscriber() : get a Subscriber object for pub/sub
+  //  subscriber : get a Subscriber object for pub/sub
   //
   //    return : Optional with a Subscriber if successful
   //             empty Optional if unsuccessful or not connected
@@ -416,7 +416,7 @@ public:
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  publish() : publish a message to a pub/sub channel
+  //  publish : publish a message to a pub/sub channel
   //
   //    chn    : the channel to publish to
   //    msg    : the message to publish

@@ -11,16 +11,38 @@
 using namespace sw::redis;
 using namespace std;
 
-RedisAdapter::RedisAdapter(const string& baseKey, const string& host, uint16_t port)
-: RedisAdapter(baseKey, RedisConnection::Options{ .host = host, .port = port }) {}
-
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  RedisAdapter : constructor
+//
+//    baseKey : base key of home device
+//    opts    : struct of default values, override using per-field initializer list
+//              e.g. RedisConnection::Options{ .user = "adinst", .password = "adinst" }
+//    return  : RedisAdapter
+//
 RedisAdapter::RedisAdapter(const string& baseKey, const RedisConnection::Options& opts)
-: _redis(opts)
+: _redis(opts), _baseKey(baseKey)
 {
-  _baseKey      = baseKey;
   _commandsKey  = baseKey + COMMANDS_STUB;
 }
 
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  RedisAdapter : constructor
+//
+//    baseKey : base key of home device
+//    host    : IP address of server "w.x.y.z"
+//    port    : port server is listening on
+//    return  : RedisAdapter
+//
+RedisAdapter::RedisAdapter(const string& baseKey, const string& host, uint16_t port)
+: RedisAdapter(baseKey, RedisConnection::Options{ .host = host, .port = port }) {}
+
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  getStatus : get status for home device as string
+//
+//    subKey : sub key to get status from
+//    return : string with status if successful
+//             empty string if failure
+//
 string RedisAdapter::getStatus(const string& subKey)
 {
   swr::ItemStream<swr::Attrs> raw;
@@ -29,6 +51,14 @@ string RedisAdapter::getStatus(const string& subKey)
   return {};
 }
 
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  getForeignStatus : get status for foreign device as string
+//
+//    foreignKey : base key of foreign device
+//    subKey     : sub key to get status from
+//    return     : string with status if successful
+//                 empty string if failure
+//
 string RedisAdapter::getForeignStatus(const string& foreignKey, const string& subKey)
 {
   swr::ItemStream<swr::Attrs> raw;
@@ -37,12 +67,26 @@ string RedisAdapter::getForeignStatus(const string& foreignKey, const string& su
   return {};
 }
 
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  setStatus : set status for home device as string
+//
+//    subKey : sub key to set status on
+//    value  : status value to set
+//    return : true on success, false on failure
+//
 bool RedisAdapter::setStatus(const string& subKey, const string& value)
 {
   swr::Attrs attrs = {{ DEFAULT_FIELD, value }};
   return _redis.xaddTrim(_baseKey + STATUS_STUB + subKey, "*", attrs.begin(), attrs.end(), 1).size();
 }
 
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  getLog : get log for home device between specified times
+//
+//    minID  : lowest time to get log for
+//    maxID  : highest time to get log for
+//    return : ItemStream of Item<string>
+//
 ItemStream<string> RedisAdapter::getLog(string minID, string maxID)
 {
   swr::ItemStream<swr::Attrs> raw;
@@ -61,6 +105,13 @@ ItemStream<string> RedisAdapter::getLog(string minID, string maxID)
   return ret;
 }
 
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  getLogAfter : get log for home device after specified time
+//
+//    minID  : lowest time to get log for
+//    count  : greatest number of log items to get
+//    return : ItemStream of Item<string>
+//
 ItemStream<string> RedisAdapter::getLogAfter(string minID, uint32_t count)
 {
   swr::ItemStream<swr::Attrs> raw;
@@ -79,6 +130,13 @@ ItemStream<string> RedisAdapter::getLogAfter(string minID, uint32_t count)
   return ret;
 }
 
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  getLogBefore : get log for home device before specified time
+//
+//    count  : greatest number of log items to get
+//    maxID  : highest time to get log for
+//    return : ItemStream of Item<string>
+//
 ItemStream<string> RedisAdapter::getLogBefore(uint32_t count, string maxID)
 {
   swr::ItemStream<swr::Attrs> raw;
@@ -97,6 +155,13 @@ ItemStream<string> RedisAdapter::getLogBefore(uint32_t count, string maxID)
   return ret;
 }
 
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  addLog : add a log message
+//
+//    message : log message to add
+//    trim    : number of items to trim log stream to
+//    return  : true for success, false for failure
+//
 bool RedisAdapter::addLog(string message, uint32_t trim)
 {
   swr::Attrs attrs = {{ DEFAULT_FIELD, message }};
