@@ -76,7 +76,7 @@ string RedisAdapter::getForeignStatus(const string& foreignKey, const string& su
 //
 bool RedisAdapter::setStatus(const string& subKey, const string& value)
 {
-  swr::Attrs attrs = {{ DEFAULT_FIELD, value }};
+  swr::Attrs attrs = default_field_attrs(value);
   return _redis.xaddTrim(_baseKey + STATUS_STUB + subKey, "*", attrs.begin(), attrs.end(), 1).size();
 }
 
@@ -164,7 +164,7 @@ ItemStream<string> RedisAdapter::getLogBefore(uint32_t count, string maxID)
 //
 bool RedisAdapter::addLog(string message, uint32_t trim)
 {
-  swr::Attrs attrs = {{ DEFAULT_FIELD, message }};
+  swr::Attrs attrs = default_field_attrs(message);
   return _redis.xaddTrim(_baseKey + LOG_STUB, "*", attrs.begin(), attrs.end(), trim).size();
 }
 

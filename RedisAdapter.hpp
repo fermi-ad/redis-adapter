@@ -9,7 +9,6 @@
 #pragma once
 
 #include "RedisConnection.h"
-#include <algorithm>
 
 namespace sw  //  https://github.com/sewenew/redis-plus-plus#redis-stream
 {
@@ -62,9 +61,9 @@ public:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Settings
   //
-  template<typename T> swr::Optional<T> getSetting(const std::string& subKey);
+  template<typename T> auto getSetting(const std::string& subKey);
   template<typename T> std::vector<T> getSettingList(const std::string& subKey);
-  template<typename T> swr::Optional<T> getForeignSetting(const std::string& foreignKey, const std::string& subKey);
+  template<typename T> auto getForeignSetting(const std::string& foreignKey, const std::string& subKey);
   template<typename T> std::vector<T> getForeignSettingList(const std::string& foreignKey, const std::string& subKey);
 
   template<typename T> bool setSetting(const std::string& subKey, const T& value);
@@ -168,10 +167,16 @@ private:
   const std::string DATA_STUB     = ":DATA:";       //  trailing colon
   const std::string COMMANDS_STUB = ":COMMANDS";
 
-  template<typename T> T default_field_value(const swr::Item<swr::Attrs> item);
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  Helper functions for getting and setting DEFAULT_FIELD in swr::Attrs
+  //
+  template<typename T> auto default_field_value(const swr::Item<swr::Attrs> item);
 
   template<typename T> swr::Attrs default_field_attrs(const T& data);
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  Helper functions for getData family of functions
+  //
   template<typename T> swr::ItemStream<T>
   get_fwd_data_helper(const std::string& foreignKey, const std::string& subKey, const std::string& minID, const std::string& maxID, uint32_t count);
 
@@ -224,32 +229,47 @@ private:
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  Helper functions for getting and setting DEFAULT_FIELD in swr::Attrs
 //
-template<> inline std::string RedisAdapter::default_field_value(const swr::Item<swr::Attrs> item)
-{ return item.second.count(DEFAULT_FIELD) ? item.second.at(DEFAULT_FIELD) : ""; }
-
-template<typename T> T RedisAdapter::default_field_value(const swr::Item<swr::Attrs> item)
-{ return item.second.count(DEFAULT_FIELD) ? *(T*)item.second.at(DEFAULT_FIELD).data() : 0; }
+template<> inline auto RedisAdapter::default_field_value<std::string>(const swr::Item<swr::Attrs> item)
+{
+  return item.second.count(DEFAULT_FIELD) ? item.second.at(DEFAULT_FIELD) : "";
+}
+template<typename T> auto RedisAdapter::default_field_value(const swr::Item<swr::Attrs> item)
+{
+  swr::Optional<T> ret;
+  if (item.second.count(DEFAULT_FIELD)) ret = *(T*)item.second.at(DEFAULT_FIELD).data();
+  return ret;
+}
 
 template<> inline swr::Attrs RedisAdapter::default_field_attrs(const std::string& data)
-{ return {{ DEFAULT_FIELD, data }}; }
-
+{
+  return {{ DEFAULT_FIELD, data }};
+}
 template<typename T> swr::Attrs RedisAdapter::default_field_attrs(const T& data)
-{ return {{ DEFAULT_FIELD, std::string((const char*)&data, sizeof(T)) }}; }
+{
+  return {{ DEFAULT_FIELD, std::string((const char*)&data, sizeof(T)) }};
+}
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  getSetting : get setting for home device as type T (T is trivial, string)
 //
 //    subKey : sub key to get setting from
-//    return : Optional with setting value if successful
-//             empty Optional if unsuccessful
+//    return : string or Optional with setting value if successful
+//             empty string or Optional if unsuccessful
 //
-template<typename T> swr::Optional<T> RedisAdapter::getSetting(const std::string& subKey)
+template<> inline auto RedisAdapter::getSetting<std::string>(const std::string& subKey)
 {
-  static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
   swr::ItemStream<swr::Attrs> raw;
   _redis.xrevrange(_baseKey + SETTINGS_STUB + subKey, "+", "-", 1, back_inserter(raw));
-  if (raw.size()) { return default_field_value<T>(raw.front()); }
-  return {};
+  return raw.size() ? default_field_value<std::string>(raw.front()) : "";
+}
+template<typename T> auto RedisAdapter::getSetting(const std::string& subKey)
+{
+  static_assert(std::is_trivial<T>(), "wrong type T");
+  swr::Optional<T> ret;
+  swr::ItemStream<swr::Attrs> raw;
+  _redis.xrevrange(_baseKey + SETTINGS_STUB + subKey, "+", "-", 1, back_inserter(raw));
+  if (raw.size()) ret = default_field_value<T>(raw.front());
+  return ret;
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -277,16 +297,23 @@ template<typename T> std::vector<T> RedisAdapter::getSettingList(const std::stri
 //
 //    foreignKey : base key of foreign device
 //    subKey     : sub key to get setting from
-//    return     : Optional with setting value if successful
-//                 empty Optional if unsuccessful
+//    return     : string or Optional with setting value if successful
+//                 string or empty Optional if unsuccessful
 //
-template<typename T> swr::Optional<T> RedisAdapter::getForeignSetting(const std::string& foreignKey, const std::string& subKey)
+template<> inline auto RedisAdapter::getForeignSetting<std::string>(const std::string& foreignKey, const std::string& subKey)
 {
-  static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
   swr::ItemStream<swr::Attrs> raw;
   _redis.xrevrange(foreignKey + SETTINGS_STUB + subKey, "+", "-", 1, back_inserter(raw));
-  if (raw.size()) { return default_field_value<T>(raw.front()); }
-  return {};
+  return raw.size() ? default_field_value<std::string>(raw.front()) : "";
+}
+template<typename T> auto RedisAdapter::getForeignSetting(const std::string& foreignKey, const std::string& subKey)
+{
+  static_assert(std::is_trivial<T>(), "wrong type T");
+  swr::Optional<T> ret;
+  swr::ItemStream<swr::Attrs> raw;
+  _redis.xrevrange(foreignKey + SETTINGS_STUB + subKey, "+", "-", 1, back_inserter(raw));
+  if (raw.size()) ret = default_field_value<T>(raw.front());
+  return ret;
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -321,7 +348,7 @@ template<typename T> bool RedisAdapter::setSetting(const std::string& subKey, co
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
   std::string key = _baseKey + SETTINGS_STUB + subKey;
-  swr::Attrs attrs = default_field_attrs<T>(value);
+  swr::Attrs attrs = default_field_attrs(value);
 
   return _redis.xaddTrim(key, "*", attrs.begin(), attrs.end(), 1).size();
 }
@@ -338,7 +365,7 @@ template<typename T> bool RedisAdapter::setSettingList(const std::string& subKey
   static_assert(std::is_trivial<T>(), "wrong type T");
   std::string key = _baseKey + SETTINGS_STUB + subKey;
   std::string str((const char*)value.data(), value.size() * sizeof(T));
-  swr::Attrs attrs = {{ DEFAULT_FIELD, str }};
+  swr::Attrs attrs = default_field_attrs(str);
 
   return _redis.xaddTrim(key, "*", attrs.begin(), attrs.end(), 1).size();
 }
@@ -391,10 +418,11 @@ RedisAdapter::get_fwd_data_helper(const std::string& foreignKey, const std::stri
   swr::Item<T> retItem;
   for (const auto& rawItem : raw)
   {
-    if (rawItem.second.count(DEFAULT_FIELD))
+    swr::Optional<T> maybe = default_field_value<T>(rawItem);
+    if (maybe.has_value())
     {
       retItem.first = rawItem.first;
-      retItem.second = default_field_value<T>(rawItem);
+      retItem.second = maybe.value();
       ret.push_back(retItem);
     }
   }
@@ -484,10 +512,11 @@ RedisAdapter::get_rev_data_helper(const std::string& foreignKey, const std::stri
   swr::Item<T> retItem;
   for (auto rawItem = raw.rbegin(); rawItem != raw.rend(); rawItem++)   //  reverse iterate
   {
-    if (rawItem->second.count(DEFAULT_FIELD))
+    swr::Optional<T> maybe = default_field_value<T>(*rawItem);
+    if (maybe.has_value())
     {
       retItem.first = rawItem->first;
-      retItem.second = default_field_value<T>(*rawItem);
+      retItem.second = maybe.value();
       ret.push_back(retItem);
     }
   }
@@ -530,7 +559,7 @@ RedisAdapter::get_rev_data_list_helper(const std::string& foreignKey, const std:
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  addData<swr::Attrs> : add a data item of type Attrs
+//  addData<T> : add a data item of type T (T is trivial, string or Attrs)
 //
 //    subKey : sub key to add data to
 //    data   : data to add
@@ -547,23 +576,12 @@ RedisAdapter::addData(const std::string& subKey, const swr::Attrs& data, const s
   return trim ? _redis.xaddTrim(key, id, data.begin(), data.end(), trim)
               : _redis.xadd(key, id, data.begin(), data.end());
 }
-
-//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  addData<T> : add a data item of type T (T is trivial or string)
-//
-//    subKey : sub key to add data to
-//    data   : data to add at DEFAULT_FIELD
-//    id     : time to add the data at ("*" is current redis time)
-//    trim   : number of items to trim the stream to
-//    return : id of the added data item if successful
-//             empty string on failure
-//
 template<typename T> std::string
 RedisAdapter::addData(const std::string& subKey, const T& data, const std::string& id, uint32_t trim)
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
   std::string key = _baseKey + DATA_STUB + subKey;
-  swr::Attrs attrs = default_field_attrs<T>(data);
+  swr::Attrs attrs = default_field_attrs(data);
 
   return trim ? _redis.xaddTrim(key, id, attrs.begin(), attrs.end(), trim)
               : _redis.xadd(key, id, attrs.begin(), attrs.end());
@@ -585,14 +603,14 @@ RedisAdapter::addDataList(const std::string& subKey, const std::vector<T>& data,
   static_assert(std::is_trivial<T>(), "wrong type T");
   std::string key = _baseKey + DATA_STUB + subKey;
   std::string str((const char*)data.data(), data.size() * sizeof(T));
-  swr::Attrs attrs = {{ DEFAULT_FIELD, str }};
+  swr::Attrs attrs = default_field_attrs(str);
 
   return trim ? _redis.xaddTrim(key, id, attrs.begin(), attrs.end(), trim)
               : _redis.xadd(key, id, attrs.begin(), attrs.end());
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  addMultiData<swr::Attrs> : add multiple data items of type Attrs
+//  addMultiData<T> : add multiple data items of type T (T is trivial, string or Attrs)
 //
 //    subKey : sub key to add data to
 //    data   : ids and data to add (empty ids treated as "*")
@@ -612,15 +630,6 @@ RedisAdapter::addMultiData(const std::string& subKey, const swr::ItemStream<swr:
   }
   return ret;
 }
-
-//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  addMultiData<T> : add multiple data items of type T (T is trivial or string)
-//
-//    subKey : sub key to add data to
-//    data   : ids and data to add (empty ids treated as "*")
-//    trim   : trim to greater of this value or number of data items
-//    return : vector of ids of successfully added data items
-//
 template<typename T> std::vector<std::string>
 RedisAdapter::addMultiData(const std::string& subKey, const swr::ItemStream<T>& data, uint32_t trim)
 {
@@ -630,7 +639,7 @@ RedisAdapter::addMultiData(const std::string& subKey, const swr::ItemStream<T>& 
   for (const auto& item : data)
   {
     std::string id = item.first.size() ? item.first : "*";
-    swr::Attrs attrs = default_field_attrs<T>(item.second);
+    swr::Attrs attrs = default_field_attrs(item.second);
     if (trim) { id = _redis.xaddTrim(key, id, attrs.begin(), attrs.end(), trim); }
     else      { id = _redis.xadd(key, id, attrs.begin(), attrs.end()); }
     if (id.size()) { ret.push_back(id); }
@@ -656,7 +665,7 @@ RedisAdapter::addMultiDataList(const std::string& subKey, const swr::ItemStream<
   {
     std::string id = item.first.size() ? item.first : "*";
     std::string str((const char*)item.second.data(), item.second.size() * sizeof(T));
-    swr::Attrs attrs = {{ DEFAULT_FIELD, str }};
+    swr::Attrs attrs = default_field_attrs(str);
     if (trim) { id = _redis.xaddTrim(key, id, attrs.begin(), attrs.end(), trim); }
     else      { id = _redis.xadd(key, id, attrs.begin(), attrs.end()); }
     if (id.size()) { ret.push_back(id); }
