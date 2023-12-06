@@ -172,6 +172,8 @@ private:
   //
   template<typename T> auto default_field_value(const swr::Item<swr::Attrs> item);
 
+  template<typename T> swr::Attrs default_field_attrs(const std::vector<T>& data);
+
   template<typename T> swr::Attrs default_field_attrs(const T& data);
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -240,12 +242,18 @@ template<typename T> auto RedisAdapter::default_field_value(const swr::Item<swr:
   return ret;
 }
 
+template<typename T> swr::Attrs RedisAdapter::default_field_attrs(const std::vector<T>& data)
+{
+  static_assert(std::is_trivial<T>(), "wrong type T");
+  return {{ DEFAULT_FIELD, std::string((const char*)data.data(), data.size() * sizeof(T)) }};
+}
 template<> inline swr::Attrs RedisAdapter::default_field_attrs(const std::string& data)
 {
   return {{ DEFAULT_FIELD, data }};
 }
 template<typename T> swr::Attrs RedisAdapter::default_field_attrs(const T& data)
 {
+  static_assert(std::is_trivial<T>(), "wrong type T");
   return {{ DEFAULT_FIELD, std::string((const char*)&data, sizeof(T)) }};
 }
 
@@ -364,8 +372,7 @@ template<typename T> bool RedisAdapter::setSettingList(const std::string& subKey
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
   std::string key = _baseKey + SETTINGS_STUB + subKey;
-  std::string str((const char*)value.data(), value.size() * sizeof(T));
-  swr::Attrs attrs = default_field_attrs(str);
+  swr::Attrs attrs = default_field_attrs(value);
 
   return _redis.xaddTrim(key, "*", attrs.begin(), attrs.end(), 1).size();
 }
@@ -602,8 +609,7 @@ RedisAdapter::addDataList(const std::string& subKey, const std::vector<T>& data,
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
   std::string key = _baseKey + DATA_STUB + subKey;
-  std::string str((const char*)data.data(), data.size() * sizeof(T));
-  swr::Attrs attrs = default_field_attrs(str);
+  swr::Attrs attrs = default_field_attrs(data);
 
   return trim ? _redis.xaddTrim(key, id, attrs.begin(), attrs.end(), trim)
               : _redis.xadd(key, id, attrs.begin(), attrs.end());
@@ -665,8 +671,7 @@ RedisAdapter::addMultiDataList(const std::string& subKey, const swr::ItemStream<
   for (const auto& item : data)
   {
     std::string id = item.first.size() ? item.first : "*";
-    std::string str((const char*)item.second.data(), item.second.size() * sizeof(T));
-    swr::Attrs attrs = default_field_attrs(str);
+    swr::Attrs attrs = default_field_attrs(item.second);
     id = _redis.xadd(key, id, attrs.begin(), attrs.end());
     if (id.size()) { ret.push_back(id); }
   }
