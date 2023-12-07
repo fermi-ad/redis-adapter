@@ -89,22 +89,36 @@ int main(int argc, char* argv[])
   redis.getForeignDataListAfter<float>("abc", "def", "1");
   redis.getForeignDataListAfter<float>("abc", "def");
 
-  swr::Attrs attrs;
-  redis.addData<float>("abc", 1.23, "1", 10);
-  redis.addData<std::string>("abc", "123", "1");
-  redis.addData<swr::Attrs>("abc", attrs);
+  float f;
+  redis.getDataSingle("abc", f, "1");
+  redis.getForeignDataSingle("abc", "def", f, "1");
 
-  redis.addDataList<float>("abc", vf, "1", 10);
-  redis.addDataList<float>("abc", vf, "1");
-  redis.addDataList<float>("abc", vf);
+  swr::Attrs attrs;
+  redis.getDataSingle("abc", attrs);
+  redis.getForeignDataSingle("abc", "def", attrs);
+
+  std::string str;
+  redis.getDataSingle("abc", str, "1");
+  redis.getForeignDataSingle("abc", "def", str, "1");
+
+  redis.getDataListSingle("abc", vf, "1");
+  redis.getForeignDataListSingle("abc", "def", vf);
+
+  redis.addDataSingle<float>("abc", 1.23, "1", 10);
+  redis.addDataSingle<std::string>("abc", "123", "1");
+  redis.addDataSingle<swr::Attrs>("abc", attrs);
+
+  redis.addDataListSingle<float>("abc", vf, "1", 10);
+  redis.addDataListSingle<float>("abc", vf, "1");
+  redis.addDataListSingle<float>("abc", vf);
 
   swr::ItemStream<float> is;
-  redis.addMultiData<float>("abc", is, 10);
-  redis.addMultiData<float>("abc", is);
+  redis.addData<float>("abc", is, 10);
+  redis.addData<float>("abc", is);
 
   swr::ItemStream<std::vector<float>> isv;
-  redis.addMultiDataList<float>("abc", isv, 10);
-  redis.addMultiDataList<float>("abc", isv);
+  redis.addDataList<float>("abc", isv, 10);
+  redis.addDataList<float>("abc", isv);
 
   return 0;
 }

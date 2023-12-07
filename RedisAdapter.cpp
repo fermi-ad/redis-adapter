@@ -47,7 +47,7 @@ string RedisAdapter::getStatus(const string& subKey)
 {
   swr::ItemStream<swr::Attrs> raw;
   _redis.xrevrange(_baseKey + STATUS_STUB + subKey, "+", "-", 1, back_inserter(raw));
-  if (raw.size()) { return default_field_value<string>(raw.front()); }
+  if (raw.size()) { return default_field_value<string>(raw.front().second); }
   return {};
 }
 
@@ -63,7 +63,7 @@ string RedisAdapter::getForeignStatus(const string& foreignKey, const string& su
 {
   swr::ItemStream<swr::Attrs> raw;
   _redis.xrevrange(foreignKey + STATUS_STUB + subKey, "+", "-", 1, back_inserter(raw));
-  if (raw.size()) { return default_field_value<string>(raw.front()); }
+  if (raw.size()) { return default_field_value<string>(raw.front().second); }
   return {};
 }
 
@@ -95,7 +95,7 @@ ItemStream<string> RedisAdapter::getLog(string minID, string maxID)
   swr::Item<string> retItem;
   for (const auto& rawItem : raw)
   {
-    retItem.second = default_field_value<string>(rawItem);
+    retItem.second = default_field_value<string>(rawItem.second);
     if (retItem.second.size())
     {
       retItem.first = rawItem.first;
@@ -120,7 +120,7 @@ ItemStream<string> RedisAdapter::getLogAfter(string minID, uint32_t count)
   swr::Item<string> retItem;
   for (const auto& rawItem : raw)
   {
-    retItem.second = default_field_value<string>(rawItem);
+    retItem.second = default_field_value<string>(rawItem.second);
     if (retItem.second.size())
     {
       retItem.first = rawItem.first;
@@ -145,7 +145,7 @@ ItemStream<string> RedisAdapter::getLogBefore(uint32_t count, string maxID)
   swr::Item<string> retItem;
   for (auto rawItem = raw.rbegin(); rawItem != raw.rend(); rawItem++)   //  reverse iterate
   {
-    retItem.second = default_field_value<string>(*rawItem);
+    retItem.second = default_field_value<string>(rawItem->second);
     if (retItem.second.size())
     {
       retItem.first = rawItem->first;
