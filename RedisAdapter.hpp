@@ -1,7 +1,7 @@
 /**
  * RedisAdapter.hpp
  *
- * This file contains the definition of the redis Adapter class.
+ * This file contains the definition of the RedisAdapter class.
  *
  * @author rsantucc
  */
