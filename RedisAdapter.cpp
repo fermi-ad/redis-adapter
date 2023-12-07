@@ -17,6 +17,7 @@ RedisAdapter::RedisAdapter(const string& baseKey, const string& host, uint16_t p
 RedisAdapter::RedisAdapter(const string& baseKey, const RedisConnection::Options& opts)
 : _redis(opts)
 {
+  _baseKey      = baseKey;
   _settingsKey  = baseKey + ":SETTINGS:";
   _logKey       = baseKey + ":LOG";
   _commandsKey  = baseKey + ":COMMANDS";
@@ -39,17 +40,17 @@ bool RedisAdapter::setStatus(const string& subkey, const string& value)
   return {};
 }
 
-ItemStreamT<string> RedisAdapter::getLog(string minID, string maxID)
+ItemStream<string> RedisAdapter::getLog(string minID, string maxID)
 {
   return {};
 }
 
-ItemStreamT<string> RedisAdapter::getLogAfter(string minID, uint32_t count)
+ItemStream<string> RedisAdapter::getLogAfter(string minID, uint32_t count)
 {
   return {};
 }
 
-ItemStreamT<string> RedisAdapter::getLogBefore(string maxID, uint32_t count)
+ItemStream<string> RedisAdapter::getLogBefore(string maxID, uint32_t count)
 {
   return {};
 }
@@ -59,48 +60,7 @@ bool RedisAdapter::addLog(string message, uint32_t trim)
   return {};
 }
 
-
-/*
-* Stream Functions
-*/
-// Redis Stream structure:
-// element 1:
-//   timestamp
-//   fieldname1 fielddata1
-//   fieldname2 fielddata2
-// element 2:
-//   timestamp
-//   fieldname1 fielddata1
-
-// Adds data to a redis stream at the key key
-// timeID is the time that should be used as the time in the stream
-// data is formated as a pair of strings the first is the element name and the second is the data at that element
-void RedisAdapter::streamWrite(vector<pair<string,string>> data, string timeID , string key, uint trim )
-{
-  try
-  {
-    auto replies = _redis.xadd(key, timeID, data.begin(), data.end());
-    if (trim)
-    {
-      streamTrim(key, trim);
-    }
-  }
-  catch (const exception &e)
-  {
-    //  TODO: handle exceptions
-  }
-}
-
-void RedisAdapter::streamWriteOneField(const string& data, const string& timeID, const string& key, const string& field, uint trim)
-{
-  // Single element vector formated the way that streamWrite wants it.
-  vector<pair<string, string>> wrapperVector = {{ field, data }};
-  // When you give * as your time in redis the server generates the timestamp for you. Here we do the same if timeID is empty.
-  if (0 == timeID.length()) { streamWrite(wrapperVector,    "*", key, trim); }
-  else                      { streamWrite(wrapperVector, timeID, key, trim); }
-}
-
-void RedisAdapter::streamReadBlock(unordered_map<string,string>& keysID, Streams& dest)
+void RedisAdapter::streamReadBlock(unordered_map<string,string>& keysID, Streams<Attrs>& dest)
 {
   try
   {
@@ -116,101 +76,6 @@ void RedisAdapter::streamReadBlock(unordered_map<string,string>& keysID, Streams
         keysID[val.first] = val.second.back().first;
       }
     }
-  }
-  catch (const exception &e)
-  {
-    //  TODO: handle exceptions
-  }
-}
-
-void RedisAdapter::streamRead(string key, int count, ItemStream& dest)
-{
-  try
-  {
-    _redis.xrevrange(key, "+", "-", count, back_inserter(dest));
-  }
-  catch (const exception &e)
-  {
-    //  TODO: handle exceptions
-  }
-}
-
-void RedisAdapter::streamRead(string key, string time, int count, ItemStream& dest)
-{
-  try
-  {
-    _redis.xrevrange(key, "+", time, count, back_inserter(dest));
-  }
-  catch (const exception &e)
-  {
-    //  TODO: handle exceptions
-  }
-}
-
-void RedisAdapter::streamRead(string key, string timeA, string timeB, ItemStream& dest)
-{
-  try
-  {
-    _redis.xrevrange(key, timeB, timeA, back_inserter(dest));
-  }
-  catch (const exception &e)
-  {
-    //  TODO: handle exceptions
-  }
-}
-
-void RedisAdapter::streamRead(string key, string time, int count, vector<float>& dest)
-{
-  try
-  {
-    ItemStream result;
-    streamRead(key, time, 1, result);
-    for (auto data : result)
-    {
-      string timeID = data.first;
-      for (auto val : data.second)
-      {
-        // If we have an element named data
-        if (val.first.compare("DATA") == 0)
-        {
-          dest.resize(val.second.length() / sizeof(float));
-          memcpy(dest.data(), val.second.data(), val.second.length());
-        }
-      }
-    }
-  }
-  catch (const exception &e)
-  {
-    //  TODO: handle exceptions
-  }
-}
-
-void RedisAdapter::logWrite(string key, string msg, string source)
-{
-  vector<pair<string,string>> data;
-  data.emplace_back(make_pair(source,msg));
-  streamWrite(data, "*", key, 1000);
-}
-
-ItemStream RedisAdapter::logRead(uint count)
-{
-  ItemStream is;
-  try
-  {
-    _redis.xrevrange(_logKey, "+", "-", count, back_inserter(is));
-  }
-  catch (const exception &e)
-  {
-    //  TODO: handle exceptions
-  }
-  return is;
-}
-
-void RedisAdapter::streamTrim(string key, int size)
-{
-  try
-  {
-    _redis.xtrim(key, size, false);
   }
   catch (const exception &e)
   {
@@ -369,7 +234,7 @@ void RedisAdapter::listener()
   }
 }
 
-void RedisAdapter::addReader(string streamKey,  function<void(string, ItemStream)> func)
+void RedisAdapter::addReader(string streamKey,  function<void(string, ItemStream<Attrs>)> func)
 {
   _streamKeyID.emplace(streamKey, "$");
   _streamSubscriptions.push_back({ .streamKey = streamKey, .function = func});
@@ -378,7 +243,7 @@ void RedisAdapter::addReader(string streamKey,  function<void(string, ItemStream
 void RedisAdapter::reader()
 {
   // Create a new redis connection only used for streams
-  Streams streamsBuffer;
+  Streams<Attrs> streamsBuffer;
   while (true)
   {
     try

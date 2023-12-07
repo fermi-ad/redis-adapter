@@ -152,13 +152,60 @@ public:
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  xrange() : read a forward-id-ordered (newest last) list of elements from a stream
+  //
+  //    key    : the stream to read
+  //    beg    : the lowest id to read (subject to cnt)
+  //    end    : the highest id to read
+  //    cnt    : the max number of elements to read (regardless of beg)
+  //    out    : the elements read, typically ItemStream
+  //    return : true if connected
+  //             false if not connected
+  //
+  template<typename Output>
+  bool xrange(const std::string& key, const std::string& beg,
+              const std::string& end, uint32_t cnt, Output out)
+  {
+    try
+    {
+      if (_cluster) { _cluster->xrange(key, beg, end, cnt, out); return true; }
+      if (_singler) { _singler->xrange(key, beg, end, cnt, out); return true; }
+    }
+    catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
+    return false;
+  }
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  xrange() : read a forward-id-ordered (newest last) list of elements from a stream
+  //
+  //    key    : the stream to read
+  //    beg    : the lowest id to read
+  //    end    : the highest id to read
+  //    out    : the elements read, typically ItemStream
+  //    return : true if connected
+  //             false if not connected
+  //
+  template<typename Output>
+  bool xrange(const std::string& key, const std::string& beg,
+              const std::string& end, Output out)
+  {
+    try
+    {
+      if (_cluster) { _cluster->xrange(key, beg, end, out); return true; }
+      if (_singler) { _singler->xrange(key, beg, end, out); return true; }
+    }
+    catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
+    return false;
+  }
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  xrevrange() : read a reverse-id-ordered (newest first) list of elements from a stream
   //
   //    key    : the stream to read
   //    end    : the highest id to read
   //    beg    : the lowest id to read (subject to cnt)
   //    cnt    : the max number of elements to read (regardless of beg)
-  //    out    : the elements read, typically FieldsElementList (below)
+  //    out    : the elements read, typically ItemStream
   //    return : true if connected
   //             false if not connected
   //
@@ -181,7 +228,7 @@ public:
   //    key    : the stream to read
   //    end    : the highest id to read
   //    beg    : the lowest id to read
-  //    out    : the elements read, typically FieldsElementList (below)
+  //    out    : the elements read, typically ItemStream
   //    return : true if connected
   //             false if not connected
   //
