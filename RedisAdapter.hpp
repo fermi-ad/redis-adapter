@@ -74,35 +74,35 @@ public:
   //
   template<typename T> swr::ItemStream<T>
   getData(const std::string& subKey, const std::string& minID, const std::string& maxID)
-  { return get_forward_data_helper<T>("", subKey, minID, maxID, 0); }
+  { return get_forward_data_helper<T>(_baseKey, subKey, minID, maxID, 0); }
 
   template<typename T> swr::ItemStream<std::vector<T>>
   getDataList(const std::string& subKey, const std::string& minID, const std::string& maxID)
-  { return get_forward_data_list_helper<T>("", subKey, minID, maxID, 0); }
+  { return get_forward_data_list_helper<T>(_baseKey, subKey, minID, maxID, 0); }
 
   template<typename T> swr::ItemStream<T>
   getDataBefore(const std::string& subKey, uint32_t count = 1, const std::string& maxID = "+")
-  { return get_reverse_data_helper<T>("", subKey, maxID, count); }
+  { return get_reverse_data_helper<T>(_baseKey, subKey, maxID, count); }
 
   template<typename T> swr::ItemStream<std::vector<T>>
   getDataListBefore(const std::string& subKey, uint32_t count = 1, const std::string& maxID = "+")
-  { return get_reverse_data_list_helper<T>("", subKey, maxID, count); }
+  { return get_reverse_data_list_helper<T>(_baseKey, subKey, maxID, count); }
 
   template<typename T> swr::ItemStream<T>
   getDataAfter(const std::string& subKey, const std::string& minID = "-", uint32_t count = 1)
-  { return get_forward_data_helper<T>("", subKey, minID, "+", count); }
+  { return get_forward_data_helper<T>(_baseKey, subKey, minID, "+", count); }
 
   template<typename T> swr::ItemStream<std::vector<T>>
   getDataListAfter(const std::string& subKey, const std::string& minID = "-", uint32_t count = 1)
-  { return get_forward_data_list_helper<T>("", subKey, minID, "+", count); }
+  { return get_forward_data_list_helper<T>(_baseKey, subKey, minID, "+", count); }
 
   template<typename T> std::string
   getDataSingle(const std::string& subKey, T& dest, const std::string& maxID = "+")
-  { return get_single_data_helper<T>("", subKey, dest, maxID); }
+  { return get_single_data_helper<T>(_baseKey, subKey, dest, maxID); }
 
   template<typename T> std::string
   getDataListSingle(const std::string& subKey, std::vector<T>& dest, const std::string& maxID = "+")
-  { return get_single_data_list_helper<T>("", subKey, dest, maxID); }
+  { return get_single_data_list_helper<T>(_baseKey, subKey, dest, maxID); }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Data (getting foreign)
@@ -202,22 +202,22 @@ private:
   //  Helper functions for getData family of functions
   //
   template<typename T> swr::ItemStream<T>
-  get_forward_data_helper(const std::string& foreignKey, const std::string& subKey, const std::string& minID, const std::string& maxID, uint32_t count);
+  get_forward_data_helper(const std::string& baseKey, const std::string& subKey, const std::string& minID, const std::string& maxID, uint32_t count);
 
   template<typename T> swr::ItemStream<std::vector<T>>
-  get_forward_data_list_helper(const std::string& foreignKey, const std::string& subKey, const std::string& minID, const std::string& maxID, uint32_t count);
+  get_forward_data_list_helper(const std::string& baseKey, const std::string& subKey, const std::string& minID, const std::string& maxID, uint32_t count);
 
   template<typename T> swr::ItemStream<T>
-  get_reverse_data_helper(const std::string& foreignKey, const std::string& subKey, const std::string& maxID, uint32_t count);
+  get_reverse_data_helper(const std::string& baseKey, const std::string& subKey, const std::string& maxID, uint32_t count);
 
   template<typename T> swr::ItemStream<std::vector<T>>
-  get_reverse_data_list_helper(const std::string& foreignKey, const std::string& subKey, const std::string& maxID, uint32_t count);
+  get_reverse_data_list_helper(const std::string& baseKey, const std::string& subKey, const std::string& maxID, uint32_t count);
 
   template<typename T> std::string
-  get_single_data_helper(const std::string& foreignKey, const std::string& subKey, T& dest, const std::string& maxID);
+  get_single_data_helper(const std::string& baseKey, const std::string& subKey, T& dest, const std::string& maxID);
 
   template<typename T> std::string
-  get_single_data_list_helper(const std::string& foreignKey, const std::string& subKey, std::vector<T>& dest, const std::string& maxID);
+  get_single_data_list_helper(const std::string& baseKey, const std::string& subKey, std::vector<T>& dest, const std::string& maxID);
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Pub/Sub and Listener
@@ -412,18 +412,18 @@ template<typename T> bool RedisAdapter::setSettingList(const std::string& subKey
 //  get_forward_data_helper<T> : get data as type T (T is trivial, string or Attrs)
 //                               that occurred after a specified time
 //
-//    foreignKey : base key of foreign device
-//    subKey     : sub key to get data from
-//    minID      : lowest time to get data for
-//    maxID      : highest time to get data for
-//    count      : max number of items to get
-//    return     : ItemStream of Item<T>
+//    baseKey : base key of device
+//    subKey  : sub key to get data from
+//    minID   : lowest time to get data for
+//    maxID   : highest time to get data for
+//    count   : max number of items to get
+//    return  : ItemStream of Item<T>
 //
 template <> inline swr::ItemStream<swr::Attrs>
-RedisAdapter::get_forward_data_helper(const std::string& foreignKey, const std::string& subKey, const std::string& minID, const std::string& maxID, uint32_t count)
+RedisAdapter::get_forward_data_helper(const std::string& baseKey, const std::string& subKey, const std::string& minID, const std::string& maxID, uint32_t count)
 {
   swr::ItemStream<swr::Attrs> ret;
-  std::string key = (foreignKey.size() ? foreignKey : _baseKey) + DATA_STUB + subKey;
+  std::string key = baseKey + DATA_STUB + subKey;
 
   if (count) { _redis.xrange(key, minID, maxID, count, std::back_inserter(ret)); }
   else       { _redis.xrange(key, minID, maxID, std::back_inserter(ret)); }
@@ -431,11 +431,11 @@ RedisAdapter::get_forward_data_helper(const std::string& foreignKey, const std::
   return ret;
 }
 template<typename T> swr::ItemStream<T>
-RedisAdapter::get_forward_data_helper(const std::string& foreignKey, const std::string& subKey, const std::string& minID, const std::string& maxID, uint32_t count)
+RedisAdapter::get_forward_data_helper(const std::string& baseKey, const std::string& subKey, const std::string& minID, const std::string& maxID, uint32_t count)
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
   swr::ItemStream<swr::Attrs> raw;
-  std::string key = (foreignKey.size() ? foreignKey : _baseKey) + DATA_STUB + subKey;
+  std::string key = baseKey + DATA_STUB + subKey;
 
   if (count) { _redis.xrange(key, minID, maxID, count, std::back_inserter(raw)); }
   else       { _redis.xrange(key, minID, maxID, std::back_inserter(raw)); }
@@ -459,19 +459,19 @@ RedisAdapter::get_forward_data_helper(const std::string& foreignKey, const std::
 //  get_forward_data_list_helper<T> : get data as type vector<T> (T is trivial)
 //                                    that occurred after a specified time
 //
-//    foreignKey : base key of foreign device
-//    subKey     : sub key to get data from
-//    minID      : lowest time to get data for
-//    maxID      : highest time to get data for
-//    count      : max number of items to get
-//    return     : ItemStream of Item<vector<T>>
+//    baseKey : base key of device
+//    subKey  : sub key to get data from
+//    minID   : lowest time to get data for
+//    maxID   : highest time to get data for
+//    count   : max number of items to get
+//    return  : ItemStream of Item<vector<T>>
 //
 template<typename T> swr::ItemStream<std::vector<T>>
-RedisAdapter::get_forward_data_list_helper(const std::string& foreignKey, const std::string& subKey, const std::string& minID, const std::string& maxID, uint32_t count)
+RedisAdapter::get_forward_data_list_helper(const std::string& baseKey, const std::string& subKey, const std::string& minID, const std::string& maxID, uint32_t count)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
   swr::ItemStream<swr::Attrs> raw;
-  std::string key = (foreignKey.size() ? foreignKey : _baseKey) + DATA_STUB + subKey;
+  std::string key = baseKey + DATA_STUB + subKey;
 
   if (count) { _redis.xrange(key, minID, maxID, count, std::back_inserter(raw)); }
   else       { _redis.xrange(key, minID, maxID, std::back_inserter(raw)); }
@@ -495,17 +495,17 @@ RedisAdapter::get_forward_data_list_helper(const std::string& foreignKey, const 
 //  get_reverse_data_helper<T> : get data as type T (T is trivial, string or Attrs)
 //                               that occurred before a specified time
 //
-//    foreignKey : base key of foreign device
-//    subKey     : sub key to get data from
-//    maxID      : highest time to get data for
-//    count      : max number of items to get
-//    return     : ItemStream of Item<Attrs>
+//    baseKey : base key of device
+//    subKey  : sub key to get data from
+//    maxID   : highest time to get data for
+//    count   : max number of items to get
+//    return  : ItemStream of Item<Attrs>
 //
 template <> inline swr::ItemStream<swr::Attrs>
-RedisAdapter::get_reverse_data_helper(const std::string& foreignKey, const std::string& subKey, const std::string& maxID, uint32_t count)
+RedisAdapter::get_reverse_data_helper(const std::string& baseKey, const std::string& subKey, const std::string& maxID, uint32_t count)
 {
   swr::ItemStream<swr::Attrs> ret;
-  std::string key = (foreignKey.size() ? foreignKey : _baseKey) + DATA_STUB + subKey;
+  std::string key = baseKey + DATA_STUB + subKey;
 
   if (count) { _redis.xrevrange(key, maxID, "-", count, std::back_inserter(ret)); }
   else       { _redis.xrevrange(key, maxID, "-", std::back_inserter(ret)); }
@@ -514,11 +514,11 @@ RedisAdapter::get_reverse_data_helper(const std::string& foreignKey, const std::
   return ret;
 }
 template<typename T> swr::ItemStream<T>
-RedisAdapter::get_reverse_data_helper(const std::string& foreignKey, const std::string& subKey, const std::string& maxID, uint32_t count)
+RedisAdapter::get_reverse_data_helper(const std::string& baseKey, const std::string& subKey, const std::string& maxID, uint32_t count)
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
   swr::ItemStream<swr::Attrs> raw;
-  std::string key = (foreignKey.size() ? foreignKey : _baseKey) + DATA_STUB + subKey;
+  std::string key = baseKey + DATA_STUB + subKey;
 
   if (count) { _redis.xrevrange(key, maxID, "-", count, std::back_inserter(raw)); }
   else       { _redis.xrevrange(key, maxID, "-", std::back_inserter(raw)); }
@@ -542,18 +542,18 @@ RedisAdapter::get_reverse_data_helper(const std::string& foreignKey, const std::
 //  get_reverse_data_list_helper<T> : get data as type vector<T> (T is trivial)
 //                                    that occurred before a specified time
 //
-//    foreignKey : base key of foreign device
-//    subKey     : sub key to get data from
-//    maxID      : highest time to get data for
-//    count      : max number of items to get
-//    return     : ItemStream of Item<vector<T>>
+//    baseKey : base key of device
+//    subKey  : sub key to get data from
+//    maxID   : highest time to get data for
+//    count   : max number of items to get
+//    return  : ItemStream of Item<vector<T>>
 //
 template<typename T> swr::ItemStream<std::vector<T>>
-RedisAdapter::get_reverse_data_list_helper(const std::string& foreignKey, const std::string& subKey, const std::string& maxID, uint32_t count)
+RedisAdapter::get_reverse_data_list_helper(const std::string& baseKey, const std::string& subKey, const std::string& maxID, uint32_t count)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
   swr::ItemStream<swr::Attrs> raw;
-  std::string key = (foreignKey.size() ? foreignKey : _baseKey) + DATA_STUB + subKey;
+  std::string key = baseKey + DATA_STUB + subKey;
 
   if (count) { _redis.xrevrange(key, maxID, "-", count, std::back_inserter(raw)); }
   else       { _redis.xrevrange(key, maxID, "-", std::back_inserter(raw)); }
@@ -576,18 +576,18 @@ RedisAdapter::get_reverse_data_list_helper(const std::string& foreignKey, const 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  get_single_data_helper<T> : get a single data item of type T (T is trivial, string or Attrs)
 //
-//    foreignKey : base key of foreign device
-//    subKey : sub key to get data from
-//    dest   : destination to copy data to
-//    maxID  : time that equals or exceeds the data to get
-//    return : id of the data item if successful
-//             empty string on failure
+//    baseKey : base key of device
+//    subKey  : sub key to get data from
+//    dest    : destination to copy data to
+//    maxID   : time that equals or exceeds the data to get
+//    return  : id of the data item if successful
+//              empty string on failure
 //
 template<> inline std::string
-RedisAdapter::get_single_data_helper(const std::string& foreignKey, const std::string& subKey, swr::Attrs& dest, const std::string& maxID)
+RedisAdapter::get_single_data_helper(const std::string& baseKey, const std::string& subKey, swr::Attrs& dest, const std::string& maxID)
 {
   swr::ItemStream<swr::Attrs> raw;
-  std::string key = (foreignKey.size() ? foreignKey : _baseKey) + DATA_STUB + subKey;
+  std::string key = baseKey + DATA_STUB + subKey;
   _redis.xrevrange(key, maxID, "-", 1, std::back_inserter(raw));
   std::string id;
   if (raw.size())
@@ -598,11 +598,11 @@ RedisAdapter::get_single_data_helper(const std::string& foreignKey, const std::s
   return id;
 }
 template<typename T> std::string
-RedisAdapter::get_single_data_helper(const std::string& foreignKey, const std::string& subKey, T& dest, const std::string& maxID)
+RedisAdapter::get_single_data_helper(const std::string& baseKey, const std::string& subKey, T& dest, const std::string& maxID)
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
   swr::ItemStream<swr::Attrs> raw;
-  std::string key = (foreignKey.size() ? foreignKey : _baseKey) + DATA_STUB + subKey;
+  std::string key = baseKey + DATA_STUB + subKey;
   _redis.xrevrange(key, maxID, "-", 1, std::back_inserter(raw));
   std::string id;
   if (raw.size())
@@ -620,19 +620,19 @@ RedisAdapter::get_single_data_helper(const std::string& foreignKey, const std::s
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  get_single_data_list_helper<T> : get a single data item as vector<T> (T is trivial)
 //
-//    foreignKey : base key of foreign device
-//    subKey : sub key to get data from
-//    dest   : destination to copy data to
-//    maxID  : time that equals or exceeds the data to get
-//    return : id of the data item if successful
-//             empty string on failure
+//    baseKey : base key of device
+//    subKey  : sub key to get data from
+//    dest    : destination to copy data to
+//    maxID   : time that equals or exceeds the data to get
+//    return  : id of the data item if successful
+//              empty string on failure
 //
 template<typename T> std::string
-RedisAdapter::get_single_data_list_helper(const std::string& foreignKey, const std::string& subKey, std::vector<T>& dest, const std::string& maxID)
+RedisAdapter::get_single_data_list_helper(const std::string& baseKey, const std::string& subKey, std::vector<T>& dest, const std::string& maxID)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
   swr::ItemStream<swr::Attrs> raw;
-  std::string key = (foreignKey.size() ? foreignKey : _baseKey) + DATA_STUB + subKey;
+  std::string key = baseKey + DATA_STUB + subKey;
   _redis.xrevrange(key, maxID, "-", 1, std::back_inserter(raw));
   std::string id;
   if (raw.size())
