@@ -145,8 +145,8 @@ public:
   template<typename T> std::string
   addDataSingle(const std::string& subKey, const T& data, const std::string& id = "*", uint32_t trim = 1);
 
-  template<typename T> std::string
-  addDataListSingle(const std::string& subKey, const std::vector<T>& data, const std::string& id = "*", uint32_t trim = 1);
+  template<template<class> class C, typename T> std::string
+  addDataListSingle(const std::string& subKey, const C<T>& data, const std::string& id = "*", uint32_t trim = 1);
 
   template<typename T> std::vector<std::string>
   addData(const std::string& subKey, const swr::ItemStream<T>& data, uint32_t trim = 1);
@@ -194,7 +194,7 @@ private:
   //
   template<typename T> auto default_field_value(const swr::Attrs& attrs);
 
-  template<typename T> swr::Attrs default_field_attrs(const std::vector<T>& data);
+  template<template<class> class C, typename T> swr::Attrs default_field_attrs(const C<T>& data);
 
   template<typename T> swr::Attrs default_field_attrs(const T& data);
 
@@ -273,10 +273,10 @@ template<typename T> auto RedisAdapter::default_field_value(const swr::Attrs& at
   return ret;
 }
 
-template<typename T> swr::Attrs RedisAdapter::default_field_attrs(const std::vector<T>& data)
+template<template<class> class C, typename T> swr::Attrs RedisAdapter::default_field_attrs(const C<T>& data)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
-  return {{ DEFAULT_FIELD, std::string((const char*)data.data(), data.size() * sizeof(T)) }};
+  return {{ DEFAULT_FIELD, std::string((const char*)data.data(), data.size() * sizeof(data.front())) }};
 }
 template<> inline swr::Attrs RedisAdapter::default_field_attrs(const std::string& data)
 {
@@ -677,7 +677,7 @@ RedisAdapter::addDataSingle(const std::string& subKey, const T& data, const std:
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  addDataListSingle<T> : add a vector<T> as a data item (T is trivial)
+//  addDataListSingle<C<T>> : add a vector<T> or span<T> as a data item (T is trivial)
 //
 //    subKey : sub key to add data to
 //    data   : data to add
@@ -686,8 +686,8 @@ RedisAdapter::addDataSingle(const std::string& subKey, const T& data, const std:
 //    return : id of the added data item if successful
 //             empty string on failure
 //
-template<typename T> inline std::string
-RedisAdapter::addDataListSingle(const std::string& subKey, const std::vector<T>& data, const std::string& id, uint32_t trim)
+template<template<class> class C, typename T> inline std::string
+RedisAdapter::addDataListSingle(const std::string& subKey, const C<T>& data, const std::string& id, uint32_t trim)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
   std::string key = _baseKey + DATA_STUB + subKey;

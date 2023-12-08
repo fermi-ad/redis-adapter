@@ -1,5 +1,6 @@
 
 #include "RedisAdapter.hpp"
+#include <span>
 
 int main(int argc, char* argv[])
 {
@@ -104,13 +105,14 @@ int main(int argc, char* argv[])
   redis.getDataListSingle("abc", vf, "1");
   redis.getForeignDataListSingle("abc", "def", vf);
 
-  redis.addDataSingle<float>("abc", 1.23, "1", 10);
-  redis.addDataSingle<std::string>("abc", "123", "1");
-  redis.addDataSingle<swr::Attrs>("abc", attrs);
+  redis.addDataSingle("abc", 1.23, "1", 10);
+  redis.addDataSingle("abc", "123", "1");
+  redis.addDataSingle("abc", attrs);
 
-  redis.addDataListSingle<float>("abc", vf, "1", 10);
-  redis.addDataListSingle<float>("abc", vf, "1");
-  redis.addDataListSingle<float>("abc", vf);
+  std::span<float> sf;
+  redis.addDataListSingle("abc", vf, "1", 10);
+  redis.addDataListSingle("abc", sf, "1");
+  redis.addDataListSingle("abc", sf);
 
   swr::ItemStream<float> is;
   redis.addData<float>("abc", is, 10);
