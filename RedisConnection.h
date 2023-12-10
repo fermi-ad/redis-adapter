@@ -29,7 +29,9 @@ public:
   struct Options
   {
     std::string host = "127.0.0.1";
-    std::string user, password;
+    std::string user;
+    std::string password;
+    uint32_t timeout = 0;   //  milliseconds
     uint16_t port = 0;
     uint16_t size = 5;
   };
@@ -44,6 +46,7 @@ public:
     _co.host = opts.host;
     if (opts.user.size()) _co.user = opts.user;   //  dont overwrite redis++ default with ""
     _co.password = opts.password;
+    _co.socket_timeout = chr::milliseconds(opts.timeout);
     if (opts.port) _co.port = opts.port;          //  dont overwrite redis++ default with 0
     _cpo.size = opts.size;
 

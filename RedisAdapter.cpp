@@ -1,15 +1,16 @@
 /**
  * RedisAdapter.cpp
  *
- * This file contains the implementation of the RedisAdapter class.
+ * This file contains the implementation of the RedisAdapter class
  *
  * @author rsantucc
  */
 
 #include "RedisAdapter.hpp"
 
-using namespace sw::redis;
 using namespace std;
+using namespace chrono;
+using namespace sw::redis;
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  RedisAdapter : constructor
@@ -19,10 +20,12 @@ using namespace std;
 //              e.g. RedisConnection::Options{ .user = "adinst", .password = "adinst" }
 //    return  : RedisAdapter
 //
-RedisAdapter::RedisAdapter(const string& baseKey, const RedisConnection::Options& opts)
-: _redis(opts), _baseKey(baseKey)
+RedisAdapter::RedisAdapter(const string& baseKey, const RedisConnection::Options& opts, uint32_t timeout)
+: _baseKey(baseKey), _timeout(timeout)
 {
-  _commandsKey  = baseKey + COMMANDS_STUB;
+  RedisConnection::Options tmp = opts;
+  tmp.timeout = timeout;
+  _redis = make_unique<RedisConnection>(tmp);
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -33,8 +36,17 @@ RedisAdapter::RedisAdapter(const string& baseKey, const RedisConnection::Options
 //    port    : port server is listening on
 //    return  : RedisAdapter
 //
-RedisAdapter::RedisAdapter(const string& baseKey, const string& host, uint16_t port)
-: RedisAdapter(baseKey, RedisConnection::Options{ .host = host, .port = port }) {}
+RedisAdapter::RedisAdapter(const string& baseKey, const string& host, uint16_t port, uint32_t timeout)
+: RedisAdapter(baseKey, RedisConnection::Options{ .host = host, .port = port }, timeout) {}
+
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  ~RedisAdapter : destructor
+//
+RedisAdapter::~RedisAdapter()
+{
+  stop_listener();
+  stop_reader();
+}
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  getStatus : get status for home device as string
@@ -43,26 +55,13 @@ RedisAdapter::RedisAdapter(const string& baseKey, const string& host, uint16_t p
 //    return : string with status if successful
 //             empty string if failure
 //
-string RedisAdapter::getStatus(const string& subKey)
+string RedisAdapter::getStatus(const string& subKey, const string& baseKey)
 {
-  swr::ItemStream<swr::Attrs> raw;
-  _redis.xrevrange(_baseKey + STATUS_STUB + subKey, "+", "-", 1, back_inserter(raw));
-  if (raw.size()) { return default_field_value<string>(raw.front().second); }
-  return {};
-}
+  string key = (baseKey.size() ? baseKey : _baseKey) + STATUS_STUB + subKey;
+  ItemStream<Attrs> raw;
 
-//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  getForeignStatus : get status for foreign device as string
-//
-//    foreignKey : base key of foreign device
-//    subKey     : sub key to get status from
-//    return     : string with status if successful
-//                 empty string if failure
-//
-string RedisAdapter::getForeignStatus(const string& foreignKey, const string& subKey)
-{
-  swr::ItemStream<swr::Attrs> raw;
-  _redis.xrevrange(foreignKey + STATUS_STUB + subKey, "+", "-", 1, back_inserter(raw));
+  _redis->xrevrange(key, "+", "-", 1, back_inserter(raw));
+
   if (raw.size()) { return default_field_value<string>(raw.front().second); }
   return {};
 }
@@ -76,8 +75,9 @@ string RedisAdapter::getForeignStatus(const string& foreignKey, const string& su
 //
 bool RedisAdapter::setStatus(const string& subKey, const string& value)
 {
-  swr::Attrs attrs = default_field_attrs(value);
-  return _redis.xaddTrim(_baseKey + STATUS_STUB + subKey, "*", attrs.begin(), attrs.end(), 1).size();
+  Attrs attrs = default_field_attrs(value);
+
+  return _redis->xaddTrim(_baseKey + STATUS_STUB + subKey, "*", attrs.begin(), attrs.end(), 1).size();
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -89,10 +89,12 @@ bool RedisAdapter::setStatus(const string& subKey, const string& value)
 //
 ItemStream<string> RedisAdapter::getLog(string minID, string maxID)
 {
-  swr::ItemStream<swr::Attrs> raw;
-  _redis.xrange(_baseKey + LOG_STUB, minID, maxID, back_inserter(raw));
-  swr::ItemStream<string> ret;
-  swr::Item<string> retItem;
+  ItemStream<Attrs> raw;
+
+  _redis->xrange(_baseKey + LOG_STUB, minID, maxID, back_inserter(raw));
+
+  ItemStream<string> ret;
+  Item<string> retItem;
   for (const auto& rawItem : raw)
   {
     retItem.second = default_field_value<string>(rawItem.second);
@@ -114,10 +116,12 @@ ItemStream<string> RedisAdapter::getLog(string minID, string maxID)
 //
 ItemStream<string> RedisAdapter::getLogAfter(string minID, uint32_t count)
 {
-  swr::ItemStream<swr::Attrs> raw;
-  _redis.xrange(_baseKey + LOG_STUB, minID, "+", count, back_inserter(raw));
-  swr::ItemStream<string> ret;
-  swr::Item<string> retItem;
+  ItemStream<Attrs> raw;
+
+  _redis->xrange(_baseKey + LOG_STUB, minID, "+", count, back_inserter(raw));
+
+  ItemStream<string> ret;
+  Item<string> retItem;
   for (const auto& rawItem : raw)
   {
     retItem.second = default_field_value<string>(rawItem.second);
@@ -139,10 +143,12 @@ ItemStream<string> RedisAdapter::getLogAfter(string minID, uint32_t count)
 //
 ItemStream<string> RedisAdapter::getLogBefore(uint32_t count, string maxID)
 {
-  swr::ItemStream<swr::Attrs> raw;
-  _redis.xrevrange(_baseKey + LOG_STUB, maxID, "-", count, back_inserter(raw));
-  swr::ItemStream<string> ret;
-  swr::Item<string> retItem;
+  ItemStream<Attrs> raw;
+
+  _redis->xrevrange(_baseKey + LOG_STUB, maxID, "-", count, back_inserter(raw));
+
+  ItemStream<string> ret;
+  Item<string> retItem;
   for (auto rawItem = raw.rbegin(); rawItem != raw.rend(); rawItem++)   //  reverse iterate
   {
     retItem.second = default_field_value<string>(rawItem->second);
@@ -164,241 +170,230 @@ ItemStream<string> RedisAdapter::getLogBefore(uint32_t count, string maxID)
 //
 bool RedisAdapter::addLog(string message, uint32_t trim)
 {
-  swr::Attrs attrs = default_field_attrs(message);
-  return _redis.xaddTrim(_baseKey + LOG_STUB, "*", attrs.begin(), attrs.end(), trim).size();
-}
+  Attrs attrs = default_field_attrs(message);
 
-void RedisAdapter::streamReadBlock(unordered_map<string,string>& keysID, Streams<Attrs>& dest)
-{
-  try
-  {
-    _redis.xreadMultiBlock(keysID.begin(), keysID.end(), 0, inserter(dest, dest.end()));
-    // Update the time of last message, multiple different streams can return at once, default times use "$"
-    // this is equivalent to saying start from where the stream is now. Listen for only new input.
-    // We will get the newest time from the last element in an ItemStream
-    // Messages are returned simlar to tail -f, newest message is last. Update last time
-    for (auto val : dest)
-    {
-      if (!val.second.empty())
-      {
-        keysID[val.first] = val.second.back().first;
-      }
-    }
-  }
-  catch (const exception &e)
-  {
-    //  TODO: handle exceptions
-  }
-}
-
-void RedisAdapter::publish(string msg)
-{
-  try
-  {
-    _redis.publish(_commandsKey, msg);
-  }
-  catch (const exception &e)
-  {
-    //  TODO: handle exceptions
-  }
-}
-
-void RedisAdapter::publish(string key, string msg)
-{
-  try
-  {
-    _redis.publish(_commandsKey + ":" + key, msg);
-  }
-  catch (const exception &e)
-  {
-    //  TODO: handle exceptions
-  }
+  return _redis->xaddTrim(_baseKey + LOG_STUB, "*", attrs.begin(), attrs.end(), trim).size();
 }
 
 void RedisAdapter::copyKey(string src, string dst)
 {
-  _redis.copy(src, dst);
+  _redis->copy(src, dst);
 }
 
 void RedisAdapter::deleteKey(string key)
 {
-  _redis.del(key);
+  _redis->del(key);
 }
 
 vector<string> RedisAdapter::getServerTime()
 {
-  return _redis.time();
-}
-
-void RedisAdapter::psubscribe(string pattern, function<void(string, string, string)> func)
-{
-  _patternSubscriptions.push_back({ .pattern = pattern, .function = func });
-}
-
-void RedisAdapter::subscribe(string channel, function<void(string, string)> func)
-{
-  _subscriptions.push_back({ .key = channel, .function = func });
-}
-
-void RedisAdapter::startListener()
-{
-  _listener = thread(&RedisAdapter::listener, this);
-}
-
-void RedisAdapter::startReader()
-{
-  _reader = thread(&RedisAdapter::reader, this);
-}
-
-void RedisAdapter::registerCommand(string command, function<void(string, string)> func)
-{
-  _commands.emplace(_commandsKey + ":" + command, func);
-}
-
-void RedisAdapter::listener()
-{
-  auto maybe = _redis.subscriber();
-  if ( ! maybe.has_value())
-  {
-    syslog(LOG_ERR, "Can't get initial subscriber");
-    return;
-  }
-  Subscriber& sub = maybe.value();
-
-  // Consume messages in a loop.
-  bool flag = false;
-  while (true)
-  {
-    try
-    {
-      if (flag)
-      {
-        sub.consume();
-      }
-      else
-      {
-        flag = true;
-        sub.on_pmessage([&](string pattern, string key, string msg)
-        {
-          auto search = _commands.find(key);
-          if (search != _commands.end())
-          {
-            search->second(key, msg);
-          }
-          else
-          {
-            vector<patternFunctionPair> matchingPatterns;
-            for (patternFunctionPair patternSubscription : _patternSubscriptions)
-            {
-              if (patternSubscription.pattern == pattern)
-              {
-                matchingPatterns.push_back(patternSubscription);
-              }
-            }
-            // Loop over the members of _patternSubscriptions
-            // that have the same pattern as this event
-            for (patternFunctionPair patternFunction : matchingPatterns)
-            {
-              patternFunction.function(pattern, key, msg);
-            }
-          }
-        });
-        sub.on_message([&](string key, string msg)
-        {
-          vector<keyFunctionPair> matchingSubscriptions;
-          for (keyFunctionPair subscription : _subscriptions)
-          {
-            if (subscription.key == key)
-            {
-              matchingSubscriptions.push_back(subscription);
-            }
-          }
-          // Loop over the members of _subscriptions
-          // that have the same key as this event
-          for (keyFunctionPair keyFunction : matchingSubscriptions)
-          {
-            keyFunction.function(key, msg);
-          }
-        });
-        // The default is everything published on ChannelKey
-        sub.psubscribe(_commandsKey + "*");
-        // Subscribe to the pattens in _patternSubscriptions
-        for (auto element : _patternSubscriptions)
-        {
-          sub.psubscribe(element.pattern);
-        }
-        // Subscribe to the keys in _subscriptions
-        for (auto element : _subscriptions)
-        {
-          sub.subscribe(element.key);
-        }
-      }
-    }
-    catch (const TimeoutError &e)
-    {
-      continue;
-    }
-    catch (const exception &e)
-    {
-      // Handle unrecoverable exceptions. Need to re create redis connection
-      syslog(LOG_ERR, "ERROR %s occured, trying to recover", e.what());
-      flag = false;
-      auto maybe = _redis.subscriber();
-      if ( ! maybe.has_value())
-      {
-        syslog(LOG_ERR, "Can't replace subscriber");
-        return;
-      }
-      sub = move(maybe.value());
-    }
-  }
-}
-
-void RedisAdapter::addReader(string streamKey,  function<void(string, ItemStream<Attrs>)> func)
-{
-  _streamKeyID.emplace(streamKey, "$");
-  _streamSubscriptions.push_back({ .streamKey = streamKey, .function = func});
-}
-
-void RedisAdapter::reader()
-{
-  // Create a new redis connection only used for streams
-  Streams<Attrs> streamsBuffer;
-  while (true)
-  {
-    try
-    {
-      streamsBuffer.clear();
-      streamReadBlock(_streamKeyID, streamsBuffer);
-      // iterate thorugh the buffer and pass onto the correct handler
-      for (auto is : streamsBuffer)
-      {
-        for (streamKeyFunctionPair streamSubscription : _streamSubscriptions)
-        {
-          if (streamSubscription.streamKey == is.first)
-          {
-            streamSubscription.function(streamSubscription.streamKey, is.second);
-          }
-        }
-      }
-    }
-    catch (const exception &e)
-    {
-      // Handle unrecoverable exceptions. Need to re create redis connection
-      syslog(LOG_ERR, "ERROR %s occured, trying to recover", e.what());
-      continue;
-    }
-  }
+  return _redis->time();
 }
 
 Optional<timespec> RedisAdapter::getServerTimespec()
 {
-  vector<string> result = getServerTime();
+  Optional<timespec> ret;
+  vector<string> result = _redis->time();
   // The redis command time is returns an array with the first element being
   // the time in seconds and the second being the microseconds within that second
-  if (result.size() != 2) { return nullopt; }
-  timespec ts;
-  ts.tv_sec  = stoll(result.at(0));        // first element contains unix time
-  ts.tv_nsec = stoll(result.at(1)) * 1000; // second element contains microseconds in the second
-  return ts;
+  if (result.size() == 2)
+  {
+    ret = { .tv_sec  = stoll(result[0]),            // unix time in seconds
+            .tv_nsec = stoll(result[1]) * 1000 };   // microseconds in the second
+  }
+  return ret;
+}
+
+void RedisAdapter::publish(string msg)
+{
+  _redis->publish(_baseKey + COMMANDS_STUB, msg);
+}
+
+void RedisAdapter::publish(string key, string msg)
+{
+  _redis->publish(_baseKey + COMMANDS_STUB + key, msg);
+}
+
+void RedisAdapter::psubscribe(string pattern, ListenSubFn func)
+{
+  _patternSubs[_baseKey + COMMANDS_STUB + pattern].push_back(func);
+}
+
+void RedisAdapter::subscribe(string channel, ListenSubFn func)
+{
+  _commandSubs[_baseKey + COMMANDS_STUB + channel].push_back(func);
+}
+
+bool RedisAdapter::start_listener()
+{
+  if (_listener.joinable()) return false;
+
+  //  use condition_variable to signal when thread is about to enter consume loop
+  mutex mx;
+  condition_variable cv;
+  unique_lock<mutex> lk(mx, defer_lock);
+
+  bool ret = true;
+
+  _listener = thread([&]()
+    {
+      auto maybe = _redis->subscriber();
+      if ( ! maybe.has_value())
+      {
+        syslog(LOG_ERR, "failed to get subscriber");
+        ret = false;      //  start_listener return false
+        cv.notify_all();  //  notify cv
+        return;           //  return from lambda
+      }
+      Subscriber& sub = maybe.value();
+
+      sub.on_pmessage([&](string pat, string key, string msg)
+        {
+          //  figure out pattern matching and do the right thing
+        }
+      );
+
+      sub.on_message([&](string key, string msg)
+        {
+          if (_commandSubs.count(key))
+          {
+            for (auto& func : _commandSubs.at(key))
+            {
+              auto keys = split_fully_qualified_key(key);
+              func(keys.first, keys.second, msg);
+            }
+          }
+        }
+      );
+
+      //  subscribe foreign only
+      for (const auto& cs : _commandSubs) sub.subscribe(cs.first);
+
+      //  psubscribe foreign only?
+      for (const auto& ps : _patternSubs) sub.psubscribe(ps.first);
+
+      sub.psubscribe(_baseKey + COMMANDS_STUB + "*");   //  does this catch everything local?
+
+      _runListener = true;
+
+      cv.notify_all();  //  notify about to enter loop (NOT in loop)
+
+      do  //  when consume times out check for stop request then consume again
+      {
+        try { sub.consume(); }
+        catch (const TimeoutError&) {}
+        catch (const Error& e)
+        {
+          syslog(LOG_ERR, "consume in listener: %s", e.what());
+          _runListener = false;
+        }
+      }
+      while (_runListener);
+    }
+  );
+  //  wait until notified that thread is running (or timeout)
+  bool nto = cv.wait_for(lk, milliseconds(10)) == cv_status::no_timeout;
+  if ( ! nto) syslog(LOG_ERR, "start_listener timeout waiting for thread start");
+  return nto && ret;
+}
+
+bool RedisAdapter::stop_listener()
+{
+  if (_listener.joinable())
+  {
+    _runListener = false;
+    _listener.join();
+    return true;
+  }
+  return false;
+}
+
+void RedisAdapter::addReader(string key, ReaderSubFn func)
+{
+  _readerKeyID.emplace(key, "$");
+  _readerSubs[key].push_back(func);
+}
+
+bool RedisAdapter::start_reader()
+{
+  if (_reader.joinable()) return false;
+
+  //  use condition_variable to signal when thread is about to enter xreadMultiBlock loop
+  mutex mx;
+  condition_variable cv;
+  unique_lock<mutex> lk(mx, defer_lock);
+
+  _reader = thread([&]()
+    {
+      _runReader = true;
+
+      cv.notify_all();  //  notify about to enter loop (NOT in loop)
+
+      for (Streams<Attrs> out; _runReader; out.clear())
+      {
+        if (_redis->xreadMultiBlock(_readerKeyID.begin(), _readerKeyID.end(), _timeout, inserter(out, out.end())))
+        {
+          for (auto& is : out)
+          {
+            if (is.second.size()) { _readerKeyID[is.first] = is.second.back().first; }
+
+            if (_readerSubs.count(is.first))
+            {
+              for (auto& func : _readerSubs.at(is.first))
+              {
+                auto keys = split_fully_qualified_key(is.first);
+                func(keys.first, keys.second, is.second);
+              }
+            }
+          }
+        }
+        else
+        {
+          syslog(LOG_ERR, "xreadMultiBlock returned false in reader");
+          return;
+        }
+      }
+    }
+  );
+  //  wait until notified that thread is running (or timeout)
+   bool nto = cv.wait_for(lk, milliseconds(10)) == cv_status::no_timeout;
+   if ( ! nto) syslog(LOG_ERR, "start_reader timeout waiting for thread start");
+   return nto;
+}
+
+
+bool RedisAdapter::stop_reader()
+{
+  if (_reader.joinable())
+  {
+    _runReader = false;
+    _reader.join();
+    return true;
+  }
+  return false;
+}
+
+pair<string, string> RedisAdapter::split_fully_qualified_key(const string& key)
+{
+  size_t idx = key.find(COMMANDS_STUB);
+  if (idx != string::npos)
+    { return make_pair(key.substr(0, idx), key.substr(idx + COMMANDS_STUB.size())); }
+
+  idx = key.find(DATA_STUB);
+  if (idx != string::npos)
+    { return make_pair(key.substr(0, idx), key.substr(idx + DATA_STUB.size())); }
+
+  idx = key.find(SETTINGS_STUB);
+  if (idx != string::npos)
+    { return make_pair(key.substr(0, idx), key.substr(idx + SETTINGS_STUB.size())); }
+
+  idx = key.find(STATUS_STUB);
+  if (idx != string::npos)
+    { return make_pair(key.substr(0, idx), key.substr(idx + STATUS_STUB.size())); }
+
+  idx = key.find(LOG_STUB);
+  if (idx != string::npos)
+    { return make_pair(key.substr(0, idx), ""); }
+
+  return {};
 }
