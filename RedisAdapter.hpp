@@ -117,8 +117,16 @@ public:
   template<typename T> std::string
   addDataSingle(const std::string& subKey, const T& data, const std::string& id = "*", uint32_t trim = 1);
 
+  template<typename T> std::string
+  addDataSingle(const std::string& subKey, const T& data, uint32_t trim)
+    { return addDataSingle(subKey, data, "*", trim); }
+
   template<template<typename T> class C, typename T> std::string
   addDataListSingle(const std::string& subKey, const C<T>& data, const std::string& id = "*", uint32_t trim = 1);
+
+  template<template<typename T> class C, typename T> std::string
+  addDataListSingle(const std::string& subKey, const C<T>& data, uint32_t trim)
+    { return addDataListSingle(subKey, data, "*", trim); }
 
   template<typename T> std::vector<std::string>
   addData(const std::string& subKey, const swr::ItemStream<T>& data, uint32_t trim = 1);
@@ -132,12 +140,13 @@ public:
   using ListenSubFn = std::function<void(std::string, std::string, std::string)>;
   using ReaderSubFn = std::function<void(std::string, std::string, swr::ItemStream<swr::Attrs>)>;
 
-  bool publish(const std::string& msg, const std::string& key = "");
+  bool publish(const std::string& message, const std::string& subKey = "");
 
-  bool psubscribe(const std::string& pat, ListenSubFn func);
-  bool subscribe(const std::string& key, ListenSubFn func);
+  bool psubscribe(const std::string& pattern, ListenSubFn func, const std::string& baseKey = "");
 
-  bool addReader(const std::string& key,  ReaderSubFn func);
+  bool subscribe(const std::string& subKey, ListenSubFn func, const std::string& baseKey = "");
+
+  bool addReader(const std::string& subKey,  ReaderSubFn func, const std::string& baseKey = "");
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Utility
@@ -157,7 +166,11 @@ private:
   const std::string DATA_STUB     = ":DATA:";       //  trailing colon
   const std::string COMMANDS_STUB = ":COMMANDS:";   //  trailing colon
 
-  std::pair<std::string, std::string> split_fully_qualified_key(const std::string& key);
+  const std::string CONTROL_STUB  = ":[*-CTRL-*]";
+
+  std::string build_key(const std::string& baseKey, const std::string& stub, const std::string& subKey);
+
+  std::pair<std::string, std::string> split_key(const std::string& key);
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Helper functions for getting and setting DEFAULT_FIELD in swr::Attrs
@@ -189,6 +202,9 @@ private:
   template<typename T> std::string
   get_single_data_list_helper(const std::string& baseKey, const std::string& subKey, std::vector<T>& dest, const std::string& maxID);
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  Redis stuff
+  //
   std::unique_ptr<RedisConnection> _redis;
 
   std::string _baseKey;
@@ -199,14 +215,22 @@ private:
   //  Pub/Sub Listener and Stream Reader
   //
   bool start_listener();
-  std::thread _listener;
-  bool _runListener;
+  bool kick_listener();
   bool stop_listener();
 
+  std::mutex _listenerMxA;
+  std::mutex _listenerMxB;
+  std::thread _listener;
+  bool _listenerRun;
+
   bool start_reader();
-  std::thread _reader;
-  bool _runReader;
+  bool kick_reader();
   bool stop_reader();
+
+  std::mutex _readerMxA;
+  std::mutex _readerMxB;
+  std::thread _reader;
+  bool _readerRun;
 
   std::unordered_map<std::string, std::vector<ListenSubFn>> _patternSubs;
 
@@ -257,10 +281,9 @@ template<typename T> swr::Attrs RedisAdapter::default_field_attrs(const T& data)
 //
 template<> inline auto RedisAdapter::getSetting<std::string>(const std::string& subKey, const std::string& baseKey)
 {
-  std::string key = (baseKey.size() ? baseKey : _baseKey) + SETTINGS_STUB + subKey;
   swr::ItemStream<swr::Attrs> raw;
 
-  _redis->xrevrange(key, "+", "-", 1, back_inserter(raw));
+  _redis->xrevrange(build_key(baseKey, SETTINGS_STUB, subKey), "+", "-", 1, back_inserter(raw));
 
   return raw.size() ? default_field_value<std::string>(raw.front().second) : "";
 }
@@ -268,10 +291,9 @@ template<typename T> auto RedisAdapter::getSetting(const std::string& subKey, co
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
-  std::string key = (baseKey.size() ? baseKey : _baseKey) + SETTINGS_STUB + subKey;
   swr::ItemStream<swr::Attrs> raw;
 
-  _redis->xrevrange(key, "+", "-", 1, back_inserter(raw));
+  _redis->xrevrange(build_key(baseKey, SETTINGS_STUB, subKey), "+", "-", 1, back_inserter(raw));
 
   swr::Optional<T> ret;
   if (raw.size()) ret = default_field_value<T>(raw.front().second);
@@ -288,10 +310,9 @@ template<typename T> std::vector<T> RedisAdapter::getSettingList(const std::stri
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
-  std::string key = (baseKey.size() ? baseKey : _baseKey) + SETTINGS_STUB + subKey;
   swr::ItemStream<swr::Attrs> raw;
 
-  _redis->xrevrange(key, "+", "-", 1, back_inserter(raw));
+  _redis->xrevrange(build_key(baseKey, SETTINGS_STUB, subKey), "+", "-", 1, back_inserter(raw));
 
   std::vector<T> ret;
   if (raw.size())
@@ -350,7 +371,7 @@ template<typename T> bool RedisAdapter::setSettingList(const std::string& subKey
 template <> inline swr::ItemStream<swr::Attrs>
 RedisAdapter::get_forward_data_helper(const std::string& baseKey, const std::string& subKey, const std::string& minID, const std::string& maxID, uint32_t count)
 {
-  std::string key = (baseKey.size() ? baseKey : _baseKey) + DATA_STUB + subKey;
+  std::string key = build_key(baseKey, DATA_STUB, subKey);
   swr::ItemStream<swr::Attrs> ret;
 
   if (count) { _redis->xrange(key, minID, maxID, count, std::back_inserter(ret)); }
@@ -363,7 +384,7 @@ RedisAdapter::get_forward_data_helper(const std::string& baseKey, const std::str
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
-  std::string key = (baseKey.size() ? baseKey : _baseKey) + DATA_STUB + subKey;
+  std::string key = build_key(baseKey, DATA_STUB, subKey);
   swr::ItemStream<swr::Attrs> raw;
 
   if (count) { _redis->xrange(key, minID, maxID, count, std::back_inserter(raw)); }
@@ -400,7 +421,7 @@ RedisAdapter::get_forward_data_list_helper(const std::string& baseKey, const std
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
-  std::string key = (baseKey.size() ? baseKey : _baseKey) + DATA_STUB + subKey;
+  std::string key = build_key(baseKey, DATA_STUB, subKey);
   swr::ItemStream<swr::Attrs> raw;
 
   if (count) { _redis->xrange(key, minID, maxID, count, std::back_inserter(raw)); }
@@ -434,7 +455,7 @@ RedisAdapter::get_forward_data_list_helper(const std::string& baseKey, const std
 template <> inline swr::ItemStream<swr::Attrs>
 RedisAdapter::get_reverse_data_helper(const std::string& baseKey, const std::string& subKey, const std::string& maxID, uint32_t count)
 {
-  std::string key = (baseKey.size() ? baseKey : _baseKey) + DATA_STUB + subKey;
+  std::string key = build_key(baseKey, DATA_STUB, subKey);
   swr::ItemStream<swr::Attrs> ret;
 
   if (count) { _redis->xrevrange(key, maxID, "-", count, std::back_inserter(ret)); }
@@ -448,7 +469,7 @@ RedisAdapter::get_reverse_data_helper(const std::string& baseKey, const std::str
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
-  std::string key = (baseKey.size() ? baseKey : _baseKey) + DATA_STUB + subKey;
+  std::string key = build_key(baseKey, DATA_STUB, subKey);
   swr::ItemStream<swr::Attrs> raw;
 
   if (count) { _redis->xrevrange(key, maxID, "-", count, std::back_inserter(raw)); }
@@ -484,7 +505,7 @@ RedisAdapter::get_reverse_data_list_helper(const std::string& baseKey, const std
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
-  std::string key = (baseKey.size() ? baseKey : _baseKey) + DATA_STUB + subKey;
+  std::string key = build_key(baseKey, DATA_STUB, subKey);
   swr::ItemStream<swr::Attrs> raw;
 
   if (count) { _redis->xrevrange(key, maxID, "-", count, std::back_inserter(raw)); }
@@ -518,10 +539,9 @@ RedisAdapter::get_reverse_data_list_helper(const std::string& baseKey, const std
 template<> inline std::string
 RedisAdapter::get_single_data_helper(const std::string& baseKey, const std::string& subKey, swr::Attrs& dest, const std::string& maxID)
 {
-  std::string key = (baseKey.size() ? baseKey : _baseKey) + DATA_STUB + subKey;
   swr::ItemStream<swr::Attrs> raw;
 
-  _redis->xrevrange(key, maxID, "-", 1, std::back_inserter(raw));
+  _redis->xrevrange(build_key(baseKey, DATA_STUB, subKey), maxID, "-", 1, std::back_inserter(raw));
 
   std::string id;
   if (raw.size())
@@ -536,10 +556,9 @@ RedisAdapter::get_single_data_helper(const std::string& baseKey, const std::stri
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
-  std::string key = (baseKey.size() ? baseKey : _baseKey) + DATA_STUB + subKey;
   swr::ItemStream<swr::Attrs> raw;
 
-  _redis->xrevrange(key, maxID, "-", 1, std::back_inserter(raw));
+  _redis->xrevrange(build_key(baseKey, DATA_STUB, subKey), maxID, "-", 1, std::back_inserter(raw));
 
   std::string id;
   if (raw.size())
@@ -569,10 +588,9 @@ RedisAdapter::get_single_data_list_helper(const std::string& baseKey, const std:
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
-  std::string key = (baseKey.size() ? baseKey : _baseKey) + DATA_STUB + subKey;
   swr::ItemStream<swr::Attrs> raw;
 
-  _redis->xrevrange(key, maxID, "-", 1, std::back_inserter(raw));
+  _redis->xrevrange(build_key(baseKey, DATA_STUB, subKey), maxID, "-", 1, std::back_inserter(raw));
 
   std::string id;
   if (raw.size())

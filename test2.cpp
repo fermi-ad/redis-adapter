@@ -118,11 +118,13 @@ int main(int argc, char* argv[])
 
   redis.addDataSingle("abc", 1.23, "1", 10);
   redis.addDataSingle("abc", "123", "1");
+  redis.addDataSingle("abc", "123", 10);
   redis.addDataSingle("abc", attrs);
 
   std::span<float> sf;
   redis.addDataListSingle("abc", vf, "1", 10);
   redis.addDataListSingle("abc", sf, "1");
+  redis.addDataListSingle("abc", vf, 10);
   redis.addDataListSingle("abc", sf);
 
   swr::ItemStream<float> is;

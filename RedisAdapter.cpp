@@ -59,10 +59,10 @@ RedisAdapter::~RedisAdapter()
 //
 string RedisAdapter::getStatus(const string& subKey, const string& baseKey)
 {
-  string key = (baseKey.size() ? baseKey : _baseKey) + STATUS_STUB + subKey;
   ItemStream<Attrs> raw;
 
-  _redis->xrevrange(key, "+", "-", 1, back_inserter(raw));
+  _redis->xrevrange(build_key(baseKey, STATUS_STUB, subKey),
+                    "+", "-", 1, back_inserter(raw));
 
   if (raw.size()) { return default_field_value<string>(raw.front().second); }
   return {};
@@ -184,7 +184,7 @@ bool RedisAdapter::copyKey(const string& src, const string& dst)
 
 bool RedisAdapter::deleteKey(const string& key)
 {
-  return _redis->del(key) == 1;
+  return _redis->del(key) >= 0;
 }
 
 vector<string> RedisAdapter::getServerTime()
@@ -206,31 +206,70 @@ Optional<timespec> RedisAdapter::getServerTimespec()
   return ret;
 }
 
-bool RedisAdapter::publish(const string& msg, const string& key)
+bool RedisAdapter::publish(const string& message, const string& subKey)
 {
-  return _redis->publish(_baseKey + COMMANDS_STUB + key, msg) >= 0;
+  return _redis->publish(_baseKey + COMMANDS_STUB + subKey, message) >= 0;
 }
 
-bool RedisAdapter::psubscribe(const string& pat, ListenSubFn func)
+bool RedisAdapter::psubscribe(const string& pattern, ListenSubFn func, const string& baseKey)
 {
-  _patternSubs[_baseKey + COMMANDS_STUB + pat].push_back(func);
-  return true;
+  unique_lock<mutex> lkA(_listenerMxA);
+
+  bool running = kick_listener();
+
+  unique_lock<mutex> lkB(_listenerMxB);
+  lkA.unlock();
+
+  _patternSubs[build_key(baseKey, COMMANDS_STUB, pattern)].push_back(func);
+
+  lkB.unlock();
+
+  return running ? true : start_listener();
 }
 
-bool RedisAdapter::subscribe(const string& key, ListenSubFn func)
+bool RedisAdapter::subscribe(const string& subKey, ListenSubFn func, const string& baseKey)
 {
-  _commandSubs[_baseKey + COMMANDS_STUB + key].push_back(func);
-  return true;
+  unique_lock<mutex> lkA(_listenerMxA);
+
+  bool running = kick_listener();
+
+  unique_lock<mutex> lkB(_listenerMxB);
+  lkA.unlock();
+
+  _commandSubs[build_key(baseKey, COMMANDS_STUB, subKey)].push_back(func);
+
+  lkB.unlock();
+
+  return running ? true : start_listener();
+}
+
+bool RedisAdapter::addReader(const string& subKey, ReaderSubFn func, const string& baseKey)
+{
+  unique_lock<mutex> lkA(_readerMxA);
+
+  bool running = kick_reader();
+
+  unique_lock<mutex> lkB(_readerMxB);
+  lkA.unlock();
+
+  _readerKeyID[_baseKey + CONTROL_STUB] = "$";
+
+  string key = build_key(baseKey, DATA_STUB, subKey);
+  _readerKeyID[key] = "$";
+  _readerSubs[key].push_back(func);
+
+  lkB.unlock();
+
+  return running ? true : start_reader();
 }
 
 bool RedisAdapter::start_listener()
 {
   if (_listener.joinable()) return false;
 
-  //  use condition_variable to signal when thread is about to enter consume loop
-  mutex mx;
-  condition_variable cv;
-  unique_lock<mutex> lk(mx, defer_lock);
+  mutex mx;                   //  use condition_variable to signal when
+  condition_variable cv;      //  thread is about to enter consume loop
+  unique_lock<mutex> lk(mx);
 
   bool ret = true;
 
@@ -256,7 +295,7 @@ bool RedisAdapter::start_listener()
         {
           if (_commandSubs.count(key))
           {
-            auto split = split_fully_qualified_key(key);
+            auto split = split_key(key);
             for (auto& func : _commandSubs.at(key))
             {
               func(split.first, split.second, msg);
@@ -273,19 +312,27 @@ bool RedisAdapter::start_listener()
 
       sub.psubscribe(_baseKey + COMMANDS_STUB + "*");   //  does this catch everything local?
 
-      _runListener = true;
+      _listenerRun = true;
+
+      unique_lock<mutex> lkA(_listenerMxA, defer_lock);
+      unique_lock<mutex> lkB(_listenerMxB, defer_lock);
 
       cv.notify_all();  //  notify about to enter loop (NOT in loop)
 
-      while (_runListener)
+      while (_listenerRun)
       {
+        lkA.lock();
+        lkB.lock();
+        lkA.unlock();
+
         try { sub.consume(); }
         catch (const TimeoutError&) {}
         catch (const Error& e)
         {
           syslog(LOG_ERR, "consume in listener: %s", e.what());
-          _runListener = false;
+          _listenerRun = false;
         }
+        lkB.unlock();
       }
     }
   );
@@ -295,41 +342,48 @@ bool RedisAdapter::start_listener()
   return nto && ret;
 }
 
+bool RedisAdapter::kick_listener()
+{
+  if ( ! _listener.joinable()) return false;
+  _redis->publish(_baseKey + CONTROL_STUB, "");
+  return true;
+}
+
 bool RedisAdapter::stop_listener()
 {
   if (_listener.joinable())
   {
-    _runListener = false;
+    _listenerRun = false;
+    kick_listener();
     _listener.join();
     return true;
   }
   return false;
 }
 
-bool RedisAdapter::addReader(const string& key, ReaderSubFn func)
-{
-  _readerKeyID.emplace(key, "$");
-  _readerSubs[key].push_back(func);
-  return true;
-}
-
 bool RedisAdapter::start_reader()
 {
   if (_reader.joinable()) return false;
 
-  //  use condition_variable to signal when thread is about to enter xreadMultiBlock loop
-  mutex mx;
-  condition_variable cv;
-  unique_lock<mutex> lk(mx, defer_lock);
+  mutex mx;                   //  use condition_variable to signal when
+  condition_variable cv;      //  thread is about to enter read loop
+  unique_lock<mutex> lk(mx);
 
   _reader = thread([&]()
     {
-      _runReader = true;
+      _readerRun = true;
+
+      unique_lock<mutex> lkA(_readerMxA, defer_lock);
+      unique_lock<mutex> lkB(_readerMxB, defer_lock);
 
       cv.notify_all();  //  notify about to enter loop (NOT in loop)
 
-      for (Streams<Attrs> out; _runReader; out.clear())
+      for (Streams<Attrs> out; _readerRun; out.clear())
       {
+        lkA.lock();
+        lkB.lock();
+        lkA.unlock();
+
         if (_redis->xreadMultiBlock(_readerKeyID.begin(), _readerKeyID.end(), _timeout, inserter(out, out.end())))
         {
           for (auto& is : out)
@@ -338,7 +392,7 @@ bool RedisAdapter::start_reader()
 
             if (_readerSubs.count(is.first))
             {
-              auto split = split_fully_qualified_key(is.first);
+              auto split = split_key(is.first);
               for (auto& func : _readerSubs.at(is.first))
               {
                 func(split.first, split.second, is.second);
@@ -349,8 +403,9 @@ bool RedisAdapter::start_reader()
         else
         {
           syslog(LOG_ERR, "xreadMultiBlock returned false in reader");
-          return;
+          _readerRun = false;
         }
+        lkB.unlock();
       }
     }
   );
@@ -360,18 +415,29 @@ bool RedisAdapter::start_reader()
    return nto;
 }
 
-bool RedisAdapter::stop_reader()
+bool RedisAdapter::kick_reader()
 {
-  if (_reader.joinable())
-  {
-    _runReader = false;
-    _reader.join();
-    return true;
-  }
-  return false;
+  if ( ! _reader.joinable()) return false;
+  Attrs attrs = default_field_attrs("");
+  _redis->xaddTrim(_baseKey + CONTROL_STUB, "*", attrs.begin(), attrs.end(), 1);
+  return true;
 }
 
-pair<string, string> RedisAdapter::split_fully_qualified_key(const string& key)
+bool RedisAdapter::stop_reader()
+{
+  if ( ! _reader.joinable()) return false;
+  _readerRun = false;
+  kick_reader();
+  _reader.join();
+  return true;
+}
+
+string RedisAdapter::build_key(const string& baseKey, const string& stub, const string& subKey)
+{
+  return (baseKey.size() ? baseKey : _baseKey) + stub + subKey;
+}
+
+pair<string, string> RedisAdapter::split_key(const string& key)
 {
   size_t idx = key.find(COMMANDS_STUB);
   if (idx != string::npos)
