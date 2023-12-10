@@ -16,16 +16,17 @@ using namespace sw::redis;
 //  RedisAdapter : constructor
 //
 //    baseKey : base key of home device
-//    opts    : struct of default values, override using per-field initializer list
+//    options : struct of default values, override using per-field initializer list
 //              e.g. RedisConnection::Options{ .user = "adinst", .password = "adinst" }
+//    timeout : timeout for pubsub consume and stream listener read
 //    return  : RedisAdapter
 //
-RedisAdapter::RedisAdapter(const string& baseKey, const RedisConnection::Options& opts, uint32_t timeout)
+RedisAdapter::RedisAdapter(const string& baseKey, const RedisConnection::Options& options, uint32_t timeout)
 : _baseKey(baseKey), _timeout(timeout)
 {
-  RedisConnection::Options tmp = opts;
-  tmp.timeout = timeout;
-  _redis = make_unique<RedisConnection>(tmp);
+  RedisConnection::Options opts = options;
+  opts.timeout = timeout;
+  _redis = make_unique<RedisConnection>(opts);
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -34,6 +35,7 @@ RedisAdapter::RedisAdapter(const string& baseKey, const RedisConnection::Options
 //    baseKey : base key of home device
 //    host    : IP address of server "w.x.y.z"
 //    port    : port server is listening on
+//    timeout : timeout for pubsub consume and stream listener read
 //    return  : RedisAdapter
 //
 RedisAdapter::RedisAdapter(const string& baseKey, const string& host, uint16_t port, uint32_t timeout)
@@ -87,7 +89,7 @@ bool RedisAdapter::setStatus(const string& subKey, const string& value)
 //    maxID  : highest time to get log for
 //    return : ItemStream of Item<string>
 //
-ItemStream<string> RedisAdapter::getLog(string minID, string maxID)
+ItemStream<string> RedisAdapter::getLog(const string& minID, const string& maxID)
 {
   ItemStream<Attrs> raw;
 
@@ -114,7 +116,7 @@ ItemStream<string> RedisAdapter::getLog(string minID, string maxID)
 //    count  : greatest number of log items to get
 //    return : ItemStream of Item<string>
 //
-ItemStream<string> RedisAdapter::getLogAfter(string minID, uint32_t count)
+ItemStream<string> RedisAdapter::getLogAfter(const string& minID, uint32_t count)
 {
   ItemStream<Attrs> raw;
 
@@ -141,7 +143,7 @@ ItemStream<string> RedisAdapter::getLogAfter(string minID, uint32_t count)
 //    maxID  : highest time to get log for
 //    return : ItemStream of Item<string>
 //
-ItemStream<string> RedisAdapter::getLogBefore(uint32_t count, string maxID)
+ItemStream<string> RedisAdapter::getLogBefore(uint32_t count, const string& maxID)
 {
   ItemStream<Attrs> raw;
 
@@ -168,21 +170,21 @@ ItemStream<string> RedisAdapter::getLogBefore(uint32_t count, string maxID)
 //    trim    : number of items to trim log stream to
 //    return  : true for success, false for failure
 //
-bool RedisAdapter::addLog(string message, uint32_t trim)
+bool RedisAdapter::addLog(const string& message, uint32_t trim)
 {
   Attrs attrs = default_field_attrs(message);
 
   return _redis->xaddTrim(_baseKey + LOG_STUB, "*", attrs.begin(), attrs.end(), trim).size();
 }
 
-void RedisAdapter::copyKey(string src, string dst)
+bool RedisAdapter::copyKey(const string& src, const string& dst)
 {
-  _redis->copy(src, dst);
+  return _redis->copy(src, dst) == 1;
 }
 
-void RedisAdapter::deleteKey(string key)
+bool RedisAdapter::deleteKey(const string& key)
 {
-  _redis->del(key);
+  return _redis->del(key) == 1;
 }
 
 vector<string> RedisAdapter::getServerTime()
@@ -204,24 +206,21 @@ Optional<timespec> RedisAdapter::getServerTimespec()
   return ret;
 }
 
-void RedisAdapter::publish(string msg)
+bool RedisAdapter::publish(const string& msg, const string& key)
 {
-  _redis->publish(_baseKey + COMMANDS_STUB, msg);
+  return _redis->publish(_baseKey + COMMANDS_STUB + key, msg) >= 0;
 }
 
-void RedisAdapter::publish(string key, string msg)
+bool RedisAdapter::psubscribe(const string& pat, ListenSubFn func)
 {
-  _redis->publish(_baseKey + COMMANDS_STUB + key, msg);
+  _patternSubs[_baseKey + COMMANDS_STUB + pat].push_back(func);
+  return true;
 }
 
-void RedisAdapter::psubscribe(string pattern, ListenSubFn func)
+bool RedisAdapter::subscribe(const string& key, ListenSubFn func)
 {
-  _patternSubs[_baseKey + COMMANDS_STUB + pattern].push_back(func);
-}
-
-void RedisAdapter::subscribe(string channel, ListenSubFn func)
-{
-  _commandSubs[_baseKey + COMMANDS_STUB + channel].push_back(func);
+  _commandSubs[_baseKey + COMMANDS_STUB + key].push_back(func);
+  return true;
 }
 
 bool RedisAdapter::start_listener()
@@ -257,16 +256,16 @@ bool RedisAdapter::start_listener()
         {
           if (_commandSubs.count(key))
           {
+            auto split = split_fully_qualified_key(key);
             for (auto& func : _commandSubs.at(key))
             {
-              auto keys = split_fully_qualified_key(key);
-              func(keys.first, keys.second, msg);
+              func(split.first, split.second, msg);
             }
           }
         }
       );
 
-      //  subscribe foreign only
+      //  subscribe foreign only?
       for (const auto& cs : _commandSubs) sub.subscribe(cs.first);
 
       //  psubscribe foreign only?
@@ -278,7 +277,7 @@ bool RedisAdapter::start_listener()
 
       cv.notify_all();  //  notify about to enter loop (NOT in loop)
 
-      do  //  when consume times out check for stop request then consume again
+      while (_runListener)
       {
         try { sub.consume(); }
         catch (const TimeoutError&) {}
@@ -288,7 +287,6 @@ bool RedisAdapter::start_listener()
           _runListener = false;
         }
       }
-      while (_runListener);
     }
   );
   //  wait until notified that thread is running (or timeout)
@@ -308,10 +306,11 @@ bool RedisAdapter::stop_listener()
   return false;
 }
 
-void RedisAdapter::addReader(string key, ReaderSubFn func)
+bool RedisAdapter::addReader(const string& key, ReaderSubFn func)
 {
   _readerKeyID.emplace(key, "$");
   _readerSubs[key].push_back(func);
+  return true;
 }
 
 bool RedisAdapter::start_reader()
@@ -339,10 +338,10 @@ bool RedisAdapter::start_reader()
 
             if (_readerSubs.count(is.first))
             {
+              auto split = split_fully_qualified_key(is.first);
               for (auto& func : _readerSubs.at(is.first))
               {
-                auto keys = split_fully_qualified_key(is.first);
-                func(keys.first, keys.second, is.second);
+                func(split.first, split.second, is.second);
               }
             }
           }
@@ -360,7 +359,6 @@ bool RedisAdapter::start_reader()
    if ( ! nto) syslog(LOG_ERR, "start_reader timeout waiting for thread start");
    return nto;
 }
-
 
 bool RedisAdapter::stop_reader()
 {

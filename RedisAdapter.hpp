@@ -35,7 +35,7 @@ public:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Construction / Destruction
   //
-  RedisAdapter(const std::string& baseKey, const RedisConnection::Options& opts, uint32_t timeout = 500);
+  RedisAdapter(const std::string& baseKey, const RedisConnection::Options& options, uint32_t timeout = 500);
   RedisAdapter(const std::string& baseKey, const std::string& host = "", uint16_t port = 0, uint32_t timeout = 500);
 
   RedisAdapter(const RedisAdapter& ra) = delete;       //  copy construction not allowed
@@ -53,11 +53,11 @@ public:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Log
   //
-  swr::ItemStream<std::string> getLog(std::string minID, std::string maxID = "+");
-  swr::ItemStream<std::string> getLogAfter(std::string minID, uint32_t count = 100);
-  swr::ItemStream<std::string> getLogBefore(uint32_t count = 100, std::string maxID = "+");
+  swr::ItemStream<std::string> getLog(const std::string& minID, const std::string& maxID = "+");
+  swr::ItemStream<std::string> getLogAfter(const std::string& minID, uint32_t count = 100);
+  swr::ItemStream<std::string> getLogBefore(uint32_t count = 100, const std::string& maxID = "+");
 
-  bool addLog(std::string message, uint32_t trim = 1000);
+  bool addLog(const std::string& message, uint32_t trim = 1000);
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Settings
@@ -132,19 +132,18 @@ public:
   using ListenSubFn = std::function<void(std::string, std::string, std::string)>;
   using ReaderSubFn = std::function<void(std::string, std::string, swr::ItemStream<swr::Attrs>)>;
 
-  void publish(std::string msg);
-  void publish(std::string key, std::string msg);
+  bool publish(const std::string& msg, const std::string& key = "");
 
-  void psubscribe(std::string pattern, ListenSubFn func);
-  void subscribe(std::string channel, ListenSubFn func);
+  bool psubscribe(const std::string& pat, ListenSubFn func);
+  bool subscribe(const std::string& key, ListenSubFn func);
 
-  void addReader(std::string key,  ReaderSubFn func);
+  bool addReader(const std::string& key,  ReaderSubFn func);
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Utility
   //
-  void copyKey(std::string src, std::string dst);
-  void deleteKey(std::string key);
+  bool copyKey(const std::string& src, const std::string& dst);
+  bool deleteKey(const std::string& key);
 
   virtual std::vector<std::string> getServerTime();
   virtual swr::Optional<timespec> getServerTimespec();
@@ -165,7 +164,7 @@ private:
   //
   template<typename T> auto default_field_value(const swr::Attrs& attrs);
 
-  template<template<typename> class C, typename T> swr::Attrs default_field_attrs(const C<T>& data);
+  template<template<typename T> class C, typename T> swr::Attrs default_field_attrs(const C<T>& data);
 
   template<typename T> swr::Attrs default_field_attrs(const T& data);
 
@@ -232,7 +231,7 @@ template<typename T> auto RedisAdapter::default_field_value(const swr::Attrs& at
   return ret;
 }
 
-template<template<typename> class C, typename T> swr::Attrs RedisAdapter::default_field_attrs(const C<T>& data)
+template<template<typename T> class C, typename T> swr::Attrs RedisAdapter::default_field_attrs(const C<T>& data)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
