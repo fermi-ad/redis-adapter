@@ -263,13 +263,18 @@ private:
   std::unordered_map<std::string, std::vector<ListenSubFn>> _patternSubs;
   std::unordered_map<std::string, std::vector<ListenSubFn>> _commandSubs;
 
-  bool start_reader();
-  std::thread _reader;
-  bool _readerRun;
-  bool stop_reader();
+  bool start_reader(uint16_t slot);
+  bool stop_reader(uint16_t slot);
 
-  std::unordered_map<std::string, std::vector<ReaderSubFn>> _readerSubs;
-  std::unordered_map<std::string, std::string> _readerKeyID;
+  struct ReaderInfo
+  {
+    std::thread thread;
+    std::unordered_map<std::string, std::vector<ReaderSubFn>> subs;
+    std::unordered_map<std::string, std::string> keyids;
+    std::string control;
+    bool run = false;
+  };
+  std::unordered_map<uint16_t, ReaderInfo> _reader;
 };
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -28,8 +28,6 @@ RedisAdapter::RedisAdapter(const string& baseKey, const RedisConnection::Options
   opts.timeout = timeout;
 
   _redis = make_unique<RedisConnection>(opts);
-
-  _readerKeyID[_baseKey + CONTROL_STUB] = "$";
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -50,7 +48,7 @@ RedisAdapter::RedisAdapter(const string& baseKey, const string& host, uint16_t p
 RedisAdapter::~RedisAdapter()
 {
   stop_listener();
-  stop_reader();
+  for (auto& item : _reader) {  stop_reader(item.first); }
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -336,50 +334,71 @@ bool RedisAdapter::stop_listener()
 
 bool RedisAdapter::add_reader_helper(const string& baseKey, const string& stub, const string& subKey, ReaderSubFn func)
 {
-  stop_reader();
   string key = build_key(baseKey, stub, subKey);
-  _readerKeyID[key] = "$";
-  _readerSubs[key].push_back(func);
-  return start_reader();
+  int32_t slot = _redis->keyslot(key);
+  if (slot < 0) return false;
+  stop_reader(slot);
+  ReaderInfo& info = _reader[slot];
+  if (info.control.empty())
+  {
+    //  use key in {} to ensure control hashes to this slot
+    info.control = "{" + key + "}" + CONTROL_STUB;
+    info.keyids[info.control] = "$";
+  }
+  info.subs[key].push_back(func);
+  info.keyids[key] = "$";
+  return start_reader(slot);
 }
 
 bool RedisAdapter::remove_reader_helper(const string& baseKey, const string& stub, const string& subKey)
 {
-  stop_reader();
   string key = build_key(baseKey, stub, subKey);
-  if (_readerKeyID.count(key)) _readerKeyID.erase(key);
-  if (_readerSubs.count(key)) _readerSubs.erase(key);
-  return _readerSubs.size() ? start_reader() : false;
+  int32_t slot = _redis->keyslot(key);
+  if (slot < 0 || _reader.count(slot) == 0) return false;
+  stop_reader(slot);
+  ReaderInfo& info = _reader.at(slot);
+  info.subs.erase(key);
+  info.keyids.erase(key);
+  if (info.subs.empty())
+  {
+    _reader.erase(slot);
+    return true;
+  }
+  return start_reader(slot);
 }
 
-bool RedisAdapter::start_reader()
+bool RedisAdapter::start_reader(uint16_t slot)
 {
-  if (_reader.joinable()) return false;
+  if (_reader.count(slot) == 0) return false;
+
+  ReaderInfo& info = _reader.at(slot);
+
+  if (info.thread.joinable()) return false;
 
   mutex mx;                   //  use condition_variable to signal when
   condition_variable cv;      //  thread is about to enter read loop
   unique_lock<mutex> lk(mx);
 
   //  begin lambda  //////////////////////////////////////////////////
-  _reader = thread([&]()
+  info.thread = thread([&]()
     {
-      _readerRun = true;
+      info.run = true;
 
       cv.notify_all();  //  notify about to enter loop (NOT in loop)
 
-      for (Streams<Attrs> out; _readerRun; out.clear())
+      for (Streams<Attrs> out; info.run; out.clear())
       {
-        if (_redis->xreadMultiBlock(_readerKeyID.begin(), _readerKeyID.end(), _timeout, inserter(out, out.end())))
+        if (_redis->xreadMultiBlock(info.keyids.begin(), info.keyids.end(), _timeout, inserter(out, out.end())))
         {
           for (auto& is : out)
           {
             if (is.second.size())
-              { _readerKeyID[is.first] = is.second.back().first; }
+              { info.keyids[is.first] = is.second.back().first; }
 
-            if (_readerSubs.count(is.first))
+            if (info.subs.count(is.first))
             {
               auto split = split_key(is.first);
-              for (auto& func : _readerSubs.at(is.first))
+              for (ReaderSubFn& func : info.subs.at(is.first))
                 { func(split.first, split.second, is.second); }
             }
           }
@@ -387,7 +406,7 @@ bool RedisAdapter::start_reader()
         else
         {
           syslog(LOG_ERR, "xreadMultiBlock returned false in reader");
-          _readerRun = false;
+          info.run = false;
         }
       }
     }
@@ -399,13 +418,15 @@ bool RedisAdapter::start_reader()
    return nto;
 }
 
-bool RedisAdapter::stop_reader()
+bool RedisAdapter::stop_reader(uint16_t slot)
 {
-  if ( ! _reader.joinable()) return false;
-  _readerRun = false;
+  if (_reader.count(slot) == 0) return false;
+  ReaderInfo& info = _reader.at(slot);
+  if ( ! info.thread.joinable()) return false;
+  info.run = false;
   Attrs attrs = default_field_attrs("");
-  _redis->xaddTrim(_baseKey + CONTROL_STUB, "*", attrs.begin(), attrs.end(), 1);
-  _reader.join();
+  _redis->xaddTrim(info.control, "*", attrs.begin(), attrs.end(), 1);
+  info.thread.join();
   return true;
 }
 
