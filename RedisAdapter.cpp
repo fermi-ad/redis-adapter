@@ -260,6 +260,7 @@ bool RedisAdapter::start_listener()
 
   bool ret = true;
 
+  //  begin lambda  //////////////////////////////////////////////////
   _listener = thread([&]()
     {
       auto maybe = _redis->subscriber();
@@ -272,6 +273,7 @@ bool RedisAdapter::start_listener()
       }
       Subscriber& sub = maybe.value();
 
+      //  begin lambda in lambda ///////////////////////////
       sub.on_pmessage([&](string pat, string key, string msg)
         {
           if (_patternSubs.count(pat))
@@ -281,8 +283,10 @@ bool RedisAdapter::start_listener()
               { func(split.first, split.second, msg); }
           }
         }
-      );
+      );  //  end lambda in lambda /////////////////////////
 
+
+      //  begin lambda in lambda ///////////////////////////
       sub.on_message([&](string key, string msg)
         {
           if (_commandSubs.count(key))
@@ -292,7 +296,7 @@ bool RedisAdapter::start_listener()
               { func(split.first, split.second, msg); }
           }
         }
-      );
+      );  //  end lambda in lambda /////////////////////////
 
       for (const auto& cs : _commandSubs) { sub.subscribe(cs.first); }
 
@@ -313,7 +317,8 @@ bool RedisAdapter::start_listener()
         }
       }
     }
-  );
+  );  //  end lambda  ////////////////////////////////////////////////
+
   //  wait until notified that thread is running (or timeout)
   bool nto = cv.wait_for(lk, milliseconds(10)) == cv_status::no_timeout;
   if ( ! nto) syslog(LOG_ERR, "start_listener timeout waiting for thread start");
@@ -355,6 +360,7 @@ bool RedisAdapter::start_reader()
   condition_variable cv;      //  thread is about to enter read loop
   unique_lock<mutex> lk(mx);
 
+  //  begin lambda  //////////////////////////////////////////////////
   _reader = thread([&]()
     {
       _readerRun = true;
@@ -385,7 +391,8 @@ bool RedisAdapter::start_reader()
         }
       }
     }
-  );
+  );  //  end lambda  ////////////////////////////////////////////////
+
   //  wait until notified that thread is running (or timeout)
    bool nto = cv.wait_for(lk, milliseconds(10)) == cv_status::no_timeout;
    if ( ! nto) syslog(LOG_ERR, "start_reader timeout waiting for thread start");

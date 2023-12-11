@@ -15,9 +15,9 @@ namespace sw  //  https://github.com/sewenew/redis-plus-plus#redis-stream
   namespace redis
   {
     using Attrs = std::unordered_map<std::string, std::string>;
-    template <typename T> using Item = std::pair<std::string, T>;
-    template <typename T> using ItemStream = std::vector<Item<T>>;
-    template <typename T> using Streams = std::unordered_map<std::string, ItemStream<T>>;
+    template<typename T> using Item = std::pair<std::string, T>;
+    template<typename T> using ItemStream = std::vector<Item<T>>;
+    template<typename T> using Streams = std::unordered_map<std::string, ItemStream<T>>;
   }
 }
 
@@ -399,7 +399,7 @@ template<typename T> bool RedisAdapter::setSettingList(const std::string& subKey
 //    count   : max number of items to get
 //    return  : ItemStream of Item<T>
 //
-template <> inline swr::ItemStream<swr::Attrs>
+template<> inline swr::ItemStream<swr::Attrs>
 RedisAdapter::get_forward_data_helper(const std::string& baseKey, const std::string& subKey,
                                       const std::string& minID, const std::string& maxID, uint32_t count)
 {
@@ -486,7 +486,7 @@ RedisAdapter::get_forward_data_list_helper(const std::string& baseKey, const std
 //    count   : max number of items to get
 //    return  : ItemStream of Item<Attrs>
 //
-template <> inline swr::ItemStream<swr::Attrs>
+template<> inline swr::ItemStream<swr::Attrs>
 RedisAdapter::get_reverse_data_helper(const std::string& baseKey, const std::string& subKey,
                                       const std::string& maxID, uint32_t count)
 {
