@@ -1,0 +1,3 @@
+[submodule "googletest"]
+	path = googletest
+	url = https://ghe-pip2.fnal.gov/adinst/googletest.git
