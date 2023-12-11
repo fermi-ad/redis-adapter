@@ -54,7 +54,7 @@ RedisAdapter::~RedisAdapter()
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  getStatus : get status for home device as string
+//  getStatus : get status as string
 //
 //    subKey : sub key to get status from
 //    return : string with status if successful
@@ -64,8 +64,7 @@ string RedisAdapter::getStatus(const string& subKey, const string& baseKey)
 {
   ItemStream<Attrs> raw;
 
-  _redis->xrevrange(build_key(baseKey, STATUS_STUB, subKey),
-                    "+", "-", 1, back_inserter(raw));
+  _redis->xrevrange(build_key(baseKey, STATUS_STUB, subKey), "+", "-", 1, back_inserter(raw));
 
   if (raw.size()) { return default_field_value<string>(raw.front().second); }
   return {};

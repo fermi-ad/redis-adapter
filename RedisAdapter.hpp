@@ -79,7 +79,7 @@ public:
   getDataList(const std::string& subKey, const std::string& minID, const std::string& maxID, const std::string& baseKey = "")
     { return get_forward_data_list_helper<T>(baseKey, subKey, minID, maxID, 0); }
 
-  //  GetDataArgs : structure for providing arguments to  getDataXXXX functions
+  //  GetDataArgs : structure for providing arguments to getDataXXXX functions
   //                each field can be overidden or left as the default value
   //  suggested usage:
   //    using GDA = RedisAdapter::GetDataArgs;
@@ -224,10 +224,12 @@ private:
   //  Helper functions for getData family of functions
   //
   template<typename T> swr::ItemStream<T>
-  get_forward_data_helper(const std::string& baseKey, const std::string& subKey, const std::string& minID, const std::string& maxID, uint32_t count);
+  get_forward_data_helper(const std::string& baseKey, const std::string& subKey,
+                          const std::string& minID, const std::string& maxID, uint32_t count);
 
   template<typename T> swr::ItemStream<std::vector<T>>
-  get_forward_data_list_helper(const std::string& baseKey, const std::string& subKey, const std::string& minID, const std::string& maxID, uint32_t count);
+  get_forward_data_list_helper(const std::string& baseKey, const std::string& subKey,
+                               const std::string& minID, const std::string& maxID, uint32_t count);
 
   template<typename T> swr::ItemStream<T>
   get_reverse_data_helper(const std::string& baseKey, const std::string& subKey, const std::string& maxID, uint32_t count);
@@ -398,7 +400,8 @@ template<typename T> bool RedisAdapter::setSettingList(const std::string& subKey
 //    return  : ItemStream of Item<T>
 //
 template <> inline swr::ItemStream<swr::Attrs>
-RedisAdapter::get_forward_data_helper(const std::string& baseKey, const std::string& subKey, const std::string& minID, const std::string& maxID, uint32_t count)
+RedisAdapter::get_forward_data_helper(const std::string& baseKey, const std::string& subKey,
+                                      const std::string& minID, const std::string& maxID, uint32_t count)
 {
   std::string key = build_key(baseKey, DATA_STUB, subKey);
   swr::ItemStream<swr::Attrs> ret;
@@ -409,7 +412,8 @@ RedisAdapter::get_forward_data_helper(const std::string& baseKey, const std::str
   return ret;
 }
 template<typename T> swr::ItemStream<T>
-RedisAdapter::get_forward_data_helper(const std::string& baseKey, const std::string& subKey, const std::string& minID, const std::string& maxID, uint32_t count)
+RedisAdapter::get_forward_data_helper(const std::string& baseKey, const std::string& subKey,
+                                      const std::string& minID, const std::string& maxID, uint32_t count)
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
@@ -446,7 +450,8 @@ RedisAdapter::get_forward_data_helper(const std::string& baseKey, const std::str
 //    return  : ItemStream of Item<vector<T>>
 //
 template<typename T> swr::ItemStream<std::vector<T>>
-RedisAdapter::get_forward_data_list_helper(const std::string& baseKey, const std::string& subKey, const std::string& minID, const std::string& maxID, uint32_t count)
+RedisAdapter::get_forward_data_list_helper(const std::string& baseKey, const std::string& subKey,
+                                           const std::string& minID, const std::string& maxID, uint32_t count)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
@@ -482,7 +487,8 @@ RedisAdapter::get_forward_data_list_helper(const std::string& baseKey, const std
 //    return  : ItemStream of Item<Attrs>
 //
 template <> inline swr::ItemStream<swr::Attrs>
-RedisAdapter::get_reverse_data_helper(const std::string& baseKey, const std::string& subKey, const std::string& maxID, uint32_t count)
+RedisAdapter::get_reverse_data_helper(const std::string& baseKey, const std::string& subKey,
+                                      const std::string& maxID, uint32_t count)
 {
   std::string key = build_key(baseKey, DATA_STUB, subKey);
   swr::ItemStream<swr::Attrs> ret;
@@ -494,7 +500,8 @@ RedisAdapter::get_reverse_data_helper(const std::string& baseKey, const std::str
   return ret;
 }
 template<typename T> swr::ItemStream<T>
-RedisAdapter::get_reverse_data_helper(const std::string& baseKey, const std::string& subKey, const std::string& maxID, uint32_t count)
+RedisAdapter::get_reverse_data_helper(const std::string& baseKey, const std::string& subKey,
+                                      const std::string& maxID, uint32_t count)
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
@@ -530,7 +537,8 @@ RedisAdapter::get_reverse_data_helper(const std::string& baseKey, const std::str
 //    return  : ItemStream of Item<vector<T>>
 //
 template<typename T> swr::ItemStream<std::vector<T>>
-RedisAdapter::get_reverse_data_list_helper(const std::string& baseKey, const std::string& subKey, const std::string& maxID, uint32_t count)
+RedisAdapter::get_reverse_data_list_helper(const std::string& baseKey, const std::string& subKey,
+                                           const std::string& maxID, uint32_t count)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
@@ -566,7 +574,8 @@ RedisAdapter::get_reverse_data_list_helper(const std::string& baseKey, const std
 //              empty string on failure
 //
 template<> inline std::string
-RedisAdapter::get_single_data_helper(const std::string& baseKey, const std::string& subKey, swr::Attrs& dest, const std::string& maxID)
+RedisAdapter::get_single_data_helper(const std::string& baseKey, const std::string& subKey,
+                                     swr::Attrs& dest, const std::string& maxID)
 {
   swr::ItemStream<swr::Attrs> raw;
 
@@ -581,7 +590,8 @@ RedisAdapter::get_single_data_helper(const std::string& baseKey, const std::stri
   return id;
 }
 template<typename T> std::string
-RedisAdapter::get_single_data_helper(const std::string& baseKey, const std::string& subKey, T& dest, const std::string& maxID)
+RedisAdapter::get_single_data_helper(const std::string& baseKey, const std::string& subKey,
+                                     T& dest, const std::string& maxID)
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
@@ -613,7 +623,8 @@ RedisAdapter::get_single_data_helper(const std::string& baseKey, const std::stri
 //              empty string on failure
 //
 template<typename T> std::string
-RedisAdapter::get_single_data_list_helper(const std::string& baseKey, const std::string& subKey, std::vector<T>& dest, const std::string& maxID)
+RedisAdapter::get_single_data_list_helper(const std::string& baseKey, const std::string& subKey,
+                                          std::vector<T>& dest, const std::string& maxID)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
