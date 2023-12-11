@@ -215,22 +215,14 @@ private:
   //  Pub/Sub Listener and Stream Reader
   //
   bool start_listener();
-  bool kick_listener();
-  bool stop_listener();
-
-  std::mutex _listenerMxA;
-  std::mutex _listenerMxB;
   std::thread _listener;
   bool _listenerRun;
+  bool stop_listener();
 
   bool start_reader();
-  bool kick_reader();
-  bool stop_reader();
-
-  std::mutex _readerMxA;
-  std::mutex _readerMxB;
   std::thread _reader;
   bool _readerRun;
+  bool stop_reader();
 
   std::unordered_map<std::string, std::vector<ListenSubFn>> _patternSubs;
 

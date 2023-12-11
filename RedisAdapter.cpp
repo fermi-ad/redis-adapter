@@ -213,44 +213,25 @@ bool RedisAdapter::publish(const string& message, const string& subKey)
 
 bool RedisAdapter::psubscribe(const string& pattern, ListenSubFn func, const string& baseKey)
 {
-  unique_lock<mutex> lkA(_listenerMxA);
-
-  bool running = kick_listener();
-
-  unique_lock<mutex> lkB(_listenerMxB);
-  lkA.unlock();
+  stop_listener();
 
   _patternSubs[build_key(baseKey, COMMANDS_STUB, pattern)].push_back(func);
 
-  lkB.unlock();
-
-  return running ? true : start_listener();
+  return start_listener();
 }
 
 bool RedisAdapter::subscribe(const string& subKey, ListenSubFn func, const string& baseKey)
 {
-  unique_lock<mutex> lkA(_listenerMxA);
-
-  bool running = kick_listener();
-
-  unique_lock<mutex> lkB(_listenerMxB);
-  lkA.unlock();
+  stop_listener();
 
   _commandSubs[build_key(baseKey, COMMANDS_STUB, subKey)].push_back(func);
 
-  lkB.unlock();
-
-  return running ? true : start_listener();
+  return start_listener();
 }
 
 bool RedisAdapter::addReader(const string& subKey, ReaderSubFn func, const string& baseKey)
 {
-  unique_lock<mutex> lkA(_readerMxA);
-
-  bool running = kick_reader();
-
-  unique_lock<mutex> lkB(_readerMxB);
-  lkA.unlock();
+  stop_reader();
 
   _readerKeyID[_baseKey + CONTROL_STUB] = "$";
 
@@ -258,9 +239,7 @@ bool RedisAdapter::addReader(const string& subKey, ReaderSubFn func, const strin
   _readerKeyID[key] = "$";
   _readerSubs[key].push_back(func);
 
-  lkB.unlock();
-
-  return running ? true : start_reader();
+  return start_reader();
 }
 
 bool RedisAdapter::start_listener()
@@ -310,21 +289,14 @@ bool RedisAdapter::start_listener()
       //  psubscribe foreign only?
       for (const auto& ps : _patternSubs) sub.psubscribe(ps.first);
 
-      sub.psubscribe(_baseKey + COMMANDS_STUB + "*");   //  does this catch everything local?
+      sub.psubscribe(_baseKey + COMMANDS_STUB + "*");
 
       _listenerRun = true;
-
-      unique_lock<mutex> lkA(_listenerMxA, defer_lock);
-      unique_lock<mutex> lkB(_listenerMxB, defer_lock);
 
       cv.notify_all();  //  notify about to enter loop (NOT in loop)
 
       while (_listenerRun)
       {
-        lkA.lock();
-        lkB.lock();
-        lkA.unlock();
-
         try { sub.consume(); }
         catch (const TimeoutError&) {}
         catch (const Error& e)
@@ -332,7 +304,6 @@ bool RedisAdapter::start_listener()
           syslog(LOG_ERR, "consume in listener: %s", e.what());
           _listenerRun = false;
         }
-        lkB.unlock();
       }
     }
   );
@@ -342,23 +313,13 @@ bool RedisAdapter::start_listener()
   return nto && ret;
 }
 
-bool RedisAdapter::kick_listener()
-{
-  if ( ! _listener.joinable()) return false;
-  _redis->publish(_baseKey + CONTROL_STUB, "");
-  return true;
-}
-
 bool RedisAdapter::stop_listener()
 {
-  if (_listener.joinable())
-  {
-    _listenerRun = false;
-    kick_listener();
-    _listener.join();
-    return true;
-  }
-  return false;
+  if (_listener.joinable()) return false;
+  _listenerRun = false;
+  _redis->publish(_baseKey + CONTROL_STUB, "");
+  _listener.join();
+  return true;
 }
 
 bool RedisAdapter::start_reader()
@@ -373,17 +334,10 @@ bool RedisAdapter::start_reader()
     {
       _readerRun = true;
 
-      unique_lock<mutex> lkA(_readerMxA, defer_lock);
-      unique_lock<mutex> lkB(_readerMxB, defer_lock);
-
       cv.notify_all();  //  notify about to enter loop (NOT in loop)
 
       for (Streams<Attrs> out; _readerRun; out.clear())
       {
-        lkA.lock();
-        lkB.lock();
-        lkA.unlock();
-
         if (_redis->xreadMultiBlock(_readerKeyID.begin(), _readerKeyID.end(), _timeout, inserter(out, out.end())))
         {
           for (auto& is : out)
@@ -405,7 +359,6 @@ bool RedisAdapter::start_reader()
           syslog(LOG_ERR, "xreadMultiBlock returned false in reader");
           _readerRun = false;
         }
-        lkB.unlock();
       }
     }
   );
@@ -415,19 +368,12 @@ bool RedisAdapter::start_reader()
    return nto;
 }
 
-bool RedisAdapter::kick_reader()
-{
-  if ( ! _reader.joinable()) return false;
-  Attrs attrs = default_field_attrs("");
-  _redis->xaddTrim(_baseKey + CONTROL_STUB, "*", attrs.begin(), attrs.end(), 1);
-  return true;
-}
-
 bool RedisAdapter::stop_reader()
 {
   if ( ! _reader.joinable()) return false;
   _readerRun = false;
-  kick_reader();
+  Attrs attrs = default_field_attrs("");
+  _redis->xaddTrim(_baseKey + CONTROL_STUB, "*", attrs.begin(), attrs.end(), 1);
   _reader.join();
   return true;
 }
