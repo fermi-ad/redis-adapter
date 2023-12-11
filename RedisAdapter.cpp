@@ -26,7 +26,10 @@ RedisAdapter::RedisAdapter(const string& baseKey, const RedisConnection::Options
 {
   RedisConnection::Options opts = options;
   opts.timeout = timeout;
+
   _redis = make_unique<RedisConnection>(opts);
+
+  _readerKeyID[_baseKey + CONTROL_STUB] = "$";
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -177,22 +180,36 @@ bool RedisAdapter::addLog(const string& message, uint32_t trim)
   return _redis->xaddTrim(_baseKey + LOG_STUB, "*", attrs.begin(), attrs.end(), trim).size();
 }
 
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  copyKey : copy a key in Redis
+//
+//    src     : key to copy from
+//    dst     : key to copy to
+//    return  : true for success, false for failure
+//
 bool RedisAdapter::copyKey(const string& src, const string& dst)
 {
   return _redis->copy(src, dst) == 1;
 }
 
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  deleteKey : delete a key from Redis
+//
+//    key     : key to delete
+//    return  : true for success, false for failure
+//
 bool RedisAdapter::deleteKey(const string& key)
 {
   return _redis->del(key) >= 0;
 }
 
-vector<string> RedisAdapter::getServerTime()
-{
-  return _redis->time();
-}
-
-Optional<timespec> RedisAdapter::getServerTimespec()
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  getTimespec : get server time as a timespec
+//
+//    return  : Optional with timespec on success
+//              Optional empty on failure
+//
+Optional<timespec> RedisAdapter::getTimespec()
 {
   Optional<timespec> ret;
   vector<string> result = _redis->time();
@@ -200,8 +217,8 @@ Optional<timespec> RedisAdapter::getServerTimespec()
   // the time in seconds and the second being the microseconds within that second
   if (result.size() == 2)
   {
-    ret = { .tv_sec  = stoll(result[0]),            // unix time in seconds
-            .tv_nsec = stoll(result[1]) * 1000 };   // microseconds in the second
+    ret = { .tv_sec  = stoll(result[0]),    // unix time in seconds
+            .tv_nsec = stoll(result[1]) };  // nanoseconds in the second
   }
   return ret;
 }
@@ -214,32 +231,24 @@ bool RedisAdapter::publish(const string& message, const string& subKey)
 bool RedisAdapter::psubscribe(const string& pattern, ListenSubFn func, const string& baseKey)
 {
   stop_listener();
-
   _patternSubs[build_key(baseKey, COMMANDS_STUB, pattern)].push_back(func);
-
   return start_listener();
 }
 
 bool RedisAdapter::subscribe(const string& subKey, ListenSubFn func, const string& baseKey)
 {
   stop_listener();
-
   _commandSubs[build_key(baseKey, COMMANDS_STUB, subKey)].push_back(func);
-
   return start_listener();
 }
 
-bool RedisAdapter::addReader(const string& subKey, ReaderSubFn func, const string& baseKey)
+bool RedisAdapter::unsubscribe(const string& unsub, const string& baseKey)
 {
-  stop_reader();
-
-  _readerKeyID[_baseKey + CONTROL_STUB] = "$";
-
-  string key = build_key(baseKey, DATA_STUB, subKey);
-  _readerKeyID[key] = "$";
-  _readerSubs[key].push_back(func);
-
-  return start_reader();
+  stop_listener();
+  string key = build_key(unsub, COMMANDS_STUB, baseKey);
+  if (_patternSubs.count(key)) _patternSubs.erase(key);
+  if (_commandSubs.count(key)) _commandSubs.erase(key);
+  return (_patternSubs.size() || _commandSubs.size()) ? start_listener() : false;
 }
 
 bool RedisAdapter::start_listener()
@@ -266,7 +275,12 @@ bool RedisAdapter::start_listener()
 
       sub.on_pmessage([&](string pat, string key, string msg)
         {
-          //  figure out pattern matching and do the right thing
+          if (_patternSubs.count(pat))
+          {
+            auto split = split_key(key);
+            for (auto& func : _patternSubs.at(pat))
+              { func(split.first, split.second, msg); }
+          }
         }
       );
 
@@ -276,20 +290,14 @@ bool RedisAdapter::start_listener()
           {
             auto split = split_key(key);
             for (auto& func : _commandSubs.at(key))
-            {
-              func(split.first, split.second, msg);
-            }
+              { func(split.first, split.second, msg); }
           }
         }
       );
 
-      //  subscribe foreign only?
-      for (const auto& cs : _commandSubs) sub.subscribe(cs.first);
+      for (const auto& cs : _commandSubs) { sub.subscribe(cs.first); }
 
-      //  psubscribe foreign only?
-      for (const auto& ps : _patternSubs) sub.psubscribe(ps.first);
-
-      sub.psubscribe(_baseKey + COMMANDS_STUB + "*");
+      for (const auto& ps : _patternSubs) { sub.psubscribe(ps.first); }
 
       _listenerRun = true;
 
@@ -322,6 +330,24 @@ bool RedisAdapter::stop_listener()
   return true;
 }
 
+bool RedisAdapter::add_reader_helper(const string& baseKey, const string& stub, const string& subKey, ReaderSubFn func)
+{
+  stop_reader();
+  string key = build_key(baseKey, stub, subKey);
+  _readerKeyID[key] = "$";
+  _readerSubs[key].push_back(func);
+  return start_reader();
+}
+
+bool RedisAdapter::remove_reader_helper(const string& baseKey, const string& stub, const string& subKey)
+{
+  stop_reader();
+  string key = build_key(baseKey, stub, subKey);
+  if (_readerKeyID.count(key)) _readerKeyID.erase(key);
+  if (_readerSubs.count(key)) _readerSubs.erase(key);
+  return _readerSubs.size() ? start_reader() : false;
+}
+
 bool RedisAdapter::start_reader()
 {
   if (_reader.joinable()) return false;
@@ -342,15 +368,14 @@ bool RedisAdapter::start_reader()
         {
           for (auto& is : out)
           {
-            if (is.second.size()) { _readerKeyID[is.first] = is.second.back().first; }
+            if (is.second.size())
+              { _readerKeyID[is.first] = is.second.back().first; }
 
             if (_readerSubs.count(is.first))
             {
               auto split = split_key(is.first);
               for (auto& func : _readerSubs.at(is.first))
-              {
-                func(split.first, split.second, is.second);
-              }
+                { func(split.first, split.second, is.second); }
             }
           }
         }

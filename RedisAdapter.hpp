@@ -71,14 +71,6 @@ public:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Data (getting)
   //
-  struct GetDataArgs
-  {
-    std::string minID = "-";
-    std::string maxID = "+";
-    uint32_t count = 1;
-    std::string baseKey;
-  };
-
   template<typename T> swr::ItemStream<T>
   getData(const std::string& subKey, const std::string& minID, const std::string& maxID, const std::string& baseKey = "")
     { return get_forward_data_helper<T>(baseKey, subKey, minID, maxID, 0); }
@@ -87,6 +79,19 @@ public:
   getDataList(const std::string& subKey, const std::string& minID, const std::string& maxID, const std::string& baseKey = "")
     { return get_forward_data_list_helper<T>(baseKey, subKey, minID, maxID, 0); }
 
+  //  GetDataArgs : structure for providing arguments to  getDataXXXX functions
+  //                each field can be overidden or left as the default value
+  //  suggested usage:
+  //    using GDA = RedisAdapter::GetDataArgs;
+  //    redis.getDataBefore("my:subkey", GDA{ .baseKey="my:basekey", .count=10 });
+  //
+  struct GetDataArgs
+  {
+    std::string minID = "-";
+    std::string maxID = "+";
+    uint32_t count = 1;
+    std::string baseKey;
+  };
   template<typename T> swr::ItemStream<T>
   getDataBefore(const std::string& subKey, const GetDataArgs& args = {})
     { return get_reverse_data_helper<T>(args.baseKey, subKey, args.maxID, args.count); }
@@ -135,6 +140,15 @@ public:
   addDataList(const std::string& subKey, const swr::ItemStream<std::vector<T>>& data, uint32_t trim = 1);
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  Utility
+  //
+  bool copyKey(const std::string& src, const std::string& dst);
+
+  bool deleteKey(const std::string& key);
+
+  virtual swr::Optional<timespec> getTimespec();
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Publish/Subscribe
   //
   using ListenSubFn = std::function<void(std::string, std::string, std::string)>;
@@ -146,18 +160,36 @@ public:
 
   bool subscribe(const std::string& subKey, ListenSubFn func, const std::string& baseKey = "");
 
-  bool addReader(const std::string& subKey,  ReaderSubFn func, const std::string& baseKey = "");
+  bool unsubscribe(const std::string& unsub, const std::string& baseKey = "");
 
-  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  Utility
-  //
-  bool copyKey(const std::string& src, const std::string& dst);
-  bool deleteKey(const std::string& key);
+  bool addStatusReader(const std::string& subKey, ReaderSubFn func, const std::string& baseKey = "")
+    { return add_reader_helper(baseKey, STATUS_STUB, subKey, func); }
 
-  virtual std::vector<std::string> getServerTime();
-  virtual swr::Optional<timespec> getServerTimespec();
+  bool addLogReader(ReaderSubFn func, const std::string& baseKey = "")
+    { return add_reader_helper(baseKey, LOG_STUB, "", func); }
+
+  bool addSettingReader(const std::string& subKey, ReaderSubFn func, const std::string& baseKey = "")
+    { return add_reader_helper(baseKey, SETTINGS_STUB, subKey, func); }
+
+  bool addDataReader(const std::string& subKey, ReaderSubFn func, const std::string& baseKey = "")
+    { return add_reader_helper(baseKey, DATA_STUB, subKey, func); }
+
+  bool removeStatusReader(const std::string& subKey, const std::string& baseKey = "")
+    { return remove_reader_helper(baseKey, STATUS_STUB, subKey); }
+
+  bool removeLogReader(const std::string& baseKey = "")
+    { return remove_reader_helper(baseKey, LOG_STUB, ""); }
+
+  bool removeSettingReader(const std::string& subKey, const std::string& baseKey = "")
+    { return remove_reader_helper(baseKey, SETTINGS_STUB, subKey); }
+
+  bool removeDataReader(const std::string& subKey, const std::string& baseKey = "")
+    { return remove_reader_helper(baseKey, DATA_STUB, subKey); }
 
 private:
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  Redis key and field constants
+  //
   const std::string DEFAULT_FIELD = "_";
 
   const std::string LOG_STUB      = ":LOG";
@@ -171,6 +203,13 @@ private:
   std::string build_key(const std::string& baseKey, const std::string& stub, const std::string& subKey);
 
   std::pair<std::string, std::string> split_key(const std::string& key);
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  Helper functions adding and removing stream readers
+  //
+  bool add_reader_helper(const std::string& baseKey, const std::string& stub, const std::string& subKey, ReaderSubFn func);
+
+  bool remove_reader_helper(const std::string& baseKey, const std::string& stub, const std::string& subKey);
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Helper functions for getting and setting DEFAULT_FIELD in swr::Attrs
@@ -219,17 +258,15 @@ private:
   bool _listenerRun;
   bool stop_listener();
 
+  std::unordered_map<std::string, std::vector<ListenSubFn>> _patternSubs;
+  std::unordered_map<std::string, std::vector<ListenSubFn>> _commandSubs;
+
   bool start_reader();
   std::thread _reader;
   bool _readerRun;
   bool stop_reader();
 
-  std::unordered_map<std::string, std::vector<ListenSubFn>> _patternSubs;
-
-  std::unordered_map<std::string, std::vector<ListenSubFn>> _commandSubs;
-
   std::unordered_map<std::string, std::vector<ReaderSubFn>> _readerSubs;
-
   std::unordered_map<std::string, std::string> _readerKeyID;
 };
 
