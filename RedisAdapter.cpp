@@ -24,7 +24,13 @@ using namespace sw::redis;
 RedisAdapter::RedisAdapter(const string& baseKey, const RedisConnection::Options& options, uint32_t timeout)
 : _baseKey(baseKey), _timeout(timeout)
 {
-  RedisConnection::Options opts = options;
+  RedisConnection::Options opts;
+
+  //  handle possible "" in options.host by preserving opts.host default
+  string host = options.host.size() ? options.host : opts.host;
+
+  opts = options;
+  opts.host = host;
   opts.timeout = timeout;
 
   _redis = make_unique<RedisConnection>(opts);
@@ -178,29 +184,6 @@ bool RedisAdapter::addLog(const string& message, uint32_t trim)
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  copyKey : copy a key in Redis
-//
-//    src     : key to copy from
-//    dst     : key to copy to
-//    return  : true for success, false for failure
-//
-bool RedisAdapter::copyKey(const string& src, const string& dst)
-{
-  return _redis->copy(src, dst) == 1;
-}
-
-//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  deleteKey : delete a key from Redis
-//
-//    key     : key to delete
-//    return  : true for success, false for failure
-//
-bool RedisAdapter::deleteKey(const string& key)
-{
-  return _redis->del(key) >= 0;
-}
-
-//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  getTimespec : get server time as a timespec
 //
 //    return  : Optional with timespec on success
@@ -283,7 +266,6 @@ bool RedisAdapter::start_listener()
         }
       );  //  end lambda in lambda /////////////////////////
 
-
       //  begin lambda in lambda ///////////////////////////
       sub.on_message([&](string key, string msg)
         {
@@ -299,6 +281,8 @@ bool RedisAdapter::start_listener()
       for (const auto& cs : _commandSubs) { sub.subscribe(cs.first); }
 
       for (const auto& ps : _patternSubs) { sub.psubscribe(ps.first); }
+
+      sub.subscribe(_baseKey + CONTROL_STUB);
 
       _listenerRun = true;
 
@@ -325,7 +309,7 @@ bool RedisAdapter::start_listener()
 
 bool RedisAdapter::stop_listener()
 {
-  if (_listener.joinable()) return false;
+  if ( ! _listener.joinable()) return false;
   _listenerRun = false;
   _redis->publish(_baseKey + CONTROL_STUB, "");
   _listener.join();

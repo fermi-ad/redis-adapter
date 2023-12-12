@@ -9,6 +9,7 @@
 #pragma once
 
 #include "RedisConnection.h"
+#include <thread>
 
 namespace sw  //  https://github.com/sewenew/redis-plus-plus#redis-stream
 {
@@ -142,17 +143,19 @@ public:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Utility
   //
-  bool copyKey(const std::string& src, const std::string& dst);
+  bool connected() { return _redis->ping(); }
 
-  bool deleteKey(const std::string& key);
+  bool copyKey(const std::string& src, const std::string& dst) { return _redis->copy(src, dst) == 1; }
 
-  virtual swr::Optional<timespec> getTimespec();
+  bool deleteKey(const std::string& key) { return _redis->del(key) >= 0; }
+
+  swr::Optional<timespec> getTimespec();
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Publish/Subscribe
   //
-  using ListenSubFn = std::function<void(std::string, std::string, std::string)>;
-  using ReaderSubFn = std::function<void(std::string, std::string, swr::ItemStream<swr::Attrs>)>;
+  using ListenSubFn = std::function<void(const std::string&, const std::string&, const std::string&)>;
+  using ReaderSubFn = std::function<void(const std::string&, const std::string&, const swr::ItemStream<swr::Attrs>&)>;
 
   bool publish(const std::string& message, const std::string& subKey = "");
 
@@ -295,7 +298,7 @@ template<template<typename T> class C, typename T> swr::Attrs RedisAdapter::defa
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
-  return {{ DEFAULT_FIELD, std::string((const char*)data.data(), data.size() * sizeof(data.front())) }};
+  return {{ DEFAULT_FIELD, std::string((const char*)data.data(), data.size() * sizeof(T)) }};
 }
 template<> inline swr::Attrs RedisAdapter::default_field_attrs(const std::string& data)
 {
@@ -354,7 +357,7 @@ template<typename T> std::vector<T> RedisAdapter::getSettingList(const std::stri
   if (raw.size())
   {
     std::string str = default_field_value<std::string>(raw.front().second);
-    ret.assign(str.data(), str.data() + str.size());
+    ret.assign((T*)str.data(), (T*)(str.data() + str.size()));
   }
   return ret;
 }
@@ -474,7 +477,7 @@ RedisAdapter::get_forward_data_list_helper(const std::string& baseKey, const std
     if (str.size())
     {
       retItem.first = rawItem.first;
-      retItem.second.assign(str.data(), str.data() + str.size());
+      retItem.second.assign((T*)str.data(), (T*)(str.data() + str.size()));
       ret.push_back(retItem);
     }
   }
@@ -561,7 +564,7 @@ RedisAdapter::get_reverse_data_list_helper(const std::string& baseKey, const std
     if (str.size())
     {
       retItem.first = rawItem->first;
-      retItem.second.assign(str.data(), str.data() + str.size());
+      retItem.second.assign((T*)str.data(), (T*)(str.data() + str.size()));
       ret.push_back(retItem);
     }
   }
@@ -644,7 +647,7 @@ RedisAdapter::get_single_data_list_helper(const std::string& baseKey, const std:
     if (str.size())
     {
       id = raw.front().first;
-      dest.assign(str.data(), str.data() + str.size());
+      dest.assign((T*)str.data(), (T*)(str.data() + str.size()));
     }
   }
   return id;
