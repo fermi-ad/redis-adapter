@@ -8,8 +8,6 @@ PORT=6379
 TIMEOUT=2000
 NODES=6
 REPLICAS=1
-PROTECTED_MODE=yes
-ADDITIONAL_OPTIONS="--bind 127.0.0.1"
 
 # You may want to put the above config parameters into config.sh in order to
 # override the defaults without modifying this script.
@@ -26,7 +24,7 @@ if [ "$1" == "start" ]
 then
     while [ $((PORT < ENDPORT)) != "0" ]; do
         echo "Starting $PORT"
-        $REDIS_SERVER --port $PORT --protected-mode $PROTECTED_MODE --cluster-enabled yes --cluster-config-file nodes-${PORT}.conf --cluster-node-timeout $TIMEOUT --appendonly yes --appendfilename appendonly-${PORT}.aof --appenddirname appendonlydir-${PORT} --dbfilename dump-${PORT}.rdb --logfile ${PORT}.log --daemonize yes ${ADDITIONAL_OPTIONS}
+        $REDIS_SERVER --port $PORT --protected-mode yes --cluster-enabled yes --cluster-config-file nodes-${PORT}.conf --cluster-node-timeout $TIMEOUT --appendonly no --dbfilename dump-${PORT}.rdb --logfile ${PORT}.log --daemonize yes --bind ${CLUSTER_HOST}
         PORT=$((PORT+1))
     done
     exit 0
@@ -67,8 +65,8 @@ then
     exit 0
 fi
 
-echo "Usage: $0 [start|create|stop|watch|tail|tailall|clean|clean-logs|call]"
-echo "start       -- Launch Redis Cluster instances."
-echo "create [-f] -- Create a cluster using redis-cli --cluster create."
-echo "stop        -- Stop Redis Cluster instances."
-echo "clean       -- Remove all instances data, logs, configs."
+echo "Usage: $0 [start|create|stop|clean]"
+echo "start     -- Launch Redis Cluster instances."
+echo "create    -- Create a cluster using redis-cli --cluster create."
+echo "stop      -- Stop Redis Cluster instances."
+echo "clean     -- Remove all instances data, logs, configs."
