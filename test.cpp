@@ -122,7 +122,7 @@ TEST(RedisAdapter, PubSub)
     }
   );
   this_thread::sleep_for(milliseconds(5));
-  redis.publish("123", "abc");
+  redis.publish("abc", "123");
 
   for (int i = 0; i < 20 && waiting; i++)
     this_thread::sleep_for(milliseconds(5));

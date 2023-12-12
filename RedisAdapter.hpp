@@ -157,7 +157,7 @@ public:
   using ListenSubFn = std::function<void(const std::string&, const std::string&, const std::string&)>;
   using ReaderSubFn = std::function<void(const std::string&, const std::string&, const swr::ItemStream<swr::Attrs>&)>;
 
-  bool publish(const std::string& message, const std::string& subKey = "");
+  bool publish(const std::string& subKey, const std::string& message, const std::string& baseKey = "");
 
   bool psubscribe(const std::string& pattern, ListenSubFn func, const std::string& baseKey = "");
 

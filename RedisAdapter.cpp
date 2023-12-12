@@ -203,9 +203,9 @@ Optional<timespec> RedisAdapter::getTimespec()
   return ret;
 }
 
-bool RedisAdapter::publish(const string& message, const string& subKey)
+bool RedisAdapter::publish(const string& subKey, const string& message, const string& baseKey)
 {
-  return _redis->publish(_baseKey + COMMANDS_STUB + subKey, message) >= 0;
+  return _redis->publish(build_key(baseKey, COMMANDS_STUB, subKey), message) >= 0;
 }
 
 bool RedisAdapter::psubscribe(const string& pattern, ListenSubFn func, const string& baseKey)
