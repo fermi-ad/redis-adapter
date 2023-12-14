@@ -25,47 +25,34 @@ function(get_directories_of_files _files _var)
     set(${_var} ${directories} PARENT_SCOPE)
 endfunction()
 
-# <------------ add hiredis dependency --------------->
-find_path(HIREDIS_HEADER_PATH hiredis)
-find_library(HIREDIS_LIB hiredis)
-if (NOT HIREDIS_HEADER_PATH OR NOT HIREDIS_LIB)
-	message(SEND_ERROR "Did not find hiredis library. Install hiredis library from your package manager")
-endif()
-
-# <------------ add redis-plus-plus dependency -------------->
-# NOTE: this should be *sw* NOT *redis++*
-find_path(REDIS_PLUS_PLUS_HEADER_PATH sw)
-find_library(REDIS_PLUS_PLUS_LIB redis++)
-if (NOT REDIS_PLUS_PLUS_HEADER_PATH OR NOT REDIS_PLUS_PLUS_LIB)
-	message(SEND_ERROR "Did not find redis++ library. Install redis plus plus from here: https://github.com/sewenew/redis-plus-plus")
-endif()
-
 # Create a lists of headers and sources with complete path based on our source files
 file(GLOB REDIS_ADAPTER_SOURCES RedisAdapter.cpp)
 file(GLOB REDIS_ADAPTER_HEADERS RedisConnection.h RedisAdapter.hpp)
 
 # Create a list of the directories our headers are in
 get_directories_of_files("${REDIS_ADAPTER_HEADERS}" REDIS_ADAPTER_INCLUDE_DIRS)
-list(APPEND REDIS_ADAPTER_INCLUDE_DIRS ${HIREDIS_HEADER_PATH})
-list(APPEND REDIS_ADAPTER_INCLUDE_DIRS ${REDIS_PLUS_PLUS_HEADER_PATH})
 list(REMOVE_DUPLICATES REDIS_ADAPTER_INCLUDE_DIRS)
-
-
-list(APPEND REDIS_ADAPTER_LIBRARIES ${HIREDIS_LIB})
-list(APPEND REDIS_ADAPTER_LIBRARIES ${REDIS_PLUS_PLUS_LIB})
 
 # Send the lists to the project that wants to include them.
 set(REDIS_ADAPTER_SOURCES ${REDIS_ADAPTER_SOURCES} PARENT_SCOPE)
 set(REDIS_ADAPTER_HEADERS ${REDIS_ADAPTER_HEADERS} PARENT_SCOPE)
-set(REDIS_ADAPTER_LIBRARIES ${REDIS_ADAPTER_LIBRARIES} PARENT_SCOPE)
 set(REDIS_ADAPTER_INCLUDE_DIRS ${REDIS_ADAPTER_INCLUDE_DIRS} PARENT_SCOPE)
 set(REDIS_ADAPTER_COMPILER_FEATURES cxx_std_17 PARENT_SCOPE)
 
+OPTION(BUILD_SHARED_LIBS "Build shared libraries" OFF)
+OPTION(DISABLE_TESTS "If tests should be compiled or not" ON)
+add_subdirectory(hiredis)
+
+option(REDIS_PLUS_PLUS_BUILD_TEST "Build tests for redis++" OFF)
+option(REDIS_PLUS_PLUS_BUILD_SHARED "Build shared library" OFF)
+add_subdirectory(redis-plus-plus)
+
+option(BUILD_GMOCK "Builds the googlemock subproject" OFF)
 enable_testing()
 add_subdirectory(googletest)
 include(GoogleTest)
 include_directories(${REDIS_ADAPTER_INCLUDE_DIRS})
 add_executable(TestRedisAdapter ${REDIS_ADAPTER_SOURCES} test.cpp)
-target_link_libraries(TestRedisAdapter ${REDIS_ADAPTER_LIBRARIES} GTest::gtest_main)
+target_link_libraries(TestRedisAdapter hiredis redis++_static GTest::gtest_main)
 target_compile_features(TestRedisAdapter PUBLIC ${REDIS_ADAPTER_COMPILER_FEATURES})
 gtest_discover_tests(TestRedisAdapter)
