@@ -1,5 +1,8 @@
-cmake_minimum_required(VERSION 3.6)
+cmake_minimum_required(VERSION 3.14)
 project(RedisAdapter LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # todo put this somewhere where we can reuse it more broadly
 # function to extract include directories from a list of files
@@ -37,15 +40,9 @@ if (NOT REDIS_PLUS_PLUS_HEADER_PATH OR NOT REDIS_PLUS_PLUS_LIB)
 	message(SEND_ERROR "Did not find redis++ library. Install redis plus plus from here: https://github.com/sewenew/redis-plus-plus")
 endif()
 
-# <------------ add pthread dependency -------------->
-find_library(PTHREAD_LIB pthread)
-if (NOT PTHREAD_LIB)
-	message(SEND_ERROR "Did not find pthread library. Install pthread library from your package manager")
-endif()
-
 # Create a lists of headers and sources with complete path based on our source files
 file(GLOB REDIS_ADAPTER_SOURCES RedisAdapter.cpp)
-file(GLOB REDIS_ADAPTER_HEADERS IRedisAdapter.hpp RedisAdapter.hpp)
+file(GLOB REDIS_ADAPTER_HEADERS RedisConnection.h RedisAdapter.hpp)
 
 # Create a list of the directories our headers are in
 get_directories_of_files("${REDIS_ADAPTER_HEADERS}" REDIS_ADAPTER_INCLUDE_DIRS)
@@ -53,9 +50,22 @@ list(APPEND REDIS_ADAPTER_INCLUDE_DIRS ${HIREDIS_HEADER_PATH})
 list(APPEND REDIS_ADAPTER_INCLUDE_DIRS ${REDIS_PLUS_PLUS_HEADER_PATH})
 list(REMOVE_DUPLICATES REDIS_ADAPTER_INCLUDE_DIRS)
 
+
+list(APPEND REDIS_ADAPTER_LIBRARIES ${HIREDIS_LIB})
+list(APPEND REDIS_ADAPTER_LIBRARIES ${REDIS_PLUS_PLUS_LIB})
+
 # Send the lists to the project that wants to include them.
 set(REDIS_ADAPTER_SOURCES ${REDIS_ADAPTER_SOURCES} PARENT_SCOPE)
 set(REDIS_ADAPTER_HEADERS ${REDIS_ADAPTER_HEADERS} PARENT_SCOPE)
-set(REDIS_ADAPTER_LIBRARIES ${REDIS_PLUS_PLUS_LIB} ${HIREDIS_LIB} ${PTHREAD_LIB} PARENT_SCOPE)
+set(REDIS_ADAPTER_LIBRARIES ${REDIS_ADAPTER_LIBRARIES} PARENT_SCOPE)
 set(REDIS_ADAPTER_INCLUDE_DIRS ${REDIS_ADAPTER_INCLUDE_DIRS} PARENT_SCOPE)
-set(REDIS_ADAPTER_COMPILER_FEATURES cxx_std_20 PARENT_SCOPE)
+set(REDIS_ADAPTER_COMPILER_FEATURES cxx_std_17 PARENT_SCOPE)
+
+enable_testing()
+add_subdirectory(googletest)
+include(GoogleTest)
+include_directories(${REDIS_ADAPTER_INCLUDE_DIRS})
+add_executable(TestRedisAdapter ${REDIS_ADAPTER_SOURCES} test.cpp)
+target_link_libraries(TestRedisAdapter ${REDIS_ADAPTER_LIBRARIES} GTest::gtest_main)
+target_compile_features(TestRedisAdapter PUBLIC ${REDIS_ADAPTER_COMPILER_FEATURES})
+gtest_discover_tests(TestRedisAdapter)
