@@ -10,7 +10,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 #   - _files: list of files
 #   - _var: variable to store the list of include directories
 #   - example usage get_directory_of_files("${REDIS_ADAPTER_HEADERS}" REDIS_ADAPTER_INCLUDE_DIRS)
-#         where REDIS_ADAPTER_HEADERS contains the names of the headers used and REDIS_ADAPTER_INCLUDE_DIRS is the name of the variable you want the result stored in
+#         where REDIS_ADAPTER_HEADERS contains the names of the headers used and
+#         REDIS_ADAPTER_INCLUDE_DIRS is the name of the variable you want the result stored in
 function(get_directories_of_files _files _var)
     # iterate over the list of files
     foreach(_file ${_files})
@@ -39,8 +40,8 @@ set(REDIS_ADAPTER_HEADERS ${REDIS_ADAPTER_HEADERS} PARENT_SCOPE)
 set(REDIS_ADAPTER_INCLUDE_DIRS ${REDIS_ADAPTER_INCLUDE_DIRS} PARENT_SCOPE)
 set(REDIS_ADAPTER_COMPILER_FEATURES cxx_std_17 PARENT_SCOPE)
 
-OPTION(BUILD_SHARED_LIBS "Build shared libraries" OFF)
-OPTION(DISABLE_TESTS "If tests should be compiled or not" ON)
+option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
+option(DISABLE_TESTS "If tests should be compiled or not" ON)
 add_subdirectory(hiredis)
 
 option(REDIS_PLUS_PLUS_BUILD_TEST "Build tests for redis++" OFF)
