@@ -90,8 +90,8 @@ public:
   {
     std::string minID = "-";
     std::string maxID = "+";
-    uint32_t count = 1;
     std::string baseKey;
+    uint32_t count = 1;
   };
   template<typename T> swr::ItemStream<T>
   getDataBefore(const std::string& subKey, const GetDataArgs& args = {})
@@ -285,10 +285,14 @@ private:
 //
 template<> inline auto RedisAdapter::default_field_value<std::string>(const swr::Attrs& attrs)
 {
-  return attrs.count(DEFAULT_FIELD) ? attrs.at(DEFAULT_FIELD) : "";
+  std::string ret;
+  if (attrs.count(DEFAULT_FIELD)) ret = attrs.at(DEFAULT_FIELD);
+  return ret;
 }
 template<typename T> auto RedisAdapter::default_field_value(const swr::Attrs& attrs)
 {
+  static_assert(std::is_trivial<T>(), "wrong type T");
+
   swr::Optional<T> ret;
   if (attrs.count(DEFAULT_FIELD)) ret = *(const T*)attrs.at(DEFAULT_FIELD).data();
   return ret;
@@ -724,7 +728,7 @@ RedisAdapter::addData(const std::string& subKey, const swr::ItemStream<swr::Attr
     id = _redis->xadd(key, id, item.second.begin(), item.second.end());
     if (id.size()) { ret.push_back(id); }
   }
-  if (trim && ret.size()) { _redis->xtrim(key, std::max(trim, (uint32_t)ret.size())); }
+  if (trim) { _redis->xtrim(key, std::max(trim, (uint32_t)ret.size())); }
   return ret;
 }
 template<typename T> std::vector<std::string>
@@ -741,7 +745,7 @@ RedisAdapter::addData(const std::string& subKey, const swr::ItemStream<T>& data,
     id = _redis->xadd(key, id, attrs.begin(), attrs.end());
     if (id.size()) { ret.push_back(id); }
   }
-  if (trim && ret.size()) { _redis->xtrim(key, std::max(trim, (uint32_t)ret.size())); }
+  if (trim) { _redis->xtrim(key, std::max(trim, (uint32_t)ret.size())); }
   return ret;
 }
 
@@ -767,6 +771,6 @@ RedisAdapter::addDataList(const std::string& subKey, const swr::ItemStream<std::
     id = _redis->xadd(key, id, attrs.begin(), attrs.end());
     if (id.size()) { ret.push_back(id); }
   }
-  if (trim && ret.size()) { _redis->xtrim(key, std::max(trim, (uint32_t)ret.size())); }
+  if (trim) { _redis->xtrim(key, std::max(trim, (uint32_t)ret.size())); }
   return ret;
 }

@@ -54,7 +54,7 @@ RedisAdapter::RedisAdapter(const string& baseKey, const string& host, uint16_t p
 RedisAdapter::~RedisAdapter()
 {
   stop_listener();
-  for (auto& item : _reader) {  stop_reader(item.first); }
+  for (auto& item : _reader) { stop_reader(item.first); }
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -235,9 +235,9 @@ bool RedisAdapter::start_listener()
 {
   if (_listener.joinable()) return false;
 
-  mutex mx;                   //  use condition_variable to signal when
-  condition_variable cv;      //  thread is about to enter consume loop
-  unique_lock<mutex> lk(mx);
+  mutex mx;
+  condition_variable cv;      //  use condition_variable to signal when
+  unique_lock<mutex> lk(mx);  //  thread is about to enter consume loop
 
   bool ret = true;
 
@@ -359,9 +359,9 @@ bool RedisAdapter::start_reader(uint16_t slot)
 
   if (info.thread.joinable()) return false;
 
-  mutex mx;                   //  use condition_variable to signal when
-  condition_variable cv;      //  thread is about to enter read loop
-  unique_lock<mutex> lk(mx);
+  mutex mx;
+  condition_variable cv;      //  use condition_variable to signal when
+  unique_lock<mutex> lk(mx);  //  thread is about to enter read loop
 
   //  begin lambda  //////////////////////////////////////////////////
   info.thread = thread([&]()
