@@ -33,10 +33,16 @@ file(GLOB REDIS_ADAPTER_HEADERS RedisConnection.h RedisAdapter.hpp)
 # Create a list of the directories our headers are in
 get_directories_of_files("${REDIS_ADAPTER_HEADERS}" REDIS_ADAPTER_INCLUDE_DIRS)
 list(REMOVE_DUPLICATES REDIS_ADAPTER_INCLUDE_DIRS)
+list(APPEND REDIS_ADAPTER_INCLUDE_DIRS hiredis)
+list(APPEND REDIS_ADAPTER_INCLUDE_DIRS redis-plus-plus/src)
+
+list(APPEND REDIS_ADAPTER_LIBRARIES hiredis)
+list(APPEND REDIS_ADAPTER_LIBRARIES redis++_static)
 
 # Send the lists to the project that wants to include them.
 set(REDIS_ADAPTER_SOURCES ${REDIS_ADAPTER_SOURCES} PARENT_SCOPE)
 set(REDIS_ADAPTER_HEADERS ${REDIS_ADAPTER_HEADERS} PARENT_SCOPE)
+set(REDIS_ADAPTER_LIBRARIES ${REDIS_ADAPTER_LIBRARIES} PARENT_SCOPE)
 set(REDIS_ADAPTER_INCLUDE_DIRS ${REDIS_ADAPTER_INCLUDE_DIRS} PARENT_SCOPE)
 set(REDIS_ADAPTER_COMPILER_FEATURES cxx_std_17 PARENT_SCOPE)
 
@@ -57,6 +63,6 @@ add_subdirectory(googletest)
 include(GoogleTest)
 include_directories(${REDIS_ADAPTER_INCLUDE_DIRS})
 add_executable(TestRedisAdapter ${REDIS_ADAPTER_SOURCES} test.cpp)
-target_link_libraries(TestRedisAdapter hiredis redis++_static GTest::gtest_main)
+target_link_libraries(TestRedisAdapter ${REDIS_ADAPTER_LIBRARIES} GTest::gtest_main)
 target_compile_features(TestRedisAdapter PUBLIC ${REDIS_ADAPTER_COMPILER_FEATURES})
 gtest_discover_tests(TestRedisAdapter)
