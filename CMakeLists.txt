@@ -36,6 +36,7 @@ list(REMOVE_DUPLICATES REDIS_ADAPTER_INCLUDE_DIRS)
 list(APPEND REDIS_ADAPTER_INCLUDE_DIRS hiredis)
 list(APPEND REDIS_ADAPTER_INCLUDE_DIRS redis-plus-plus/src)
 
+# Link static hiredis and static redis++ to RedisAdapter
 list(APPEND REDIS_ADAPTER_LIBRARIES hiredis)
 list(APPEND REDIS_ADAPTER_LIBRARIES redis++_static)
 
@@ -46,17 +47,22 @@ set(REDIS_ADAPTER_LIBRARIES ${REDIS_ADAPTER_LIBRARIES} PARENT_SCOPE)
 set(REDIS_ADAPTER_INCLUDE_DIRS ${REDIS_ADAPTER_INCLUDE_DIRS} PARENT_SCOPE)
 set(REDIS_ADAPTER_COMPILER_FEATURES cxx_std_17 PARENT_SCOPE)
 
+# Turn off shared libraries so hiredis wont make one
 option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
+# We dont want hiredis tests built
 option(DISABLE_TESTS "If tests should be compiled or not" ON)
 add_subdirectory(hiredis)
 
+# We dont want redis++ tests built
 option(REDIS_PLUS_PLUS_BUILD_TEST "Build tests for redis++" OFF)
+# Turn off redis++ specific shared library generation
 option(REDIS_PLUS_PLUS_BUILD_SHARED "Build shared library" OFF)
 add_subdirectory(redis-plus-plus)
 
 add_library(RedisAdapter_static STATIC ${REDIS_ADAPTER_SOURCES})
 add_library(RedisAdapter SHARED ${REDIS_ADAPTER_SOURCES})
 
+# We dont want googlemock built
 option(BUILD_GMOCK "Builds the googlemock subproject" OFF)
 enable_testing()
 add_subdirectory(googletest)
