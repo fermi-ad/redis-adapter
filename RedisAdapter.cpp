@@ -235,9 +235,8 @@ bool RedisAdapter::start_listener()
 {
   if (_listener.joinable()) return false;
 
-  mutex mx;
-  condition_variable cv;      //  use condition_variable to signal when
-  unique_lock<mutex> lk(mx);  //  thread is about to enter consume loop
+  mutex mx; condition_variable cv;        //  use condition_variable to signal when
+  unique_lock<mutex> lk(mx, defer_lock);  //  thread is about to enter consume loop
 
   bool ret = true;
 
@@ -359,9 +358,8 @@ bool RedisAdapter::start_reader(uint16_t slot)
 
   if (info.thread.joinable()) return false;
 
-  mutex mx;
-  condition_variable cv;      //  use condition_variable to signal when
-  unique_lock<mutex> lk(mx);  //  thread is about to enter read loop
+  mutex mx; condition_variable cv;        //  use condition_variable to signal when
+  unique_lock<mutex> lk(mx, defer_lock);  //  thread is about to enter read loop
 
   //  begin lambda  //////////////////////////////////////////////////
   info.thread = thread([&]()

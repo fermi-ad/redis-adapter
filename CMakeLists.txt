@@ -48,8 +48,8 @@ option(REDIS_PLUS_PLUS_BUILD_TEST "Build tests for redis++" OFF)
 option(REDIS_PLUS_PLUS_BUILD_SHARED "Build shared library" OFF)
 add_subdirectory(redis-plus-plus)
 
-add_library(RedisAdapterStatic STATIC ${REDIS_ADAPTER_SOURCES})
-add_library(RedisAdapterShared SHARED ${REDIS_ADAPTER_SOURCES})
+add_library(RedisAdapter_static STATIC ${REDIS_ADAPTER_SOURCES})
+add_library(RedisAdapter SHARED ${REDIS_ADAPTER_SOURCES})
 
 option(BUILD_GMOCK "Builds the googlemock subproject" OFF)
 enable_testing()
