@@ -225,10 +225,10 @@ bool RedisAdapter::subscribe(const string& subKey, ListenSubFn func, const strin
 bool RedisAdapter::unsubscribe(const string& unsub, const string& baseKey)
 {
   stop_listener();
-  string key = build_key(unsub, COMMANDS_STUB, baseKey);
+  string key = build_key(baseKey, COMMANDS_STUB, unsub);
   if (_patternSubs.count(key)) _patternSubs.erase(key);
   if (_commandSubs.count(key)) _commandSubs.erase(key);
-  return (_patternSubs.size() || _commandSubs.size()) ? start_listener() : false;
+  return (_patternSubs.size() || _commandSubs.size()) ? start_listener() : true;
 }
 
 bool RedisAdapter::start_listener()
