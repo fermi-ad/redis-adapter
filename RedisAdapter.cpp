@@ -149,7 +149,7 @@ ItemStream<string> RedisAdapter::getLogAfter(const string& minID, uint32_t count
 //    maxID  : highest time to get log for
 //    return : ItemStream of Item<string>
 //
-ItemStream<string> RedisAdapter::getLogBefore(uint32_t count, const string& maxID)
+ItemStream<string> RedisAdapter::getLogBefore(const string& maxID, uint32_t count)
 {
   ItemStream<Attrs> raw;
 

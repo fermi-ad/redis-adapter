@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include "RedisConnection.h"
+#include "RedisConnection.hpp"
 #include <thread>
 
 namespace sw  //  https://github.com/sewenew/redis-plus-plus#redis-stream
@@ -56,7 +56,8 @@ public:
   //
   swr::ItemStream<std::string> getLog(const std::string& minID, const std::string& maxID = "+");
   swr::ItemStream<std::string> getLogAfter(const std::string& minID, uint32_t count = 100);
-  swr::ItemStream<std::string> getLogBefore(uint32_t count = 100, const std::string& maxID = "+");
+  swr::ItemStream<std::string> getLogBefore(const std::string& maxID = "+", uint32_t count = 100);
+  swr::ItemStream<std::string> getLogBefore(uint32_t count) { return getLogBefore("+", count); }
 
   bool addLog(const std::string& message, uint32_t trim = 1000);
 
