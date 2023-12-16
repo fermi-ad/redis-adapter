@@ -90,7 +90,7 @@ TEST(RedisAdapter, Setting)
 
   //  set/get float setting
   EXPECT_TRUE(redis.setSetting("abc", 1.23f));    //  Note value MUST have 'f' suffix else it's a double
-  auto opt_flt = redis.getSetting<float>("abc");  //  This mistake is going to happen a lot!!!
+  auto opt_flt = redis.getSetting<float>("abc");
   EXPECT_TRUE(opt_flt.has_value());
   EXPECT_FLOAT_EQ(opt_flt.value(), 1.23);         //  Here it doesn't matter, we are just comparing
 
@@ -99,6 +99,12 @@ TEST(RedisAdapter, Setting)
   opt_flt = redis.getSetting<float>("abc");
   EXPECT_TRUE(opt_flt.has_value());
   EXPECT_FLOAT_EQ(opt_flt.value(), 1.23);             //  Here it doesn't matter, we are just comparing
+
+  //  set/get double setting
+  EXPECT_TRUE(redis.setSettingDouble("abc", 1.23));
+  auto opt_dbl = redis.getSetting<double>("abc");
+  EXPECT_TRUE(opt_dbl.has_value());
+  EXPECT_DOUBLE_EQ(opt_dbl.value(), 1.23);
 
   //  set/get vector of floats
   vector<float> vf = { 1.23, 3.45, 5.67 };
@@ -122,7 +128,7 @@ TEST(RedisAdapter, DataSingle)
 
   //  set/get float single element
   EXPECT_GT(redis.addDataSingle("abc", 1.23f).size(), 0);   //  Note value MUST have 'f' suffix else it's a double
-  float f = 0;                                              //  This mistake is going to happen a lot!!!
+  float f = 0;
   EXPECT_GT(redis.getDataSingle("abc", f).size(), 0);
   EXPECT_FLOAT_EQ(f, 1.23);                                 //  Here it doesn't matter, we are just comparing
 
@@ -130,6 +136,12 @@ TEST(RedisAdapter, DataSingle)
   EXPECT_GT(redis.addDataSingle<float>("abc", 1.23).size(), 0);   //  Here it's OK we are calling specialization <float>
   EXPECT_GT(redis.getDataSingle("abc", f).size(), 0);
   EXPECT_FLOAT_EQ(f, 1.23);                                       //  Here it doesn't matter, we are just comparing
+
+  //  set/get double single element
+  EXPECT_GT(redis.addDataDouble("abc", 1.23).size(), 0);
+  double d = 0;
+  EXPECT_GT(redis.getDataSingle("abc", d).size(), 0);
+  EXPECT_DOUBLE_EQ(d, 1.23);
 
   //  set/get float vector single element
   vector<float> vf = { 1.23, 3.45, 5.67 };
