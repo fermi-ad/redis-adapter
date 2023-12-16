@@ -69,6 +69,7 @@ public:
 
   template<typename T> bool setSetting(const std::string& subKey, const T& value);
   template<typename T> bool setSettingList(const std::string& subKey, const std::vector<T>& value);
+  bool setSettingDouble(const std::string& subKey, double value);
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Data (getting)
@@ -127,6 +128,11 @@ public:
   template<typename T> std::string
   addDataSingle(const std::string& subKey, const T& data, uint32_t trim)
     { return addDataSingle(subKey, data, "*", trim); }
+
+  std::string addDataDouble(const std::string& subKey, double data, const std::string& id = "*", uint32_t trim = 1);
+
+  std::string addDataDouble(const std::string& subKey, double data, uint32_t trim)
+    { return addDataDouble(subKey, data, "*", trim); }
 
   template<template<typename T> class C, typename T> std::string
   addDataListSingle(const std::string& subKey, const C<T>& data, const std::string& id = "*", uint32_t trim = 1);
@@ -376,12 +382,12 @@ template<typename T> std::vector<T> RedisAdapter::getSettingList(const std::stri
 //
 template<typename T> bool RedisAdapter::setSetting(const std::string& subKey, const T& value)
 {
+  static_assert( ! std::is_same<T, double>(), "use setSettingDouble for double or 'f' suffix for float literal");
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
-  std::string key = _baseKey + SETTINGS_STUB + subKey;
   swr::Attrs attrs = default_field_attrs(value);
 
-  return _redis->xaddTrim(key, "*", attrs.begin(), attrs.end(), 1).size();
+  return _redis->xaddTrim(_baseKey + SETTINGS_STUB + subKey, "*", attrs.begin(), attrs.end(), 1).size();
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -395,10 +401,9 @@ template<typename T> bool RedisAdapter::setSettingList(const std::string& subKey
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
-  std::string key = _baseKey + SETTINGS_STUB + subKey;
   swr::Attrs attrs = default_field_attrs(value);
 
-  return _redis->xaddTrim(key, "*", attrs.begin(), attrs.end(), 1).size();
+  return _redis->xaddTrim(_baseKey + SETTINGS_STUB + subKey, "*", attrs.begin(), attrs.end(), 1).size();
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -679,6 +684,7 @@ RedisAdapter::addDataSingle(const std::string& subKey, const swr::Attrs& data, c
 template<typename T> std::string
 RedisAdapter::addDataSingle(const std::string& subKey, const T& data, const std::string& id, uint32_t trim)
 {
+  static_assert( ! std::is_same<T, double>(), "use addDataDouble for double or 'f' suffix for float literal");
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
   std::string key = _baseKey + DATA_STUB + subKey;
