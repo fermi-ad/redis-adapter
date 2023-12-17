@@ -164,11 +164,12 @@ public:
   using ListenSubFn = std::function<void(const std::string&, const std::string&, const std::string&)>;
   using ReaderSubFn = std::function<void(const std::string&, const std::string&, const swr::ItemStream<swr::Attrs>&)>;
 
-  bool publish(const std::string& subKey, const std::string& message, const std::string& baseKey = "");
+  bool publish(const std::string& subKey, const std::string& message, const std::string& baseKey = "")
+    { return _redis->publish(build_key(baseKey, COMMANDS_STUB, subKey), message) >= 0; }
 
   bool psubscribe(const std::string& pattern, ListenSubFn func, const std::string& baseKey = "");
 
-  bool subscribe(const std::string& subKey, ListenSubFn func, const std::string& baseKey = "");
+  bool subscribe(const std::string& command, ListenSubFn func, const std::string& baseKey = "");
 
   bool unsubscribe(const std::string& unsub, const std::string& baseKey = "");
 

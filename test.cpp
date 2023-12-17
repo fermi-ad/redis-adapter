@@ -501,3 +501,18 @@ TEST(RedisAdapter, PubSub)
   //  should still be waiting
   EXPECT_TRUE(waiting);
 }
+
+TEST(RedisAdapter, Utility)
+{
+  RedisAdapter redis("TEST");
+
+  //  copyKey
+
+  //  deleteKey
+
+  //  getTimespec
+  auto maybe = redis.getTimespec();
+  EXPECT_TRUE(maybe.has_value());
+  EXPECT_GT(maybe.value().tv_sec, 0);
+  EXPECT_GT(maybe.value().tv_nsec, 0);
+}

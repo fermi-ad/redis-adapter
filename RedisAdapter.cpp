@@ -236,11 +236,15 @@ Optional<timespec> RedisAdapter::getTimespec()
   return ret;
 }
 
-bool RedisAdapter::publish(const string& subKey, const string& message, const string& baseKey)
-{
-  return _redis->publish(build_key(baseKey, COMMANDS_STUB, subKey), message) >= 0;
-}
-
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  psubscribe : subscribe to a pattern
+//
+//    pattern : pattern to subscribe to
+//    func    : function called on matching message
+//    baseKey : device basekey to subscribe to
+//    return  : true if listener started
+//              false if listener failed to start
+//
 bool RedisAdapter::psubscribe(const string& pattern, ListenSubFn func, const string& baseKey)
 {
   stop_listener();
@@ -248,13 +252,30 @@ bool RedisAdapter::psubscribe(const string& pattern, ListenSubFn func, const str
   return start_listener();
 }
 
-bool RedisAdapter::subscribe(const string& subKey, ListenSubFn func, const string& baseKey)
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  subscribe : subscribe to a command
+//
+//    command : command to subscribe to
+//    func    : function called on matching message
+//    baseKey : device basekey to subscribe to
+//    return  : true if listener started
+//              false if listener failed to start
+//
+bool RedisAdapter::subscribe(const string& command, ListenSubFn func, const string& baseKey)
 {
   stop_listener();
-  _commandSubs[build_key(baseKey, COMMANDS_STUB, subKey)].push_back(func);
+  _commandSubs[build_key(baseKey, COMMANDS_STUB, command)].push_back(func);
   return start_listener();
 }
 
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  unsubscribe : unsubscribe from a command and/or pattern
+//
+//    unsub   : command or pattern to unsubscribe from
+//    baseKey : device basekey to unsubscribe from
+//    return  : true if listener started or no more commands/patterns
+//              false if listener failed to start
+//
 bool RedisAdapter::unsubscribe(const string& unsub, const string& baseKey)
 {
   stop_listener();
@@ -264,6 +285,9 @@ bool RedisAdapter::unsubscribe(const string& unsub, const string& baseKey)
   return (_patternSubs.size() || _commandSubs.size()) ? start_listener() : true;
 }
 
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  Private methods
+//
 bool RedisAdapter::start_listener()
 {
   if (_listener.joinable()) return false;
