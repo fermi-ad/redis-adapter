@@ -126,20 +126,27 @@ public:
   addDataSingle(const std::string& subKey, const T& data, const std::string& id = "*", uint32_t trim = 1);
 
   template<typename T> std::string
-  addDataSingle(const std::string& subKey, const T& data, uint32_t trim)
-    { return addDataSingle(subKey, data, "*", trim); }
+  addDataSingle(const std::string& subKey, const T& data, uint32_t trim) { return addDataSingle(subKey, data, "*", trim); }
 
   std::string addDataDouble(const std::string& subKey, double data, const std::string& id = "*", uint32_t trim = 1);
 
-  std::string addDataDouble(const std::string& subKey, double data, uint32_t trim)
-    { return addDataDouble(subKey, data, "*", trim); }
+  std::string addDataDouble(const std::string& subKey, double data, uint32_t trim) { return addDataDouble(subKey, data, "*", trim); }
 
-  template<template<typename T> class C, typename T> std::string
-  addDataListSingle(const std::string& subKey, const C<T>& data, const std::string& id = "*", uint32_t trim = 1);
+  template<template<typename T, typename A> class C, typename T, typename A> std::string
+  addDataListSingle(const std::string& subKey, const C<T, A>& data, const std::string& id = "*", uint32_t trim = 1)
+    { return add_single_data_list_helper(subKey, data.data(), data.size(), id, trim); }
 
-  template<template<typename T> class C, typename T> std::string
-  addDataListSingle(const std::string& subKey, const C<T>& data, uint32_t trim)
-    { return addDataListSingle(subKey, data, "*", trim); }
+  template<template<typename T, typename A> class C, typename T, typename A> std::string
+  addDataListSingle(const std::string& subKey, const C<T, A>& data, uint32_t trim)
+    { return add_single_data_list_helper(subKey, data.data(), data.size(), "*", trim); }
+
+  template<template<typename T, size_t S> class C, typename T, size_t S> std::string
+  addDataListSingle(const std::string& subKey, const C<T, S>& data, const std::string& id = "*", uint32_t trim = 1)
+    { return add_single_data_list_helper(subKey, data.data(), data.size(), id, trim); }
+
+  template<template<typename T, size_t S> class C, typename T, size_t S> std::string
+  addDataListSingle(const std::string& subKey, const C<T, S>& data, uint32_t trim)
+    { return add_single_data_list_helper(subKey, data.data(), data.size(), "*", trim); }
 
   template<typename T> std::vector<std::string>
   addData(const std::string& subKey, const swr::ItemStream<T>& data, uint32_t trim = 1);
@@ -227,12 +234,12 @@ private:
   //
   template<typename T> auto default_field_value(const swr::Attrs& attrs);
 
-  template<template<typename T> class C, typename T> swr::Attrs default_field_attrs(const C<T>& data);
+  template<typename T> swr::Attrs default_field_attrs(const T* data, size_t size);
 
   template<typename T> swr::Attrs default_field_attrs(const T& data);
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  Helper functions for getData family of functions
+  //  Helper functions for getting and adding data
   //
   template<typename T> swr::ItemStream<T>
   get_forward_data_helper(const std::string& baseKey, const std::string& subKey,
@@ -253,6 +260,9 @@ private:
 
   template<typename T> std::string
   get_single_data_list_helper(const std::string& baseKey, const std::string& subKey, std::vector<T>& dest, const std::string& maxID);
+
+  template<typename T> std::string
+  add_single_data_list_helper(const std::string& subKey, const T* data, size_t size, const std::string& id, uint32_t trim);
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Redis stuff
@@ -306,15 +316,15 @@ template<typename T> auto RedisAdapter::default_field_value(const swr::Attrs& at
   return ret;
 }
 
-template<template<typename T> class C, typename T> swr::Attrs RedisAdapter::default_field_attrs(const C<T>& data)
-{
-  static_assert(std::is_trivial<T>(), "wrong type T");
-
-  return {{ DEFAULT_FIELD, std::string((const char*)data.data(), data.size() * sizeof(T)) }};
-}
 template<> inline swr::Attrs RedisAdapter::default_field_attrs(const std::string& data)
 {
   return {{ DEFAULT_FIELD, data }};
+}
+template<typename T> swr::Attrs RedisAdapter::default_field_attrs(const T* data, size_t size)
+{
+  static_assert(std::is_trivial<T>(), "wrong type T");
+
+  return {{ DEFAULT_FIELD, data ? std::string((const char*)data, size * sizeof(T)) : "" }};
 }
 template<typename T> swr::Attrs RedisAdapter::default_field_attrs(const T& data)
 {
@@ -402,7 +412,7 @@ template<typename T> bool RedisAdapter::setSettingList(const std::string& subKey
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
-  swr::Attrs attrs = default_field_attrs(value);
+  swr::Attrs attrs = default_field_attrs(value.data(), value.size());
 
   return _redis->xaddTrim(_baseKey + SETTINGS_STUB + subKey, "*", attrs.begin(), attrs.end(), 1).size();
 }
@@ -696,22 +706,23 @@ RedisAdapter::addDataSingle(const std::string& subKey, const T& data, const std:
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  addDataListSingle<C<T>> : add a vector<T> or span<T> as a data item (T is trivial)
+//  add_single_data_list_helper<T> : add a data item as buffer of type T data (T is trivial)
 //
 //    subKey : sub key to add data to
-//    data   : data to add
+//    data   : pointer to buffer of type T data to add
+//    size   : number of type T elements in buffer
 //    id     : time to add the data at ("*" is current redis time)
 //    trim   : number of items to trim the stream to
 //    return : id of the added data item if successful
 //             empty string on failure
 //
-template<template<typename T> class C, typename T> inline std::string
-RedisAdapter::addDataListSingle(const std::string& subKey, const C<T>& data, const std::string& id, uint32_t trim)
+template<typename T> std::string
+RedisAdapter::add_single_data_list_helper(const std::string& subKey, const T* data, size_t size, const std::string& id, uint32_t trim)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
   std::string key = _baseKey + DATA_STUB + subKey;
-  swr::Attrs attrs = default_field_attrs(data);
+  swr::Attrs attrs = default_field_attrs(data, size);
 
   return trim ? _redis->xaddTrim(key, id, attrs.begin(), attrs.end(), trim)
               : _redis->xadd(key, id, attrs.begin(), attrs.end());
@@ -775,7 +786,7 @@ RedisAdapter::addDataList(const std::string& subKey, const swr::ItemStream<std::
   for (const auto& item : data)
   {
     std::string id = item.first.size() ? item.first : "*";
-    swr::Attrs attrs = default_field_attrs(item.second);
+    swr::Attrs attrs = default_field_attrs(item.second.data(), item.second.size());
     id = _redis->xadd(key, id, attrs.begin(), attrs.end());
     if (id.size()) { ret.push_back(id); }
   }

@@ -11,7 +11,7 @@ TEST(RedisAdapter, Connected)
 {
   RedisAdapter redis("TEST");
 
-//  provide a pass/fail indication if Redis server is available
+  //  provide a pass/fail indication if Redis server is available
   EXPECT_TRUE(redis.connected());
 }
 
@@ -19,7 +19,7 @@ TEST(RedisAdapter, ExitNotConnected)
 {
   RedisAdapter redis("TEST");
 
-//  abort tests if Redis server is not available
+  //  abort tests if Redis server is not available
   if ( ! redis.connected()) exit(1);
 }
 
@@ -151,6 +151,16 @@ TEST(RedisAdapter, DataSingle)
   EXPECT_FLOAT_EQ(vf[0], 1.23);
   EXPECT_FLOAT_EQ(vf[1], 3.45);
   EXPECT_FLOAT_EQ(vf[2], 5.67);
+
+  //  set/get int array single element (also span if c++20)
+  array<int, 3> ai = { 1, 2, 3 };
+  EXPECT_GT(redis.addDataListSingle("abc", ai).size(), 0);
+  //  note it comes back as a vector
+  vector<int> vi;
+  EXPECT_GT(redis.getDataListSingle("abc", vi).size(), 0);
+  EXPECT_EQ(vi[0], 1);
+  EXPECT_EQ(vi[1], 2);
+  EXPECT_EQ(vi[2], 3);
 }
 
 TEST(RedisAdapter, Data)
