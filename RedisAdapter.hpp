@@ -184,8 +184,10 @@ public:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Publish/Subscribe
   //
-  using ListenSubFn = std::function<void(const std::string&, const std::string&, const std::string&)>;
-  using ReaderSubFn = std::function<void(const std::string&, const std::string&, const swr::ItemStream<swr::Attrs>&)>;
+  using ListenSubFn = std::function<void(const std::string& baseKey, const std::string& subKey, const std::string& message)>;
+
+  template<typename T>
+  using ReaderSubFn = std::function<void(const std::string& baseKey, const std::string& subKey, const swr::ItemStream<T>& data)>;
 
   bool publish(const std::string& subKey, const std::string& message, const std::string& baseKey = "")
     { return _redis->publish(build_key(baseKey, COMMANDS_STUB, subKey), message) >= 0; }
@@ -196,17 +198,27 @@ public:
 
   bool unsubscribe(const std::string& unsub, const std::string& baseKey = "");
 
-  bool addStatusReader(const std::string& subKey, ReaderSubFn func, const std::string& baseKey = "")
-    { return add_reader_helper(baseKey, STATUS_STUB, subKey, func); }
+  bool addStatusReader(const std::string& subKey, ReaderSubFn<std::string> func, const std::string& baseKey = "")
+    { return add_reader_helper(baseKey, STATUS_STUB, subKey, make_reader_callback(func)); }
 
-  bool addLogReader(ReaderSubFn func, const std::string& baseKey = "")
-    { return add_reader_helper(baseKey, LOG_STUB, "", func); }
+  bool addLogReader(ReaderSubFn<std::string> func, const std::string& baseKey = "")
+    { return add_reader_helper(baseKey, LOG_STUB, "", make_reader_callback(func)); }
 
-  bool addSettingReader(const std::string& subKey, ReaderSubFn func, const std::string& baseKey = "")
-    { return add_reader_helper(baseKey, SETTINGS_STUB, subKey, func); }
+  template<typename T>
+  bool addSettingReader(const std::string& subKey, ReaderSubFn<T> func, const std::string& baseKey = "")
+    { return add_reader_helper(baseKey, SETTINGS_STUB, subKey, make_reader_callback(func)); }
 
-  bool addDataReader(const std::string& subKey, ReaderSubFn func, const std::string& baseKey = "")
-    { return add_reader_helper(baseKey, DATA_STUB, subKey, func); }
+  template<typename T>
+  bool addSettingListReader(const std::string& subKey, ReaderSubFn<std::vector<T>> func, const std::string& baseKey = "")
+    { return add_reader_helper(baseKey, SETTINGS_STUB, subKey, make_list_reader_callback(func)); }
+
+  template<typename T>
+  bool addDataReader(const std::string& subKey, ReaderSubFn<T> func, const std::string& baseKey = "")
+    { return add_reader_helper(baseKey, DATA_STUB, subKey, make_reader_callback(func)); }
+
+  template<typename T>
+  bool addDataListReader(const std::string& subKey, ReaderSubFn<std::vector<T>> func, const std::string& baseKey = "")
+    { return add_reader_helper(baseKey, DATA_STUB, subKey, make_list_reader_callback(func)); }
 
   bool removeStatusReader(const std::string& subKey, const std::string& baseKey = "")
     { return remove_reader_helper(baseKey, STATUS_STUB, subKey); }
@@ -241,7 +253,11 @@ private:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Helper functions adding and removing stream readers
   //
-  bool add_reader_helper(const std::string& baseKey, const std::string& stub, const std::string& subKey, ReaderSubFn func);
+  bool add_reader_helper(const std::string& baseKey, const std::string& stub, const std::string& subKey, ReaderSubFn<swr::Attrs> func);
+
+  template<typename T> ReaderSubFn<swr::Attrs> make_reader_callback(ReaderSubFn<T> func);
+
+  template<typename T> ReaderSubFn<swr::Attrs> make_list_reader_callback(ReaderSubFn<std::vector<T>> func);
 
   bool remove_reader_helper(const std::string& baseKey, const std::string& stub, const std::string& subKey);
 
@@ -306,7 +322,7 @@ private:
   struct ReaderInfo
   {
     std::thread thread;
-    std::unordered_map<std::string, std::vector<ReaderSubFn>> subs;
+    std::unordered_map<std::string, std::vector<ReaderSubFn<swr::Attrs>>> subs;
     std::unordered_map<std::string, std::string> keyids;
     std::string control;
     bool run = false;
@@ -757,55 +773,68 @@ RedisAdapter::addDataList(const std::string& subKey, const swr::ItemStream<std::
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  addDataSingle<T> : add a data item of type T (T is trivial, string or Attrs)
+//  make_reader_callback<T> : wrap user callback to convert data to desired type
 //
-//    subKey : sub key to add data to
-//    data   : data to add
-//    id     : time to add the data at ("*" is current redis time)
-//    trim   : number of items to trim the stream to
-//    return : id of the added data item if successful
-//             empty string on failure
+//    func   : user callback that wants data as type T
+//    base   : base key of desired data
+//    sub    : sub key of desired data
+//    raw    : raw data as type swr::Attrs
+//    return : closure that reader thread can call upon data arrival
 //
-template<> inline std::string
-RedisAdapter::addDataSingle(const std::string& subKey, const swr::Attrs& data, const std::string& id, uint32_t trim)
-{
-  std::string key = _baseKey + DATA_STUB + subKey;
+template<> inline RedisAdapter::ReaderSubFn<swr::Attrs>
+RedisAdapter::make_reader_callback(ReaderSubFn<swr::Attrs> func) { return func; }
 
-  return trim ? _redis->xaddTrim(key, id, data.begin(), data.end(), trim)
-              : _redis->xadd(key, id, data.begin(), data.end());
-}
-template<typename T> std::string
-RedisAdapter::addDataSingle(const std::string& subKey, const T& data, const std::string& id, uint32_t trim)
+template<typename T> RedisAdapter::ReaderSubFn<swr::Attrs>
+RedisAdapter::make_reader_callback(ReaderSubFn<T> func)
 {
-  static_assert( ! std::is_same<T, double>(), "use addDataDouble for double or 'f' suffix for float literal");
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
-  std::string key = _baseKey + DATA_STUB + subKey;
-  swr::Attrs attrs = default_field_attrs(data);
-
-  return trim ? _redis->xaddTrim(key, id, attrs.begin(), attrs.end(), trim)
-              : _redis->xadd(key, id, attrs.begin(), attrs.end());
+  return [&, func](const std::string& base, const std::string& sub, const swr::ItemStream<swr::Attrs>& raw)
+  {
+    swr::ItemStream<T> ret;
+    swr::Item<T> retItem;
+    for (const auto& rawItem : raw)
+    {
+      swr::Optional<T> maybe = default_field_value<T>(rawItem.second);
+      if (maybe.has_value())
+      {
+        retItem.first = rawItem.first;
+        retItem.second = maybe.value();
+        ret.push_back(retItem);
+      }
+    }
+    func(base, sub, ret);
+  };
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  add_single_data_list_helper<T> : add a data item as buffer of type T data (T is trivial)
+//  make_list_reader_callback<T> : wrap user callback to convert data to vector of T
 //
-//    subKey : sub key to add data to
-//    data   : pointer to buffer of type T data to add
-//    size   : number of type T elements in buffer
-//    id     : time to add the data at ("*" is current redis time)
-//    trim   : number of items to trim the stream to
-//    return : id of the added data item if successful
-//             empty string on failure
+//    func   : user callback that wants data as vector of T
+//    base   : base key of desired data
+//    sub    : sub key of desired data
+//    raw    : raw data as type swr::Attrs
+//    return : closure that reader thread can call upon data arrival
 //
-template<typename T> std::string
-RedisAdapter::add_single_data_list_helper(const std::string& subKey, const T* data, size_t size, const std::string& id, uint32_t trim)
+template<typename T> RedisAdapter::ReaderSubFn<swr::Attrs>
+RedisAdapter::make_list_reader_callback(ReaderSubFn<std::vector<T>> func)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
-  std::string key = _baseKey + DATA_STUB + subKey;
-  swr::Attrs attrs = default_field_attrs(data, size);
-
-  return trim ? _redis->xaddTrim(key, id, attrs.begin(), attrs.end(), trim)
-              : _redis->xadd(key, id, attrs.begin(), attrs.end());
+  return [&, func](const std::string& base, const std::string& sub, const swr::ItemStream<swr::Attrs>& raw)
+  {
+    swr::ItemStream<std::vector<T>> ret;
+    swr::Item<std::vector<T>> retItem;
+    for (const auto& rawItem : raw)
+    {
+      const std::string str = default_field_value<std::string>(rawItem.second);
+      if (str.size())
+      {
+        retItem.first = rawItem.first;
+        retItem.second.assign((T*)str.data(), (T*)(str.data() + str.size()));
+        ret.push_back(retItem);
+      }
+    }
+    func(base, sub, ret);
+  };
 }

@@ -192,7 +192,7 @@ bool RedisAdapter::addLog(const string& message, uint32_t trim)
 //
 bool RedisAdapter::setSettingDouble(const string& subKey, const double value)
 {
-  swr::Attrs attrs = default_field_attrs(value);
+  Attrs attrs = default_field_attrs(value);
 
   return _redis->xaddTrim(_baseKey + SETTINGS_STUB + subKey, "*", attrs.begin(), attrs.end(), 1).size();
 }
@@ -207,10 +207,10 @@ bool RedisAdapter::setSettingDouble(const string& subKey, const double value)
 //    return : id of the added data item if successful
 //             empty string on failure
 //
-string RedisAdapter::addDataDouble(const std::string& subKey, double data, const std::string& id, uint32_t trim)
+string RedisAdapter::addDataDouble(const string& subKey, double data, const string& id, uint32_t trim)
 {
-  std::string key = _baseKey + DATA_STUB + subKey;
-  swr::Attrs attrs = default_field_attrs(data);
+  string key = _baseKey + DATA_STUB + subKey;
+  Attrs attrs = default_field_attrs(data);
 
   return trim ? _redis->xaddTrim(key, id, attrs.begin(), attrs.end(), trim)
               : _redis->xadd(key, id, attrs.begin(), attrs.end());
@@ -372,7 +372,7 @@ bool RedisAdapter::stop_listener()
   return true;
 }
 
-bool RedisAdapter::add_reader_helper(const string& baseKey, const string& stub, const string& subKey, ReaderSubFn func)
+bool RedisAdapter::add_reader_helper(const string& baseKey, const string& stub, const string& subKey, ReaderSubFn<Attrs> func)
 {
   string key = build_key(baseKey, stub, subKey);
   int32_t slot = _redis->keyslot(key);
@@ -437,7 +437,7 @@ bool RedisAdapter::start_reader(uint16_t slot)
             if (info.subs.count(is.first))
             {
               auto split = split_key(is.first);
-              for (ReaderSubFn& func : info.subs.at(is.first))
+              for (ReaderSubFn<Attrs>& func : info.subs.at(is.first))
                 { func(split.first, split.second, is.second); }
             }
           }

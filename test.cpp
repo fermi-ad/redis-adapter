@@ -148,6 +148,7 @@ TEST(RedisAdapter, DataSingle)
   EXPECT_GT(redis.addDataListSingle("abc", vf).size(), 0);
   vf.clear();
   EXPECT_GT(redis.getDataListSingle("abc", vf).size(), 0);
+  EXPECT_EQ(vf.size(), 3);
   EXPECT_FLOAT_EQ(vf[0], 1.23);
   EXPECT_FLOAT_EQ(vf[1], 3.45);
   EXPECT_FLOAT_EQ(vf[2], 5.67);
@@ -158,6 +159,7 @@ TEST(RedisAdapter, DataSingle)
   //  note it comes back as a vector
   vector<int> vi;
   EXPECT_GT(redis.getDataListSingle("abc", vi).size(), 0);
+  EXPECT_EQ(vi.size(), 3);
   EXPECT_EQ(vi[0], 1);
   EXPECT_EQ(vi[1], 2);
   EXPECT_EQ(vi[2], 3);
@@ -284,15 +286,14 @@ TEST(RedisAdapter, StatusListener)
 
   //  add status reader
   bool waiting = true;
-  EXPECT_TRUE(redis.addStatusReader("xyz", [&](const string& base, const string& sub, const ItemStream<Attrs>& ats)
+  EXPECT_TRUE(redis.addStatusReader("xyz", [&](const string& base, const string& sub, const ItemStream<string>& ats)
     {
       waiting = false;
       EXPECT_STREQ(base.c_str(), "TEST");
       EXPECT_STREQ(sub.c_str(), "xyz");
       EXPECT_GT(ats.size(), 0);
       EXPECT_GT(ats[0].first.size(), 0);
-      EXPECT_GT(ats[0].second.count("_"), 0);             //  sadness :(
-      EXPECT_STREQ(ats[0].second.at("_").c_str(), "OK");  //  sadness :(
+      EXPECT_STREQ(ats[0].second.c_str(), "OK");
     }
   ));
   this_thread::sleep_for(milliseconds(5));
@@ -303,7 +304,7 @@ TEST(RedisAdapter, StatusListener)
   for (int i = 0; i < 20 && waiting; i++)
     this_thread::sleep_for(milliseconds(5));
 
-  //  should not be waiting anymore
+  // should not be waiting anymore
   EXPECT_FALSE(waiting);
 
   //  remove status reader
@@ -330,15 +331,14 @@ TEST(RedisAdapter, LogListener)
 
   //  add log reader
   bool waiting = true;
-  EXPECT_TRUE(redis.addLogReader([&](const string& base, const string& sub, const ItemStream<Attrs>& ats)
+  EXPECT_TRUE(redis.addLogReader([&](const string& base, const string& sub, const ItemStream<string>& ats)
     {
       waiting = false;
       EXPECT_STREQ(base.c_str(), "TEST");
       EXPECT_EQ(sub.size(), 0);
       EXPECT_GT(ats.size(), 0);
       EXPECT_GT(ats[0].first.size(), 0);
-      EXPECT_GT(ats[0].second.count("_"), 0);                 //  sadness :(
-      EXPECT_STREQ(ats[0].second.at("_").c_str(), "log 2");   //  sadness :(
+      EXPECT_STREQ(ats[0].second.c_str(), "log 2");
     }
   ));
   this_thread::sleep_for(milliseconds(5));
@@ -376,21 +376,20 @@ TEST(RedisAdapter, SettingListener)
 
   //  add status reader
   bool waiting = true;
-  EXPECT_TRUE(redis.addSettingReader("xyz", [&](const string& base, const string& sub, const ItemStream<Attrs>& ats)
+  EXPECT_TRUE(redis.addSettingReader<float>("xyz", [&](const string& base, const string& sub, const ItemStream<float>& ats)
     {
       waiting = false;
       EXPECT_STREQ(base.c_str(), "TEST");
       EXPECT_STREQ(sub.c_str(), "xyz");
       EXPECT_GT(ats.size(), 0);
       EXPECT_GT(ats[0].first.size(), 0);
-      EXPECT_GT(ats[0].second.count("_"), 0);             //  sadness :(
-      EXPECT_STREQ(ats[0].second.at("_").c_str(), "OK");  //  sadness :(
+      EXPECT_FLOAT_EQ(ats[0].second, 1.23);
     }
   ));
   this_thread::sleep_for(milliseconds(5));
 
   //  trigger status reader
-  EXPECT_TRUE(redis.setSetting("xyz", "OK"));
+  EXPECT_TRUE(redis.setSetting("xyz", 1.23f));
 
   for (int i = 0; i < 20 && waiting; i++)
     this_thread::sleep_for(milliseconds(5));
@@ -404,7 +403,7 @@ TEST(RedisAdapter, SettingListener)
 
   //  try to trigger reader
   waiting = true;
-  EXPECT_TRUE(redis.setSetting("xyz", "FAIL"));
+  EXPECT_TRUE(redis.setSetting<float>("xyz", 0));
 
   for (int i = 0; i < 20 && waiting; i++)
     this_thread::sleep_for(milliseconds(5));
@@ -417,26 +416,31 @@ TEST(RedisAdapter, DataListener)
 {
   RedisAdapter redis("TEST");
 
-  //  this status should not be seen
-  EXPECT_GT(redis.addDataSingle("xyz", "FAIL").size(), 0);
+  vector<float> vf = { 1, 2, 3 };
 
-  //  add status reader
+  //  this should not be seen
+  EXPECT_GT(redis.addDataListSingle("xyz", vf).size(), 0);
+
+  //  add reader
   bool waiting = true;
-  EXPECT_TRUE(redis.addDataReader("xyz", [&](const string& base, const string& sub, const ItemStream<Attrs>& ats)
+  EXPECT_TRUE(redis.addDataListReader<float>("xyz", [&](const string& base, const string& sub, const ItemStream<vector<float>>& ats)
     {
       waiting = false;
       EXPECT_STREQ(base.c_str(), "TEST");
       EXPECT_STREQ(sub.c_str(), "xyz");
       EXPECT_GT(ats.size(), 0);
       EXPECT_GT(ats[0].first.size(), 0);
-      EXPECT_GT(ats[0].second.count("_"), 0);             //  sadness :(
-      EXPECT_STREQ(ats[0].second.at("_").c_str(), "OK");  //  sadness :(
+      EXPECT_EQ(ats[0].second.size(), 3);
+      EXPECT_FLOAT_EQ(ats[0].second[0], 1.23);
+      EXPECT_FLOAT_EQ(ats[0].second[1], 3.45);
+      EXPECT_FLOAT_EQ(ats[0].second[2], 5.67);
     }
   ));
   this_thread::sleep_for(milliseconds(5));
 
-  //  trigger status reader
-  EXPECT_GT(redis.addDataSingle("xyz", "OK").size(), 0);
+  //  trigger reader
+  vf[0] = 1.23; vf[1] = 3.45; vf[2] = 5.67;
+  EXPECT_GT(redis.addDataListSingle("xyz", vf).size(), 0);
 
   for (int i = 0; i < 20 && waiting; i++)
     this_thread::sleep_for(milliseconds(5));
@@ -449,8 +453,9 @@ TEST(RedisAdapter, DataListener)
   this_thread::sleep_for(milliseconds(5));
 
   //  try to trigger reader
+  vf[0] = 0; vf[1] = 0; vf[2] = 0;
   waiting = true;
-  EXPECT_GT(redis.addDataSingle("xyz", "FAIL").size(), 0);
+  EXPECT_GT(redis.addDataListSingle("xyz", vf).size(), 0);
 
   for (int i = 0; i < 20 && waiting; i++)
     this_thread::sleep_for(milliseconds(5));
