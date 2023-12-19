@@ -122,6 +122,12 @@ public:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Data (adding)
   //
+  template<typename T> std::vector<std::string>
+  addData(const std::string& subKey, const swr::ItemStream<T>& data, uint32_t trim = 1);
+
+  template<typename T> std::vector<std::string>
+  addDataList(const std::string& subKey, const swr::ItemStream<std::vector<T>>& data, uint32_t trim = 1);
+
   template<typename T> std::string
   addDataSingle(const std::string& subKey, const T& data, const std::string& id = "*", uint32_t trim = 1);
 
@@ -132,6 +138,14 @@ public:
 
   std::string addDataDouble(const std::string& subKey, double data, uint32_t trim) { return addDataDouble(subKey, data, "*", trim); }
 
+  //  addDataListSingle : Adds data from a provided container that has the signature:
+  //                        template<typename T, typename Allocator = std::allocator<T>>
+  //                      and implements the methods:
+  //                        const T* data() const;
+  //                        size_type size() const;
+  //                      Currently only std::vector satisfies these criteria. This method effectively
+  //                      performs a memcpy of the contiguous inner storage of the container.
+  //
   template<template<typename T, typename A> class C, typename T, typename A> std::string
   addDataListSingle(const std::string& subKey, const C<T, A>& data, const std::string& id = "*", uint32_t trim = 1)
     { return add_single_data_list_helper(subKey, data.data(), data.size(), id, trim); }
@@ -140,6 +154,14 @@ public:
   addDataListSingle(const std::string& subKey, const C<T, A>& data, uint32_t trim)
     { return add_single_data_list_helper(subKey, data.data(), data.size(), "*", trim); }
 
+  //  addDataListSingle : Adds data from a provided container that has the signature:
+  //                        template<typename T, std::size_t Extent>
+  //                      and implements the methods:
+  //                        const T* data() const;
+  //                        size_type size() const;
+  //                      Currently std::array and std::span satisfy these criteria. This method
+  //                      effectively performs a memcpy of the contiguous inner storage of the container.
+  //
   template<template<typename T, size_t S> class C, typename T, size_t S> std::string
   addDataListSingle(const std::string& subKey, const C<T, S>& data, const std::string& id = "*", uint32_t trim = 1)
     { return add_single_data_list_helper(subKey, data.data(), data.size(), id, trim); }
@@ -147,12 +169,6 @@ public:
   template<template<typename T, size_t S> class C, typename T, size_t S> std::string
   addDataListSingle(const std::string& subKey, const C<T, S>& data, uint32_t trim)
     { return add_single_data_list_helper(subKey, data.data(), data.size(), "*", trim); }
-
-  template<typename T> std::vector<std::string>
-  addData(const std::string& subKey, const swr::ItemStream<T>& data, uint32_t trim = 1);
-
-  template<typename T> std::vector<std::string>
-  addDataList(const std::string& subKey, const swr::ItemStream<std::vector<T>>& data, uint32_t trim = 1);
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Utility
@@ -675,60 +691,6 @@ RedisAdapter::get_single_data_list_helper(const std::string& baseKey, const std:
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  addDataSingle<T> : add a data item of type T (T is trivial, string or Attrs)
-//
-//    subKey : sub key to add data to
-//    data   : data to add
-//    id     : time to add the data at ("*" is current redis time)
-//    trim   : number of items to trim the stream to
-//    return : id of the added data item if successful
-//             empty string on failure
-//
-template<> inline std::string
-RedisAdapter::addDataSingle(const std::string& subKey, const swr::Attrs& data, const std::string& id, uint32_t trim)
-{
-  std::string key = _baseKey + DATA_STUB + subKey;
-
-  return trim ? _redis->xaddTrim(key, id, data.begin(), data.end(), trim)
-              : _redis->xadd(key, id, data.begin(), data.end());
-}
-template<typename T> std::string
-RedisAdapter::addDataSingle(const std::string& subKey, const T& data, const std::string& id, uint32_t trim)
-{
-  static_assert( ! std::is_same<T, double>(), "use addDataDouble for double or 'f' suffix for float literal");
-  static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
-
-  std::string key = _baseKey + DATA_STUB + subKey;
-  swr::Attrs attrs = default_field_attrs(data);
-
-  return trim ? _redis->xaddTrim(key, id, attrs.begin(), attrs.end(), trim)
-              : _redis->xadd(key, id, attrs.begin(), attrs.end());
-}
-
-//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  add_single_data_list_helper<T> : add a data item as buffer of type T data (T is trivial)
-//
-//    subKey : sub key to add data to
-//    data   : pointer to buffer of type T data to add
-//    size   : number of type T elements in buffer
-//    id     : time to add the data at ("*" is current redis time)
-//    trim   : number of items to trim the stream to
-//    return : id of the added data item if successful
-//             empty string on failure
-//
-template<typename T> std::string
-RedisAdapter::add_single_data_list_helper(const std::string& subKey, const T* data, size_t size, const std::string& id, uint32_t trim)
-{
-  static_assert(std::is_trivial<T>(), "wrong type T");
-
-  std::string key = _baseKey + DATA_STUB + subKey;
-  swr::Attrs attrs = default_field_attrs(data, size);
-
-  return trim ? _redis->xaddTrim(key, id, attrs.begin(), attrs.end(), trim)
-              : _redis->xadd(key, id, attrs.begin(), attrs.end());
-}
-
-//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  addData<T> : add multiple data items of type T (T is trivial, string or Attrs)
 //
 //    subKey : sub key to add data to
@@ -792,4 +754,58 @@ RedisAdapter::addDataList(const std::string& subKey, const swr::ItemStream<std::
   }
   if (trim && ret.size()) { _redis->xtrim(key, std::max(trim, (uint32_t)ret.size())); }
   return ret;
+}
+
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  addDataSingle<T> : add a data item of type T (T is trivial, string or Attrs)
+//
+//    subKey : sub key to add data to
+//    data   : data to add
+//    id     : time to add the data at ("*" is current redis time)
+//    trim   : number of items to trim the stream to
+//    return : id of the added data item if successful
+//             empty string on failure
+//
+template<> inline std::string
+RedisAdapter::addDataSingle(const std::string& subKey, const swr::Attrs& data, const std::string& id, uint32_t trim)
+{
+  std::string key = _baseKey + DATA_STUB + subKey;
+
+  return trim ? _redis->xaddTrim(key, id, data.begin(), data.end(), trim)
+              : _redis->xadd(key, id, data.begin(), data.end());
+}
+template<typename T> std::string
+RedisAdapter::addDataSingle(const std::string& subKey, const T& data, const std::string& id, uint32_t trim)
+{
+  static_assert( ! std::is_same<T, double>(), "use addDataDouble for double or 'f' suffix for float literal");
+  static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
+
+  std::string key = _baseKey + DATA_STUB + subKey;
+  swr::Attrs attrs = default_field_attrs(data);
+
+  return trim ? _redis->xaddTrim(key, id, attrs.begin(), attrs.end(), trim)
+              : _redis->xadd(key, id, attrs.begin(), attrs.end());
+}
+
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  add_single_data_list_helper<T> : add a data item as buffer of type T data (T is trivial)
+//
+//    subKey : sub key to add data to
+//    data   : pointer to buffer of type T data to add
+//    size   : number of type T elements in buffer
+//    id     : time to add the data at ("*" is current redis time)
+//    trim   : number of items to trim the stream to
+//    return : id of the added data item if successful
+//             empty string on failure
+//
+template<typename T> std::string
+RedisAdapter::add_single_data_list_helper(const std::string& subKey, const T* data, size_t size, const std::string& id, uint32_t trim)
+{
+  static_assert(std::is_trivial<T>(), "wrong type T");
+
+  std::string key = _baseKey + DATA_STUB + subKey;
+  swr::Attrs attrs = default_field_attrs(data, size);
+
+  return trim ? _redis->xaddTrim(key, id, attrs.begin(), attrs.end(), trim)
+              : _redis->xadd(key, id, attrs.begin(), attrs.end());
 }
