@@ -331,7 +331,7 @@ private:
 };
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  Helper functions for getting and setting DEFAULT_FIELD in swr::Attrs
+//  Helper functions for getting DEFAULT_FIELD in swr::Attrs
 //
 template<> inline auto RedisAdapter::default_field_value<std::string>(const swr::Attrs& attrs)
 {
@@ -348,6 +348,9 @@ template<typename T> auto RedisAdapter::default_field_value(const swr::Attrs& at
   return ret;
 }
 
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  Helper functions for setting DEFAULT_FIELD in swr::Attrs
+//
 template<> inline swr::Attrs RedisAdapter::default_field_attrs(const std::string& data)
 {
   return {{ DEFAULT_FIELD, data }};
