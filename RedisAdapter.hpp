@@ -776,6 +776,60 @@ RedisAdapter::addDataList(const std::string& subKey, const swr::ItemStream<std::
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  addDataSingle<T> : add a data item of type T (T is trivial, string or Attrs)
+//
+//    subKey : sub key to add data to
+//    data   : data to add
+//    id     : time to add the data at ("*" is current redis time)
+//    trim   : number of items to trim the stream to
+//    return : id of the added data item if successful
+//             empty string on failure
+//
+template<> inline std::string
+RedisAdapter::addDataSingle(const std::string& subKey, const swr::Attrs& data, const std::string& id, uint32_t trim)
+{
+  std::string key = _baseKey + DATA_STUB + subKey;
+
+  return trim ? _redis->xaddTrim(key, id, data.begin(), data.end(), trim)
+              : _redis->xadd(key, id, data.begin(), data.end());
+}
+template<typename T> std::string
+RedisAdapter::addDataSingle(const std::string& subKey, const T& data, const std::string& id, uint32_t trim)
+{
+  static_assert( ! std::is_same<T, double>(), "use addDataDouble for double or 'f' suffix for float literal");
+  static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
+
+  std::string key = _baseKey + DATA_STUB + subKey;
+  swr::Attrs attrs = default_field_attrs(data);
+
+  return trim ? _redis->xaddTrim(key, id, attrs.begin(), attrs.end(), trim)
+              : _redis->xadd(key, id, attrs.begin(), attrs.end());
+}
+
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  add_single_data_list_helper<T> : add a data item as buffer of type T data (T is trivial)
+//
+//    subKey : sub key to add data to
+//    data   : pointer to buffer of type T data to add
+//    size   : number of type T elements in buffer
+//    id     : time to add the data at ("*" is current redis time)
+//    trim   : number of items to trim the stream to
+//    return : id of the added data item if successful
+//             empty string on failure
+//
+template<typename T> std::string
+RedisAdapter::add_single_data_list_helper(const std::string& subKey, const T* data, size_t size, const std::string& id, uint32_t trim)
+{
+  static_assert(std::is_trivial<T>(), "wrong type T");
+
+  std::string key = _baseKey + DATA_STUB + subKey;
+  swr::Attrs attrs = default_field_attrs(data, size);
+
+  return trim ? _redis->xaddTrim(key, id, attrs.begin(), attrs.end(), trim)
+              : _redis->xadd(key, id, attrs.begin(), attrs.end());
+}
+
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  make_reader_callback<T> : wrap user callback to convert data to desired type
 //
 //    func   : user callback that wants data as type T
