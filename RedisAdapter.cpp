@@ -1,10 +1,7 @@
-/**
- * RedisAdapter.cpp
- *
- * This file contains the implementation of the RedisAdapter class
- *
- * @author rsantucc
- */
+//
+//  RedisAdapter.cpp
+//
+//  This file contains the implementation of the RedisAdapter class
 
 #include "RedisAdapter.hpp"
 

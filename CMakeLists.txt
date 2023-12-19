@@ -28,7 +28,7 @@ endfunction()
 
 # Create a lists of headers and sources with complete path based on our source files
 file(GLOB REDIS_ADAPTER_SOURCES RedisAdapter.cpp)
-file(GLOB REDIS_ADAPTER_HEADERS RedisConnection.hpp RedisAdapter.hpp)
+file(GLOB REDIS_ADAPTER_HEADERS RedisConnection.hpp RedisAdapter.hpp RedisAdapterTempl.hpp)
 
 # Create a list of the directories our headers are in
 get_directories_of_files("${REDIS_ADAPTER_HEADERS}" REDIS_ADAPTER_INCLUDE_DIRS)
