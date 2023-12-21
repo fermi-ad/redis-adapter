@@ -13,9 +13,9 @@ namespace sw  //  https://github.com/sewenew/redis-plus-plus#redis-stream
   namespace redis
   {
     using Attrs = std::unordered_map<std::string, std::string>;
-    template<typename T> using Item = std::pair<std::string, T>;
-    template<typename T> using ItemStream = std::vector<Item<T>>;
-    template<typename T> using Streams = std::unordered_map<std::string, ItemStream<T>>;
+    using Item = std::pair<std::string, Attrs>;
+    using ItemStream = std::vector<Item>;
+    using Streams = std::unordered_map<std::string, ItemStream>;
   }
 }
 
@@ -30,6 +30,12 @@ namespace swr = sw::redis;
 class RedisAdapter
 {
 public:
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  Containers for getting/setting data using RedisAdapter methods
+  //
+  template<typename T> using TimeVal = std::pair<uint64_t, T>;        //  analagous to swr::Item
+  template<typename T> using TimeValList = std::vector<TimeVal<T>>;   //  analagous to swr::ItemStream
+
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Construction / Destruction
   //
@@ -51,10 +57,11 @@ public:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Log
   //
-  swr::ItemStream<std::string> getLog(const std::string& minID, const std::string& maxID = "+");
-  swr::ItemStream<std::string> getLogAfter(const std::string& minID, uint32_t count = 100);
-  swr::ItemStream<std::string> getLogBefore(const std::string& maxID = "+", uint32_t count = 100);
-  swr::ItemStream<std::string> getLogBefore(uint32_t count) { return getLogBefore("+", count); }
+  TimeValList<std::string> getLog(const std::string& minID, const std::string& maxID = "+");
+  TimeValList<std::string> getLogAfter(const std::string& minID, uint32_t count = 100);
+  TimeValList<std::string> getLogBefore(const std::string& maxID = "+", uint32_t count = 100);
+  TimeValList<std::string> getLogBefore(uint32_t count)
+    { return getLogBefore("+", count); }
 
   bool addLog(const std::string& message, uint32_t trim = 1000);
 
@@ -71,11 +78,11 @@ public:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Data (getting)
   //
-  template<typename T> swr::ItemStream<T>
+  template<typename T> TimeValList<T>
   getData(const std::string& subKey, const std::string& minID, const std::string& maxID, const std::string& baseKey = "")
     { return get_forward_data_helper<T>(baseKey, subKey, minID, maxID, 0); }
 
-  template<typename T> swr::ItemStream<std::vector<T>>
+  template<typename T> TimeValList<std::vector<T>>
   getDataList(const std::string& subKey, const std::string& minID, const std::string& maxID, const std::string& baseKey = "")
     { return get_forward_data_list_helper<T>(baseKey, subKey, minID, maxID, 0); }
 
@@ -92,19 +99,19 @@ public:
     std::string baseKey;
     uint32_t count = 1;
   };
-  template<typename T> swr::ItemStream<T>
+  template<typename T> TimeValList<T>
   getDataBefore(const std::string& subKey, const GetDataArgs& args = {})
     { return get_reverse_data_helper<T>(args.baseKey, subKey, args.maxID, args.count); }
 
-  template<typename T> swr::ItemStream<std::vector<T>>
+  template<typename T> TimeValList<std::vector<T>>
   getDataListBefore(const std::string& subKey, const GetDataArgs& args = {})
     { return get_reverse_data_list_helper<T>(args.baseKey, subKey, args.maxID, args.count); }
 
-  template<typename T> swr::ItemStream<T>
+  template<typename T> TimeValList<T>
   getDataAfter(const std::string& subKey, const GetDataArgs& args = {})
     { return get_forward_data_helper<T>(args.baseKey, subKey, args.minID, "+", args.count); }
 
-  template<typename T> swr::ItemStream<std::vector<T>>
+  template<typename T> TimeValList<std::vector<T>>
   getDataListAfter(const std::string& subKey, const GetDataArgs& args = {})
     { return get_forward_data_list_helper<T>(args.baseKey, subKey, args.minID, "+", args.count); }
 
@@ -119,21 +126,23 @@ public:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Data (adding)
   //
-  template<typename T> std::vector<std::string>
-  addData(const std::string& subKey, const swr::ItemStream<T>& data, uint32_t trim = 1);
+  template<typename T> std::vector<uint64_t>
+  addData(const std::string& subKey, const TimeValList<T>& data, uint32_t trim = 1);
 
-  template<typename T> std::vector<std::string>
-  addDataList(const std::string& subKey, const swr::ItemStream<std::vector<T>>& data, uint32_t trim = 1);
+  template<typename T> std::vector<uint64_t>
+  addDataList(const std::string& subKey, const TimeValList<std::vector<T>>& data, uint32_t trim = 1);
 
-  template<typename T> std::string
-  addDataSingle(const std::string& subKey, const T& data, const std::string& id = "*", uint32_t trim = 1);
+  template<typename T> uint64_t
+  addDataSingle(const std::string& subKey, uint64_t time, const T& data, uint32_t trim = 1);
 
-  template<typename T> std::string
-  addDataSingle(const std::string& subKey, const T& data, uint32_t trim) { return addDataSingle(subKey, data, "*", trim); }
+  template<typename T> uint64_t
+  addDataSingle(const std::string& subKey, const T& data, uint32_t trim = 1)
+    { return addDataSingle(subKey, 0, data, trim); }
 
-  std::string addDataDouble(const std::string& subKey, double data, const std::string& id = "*", uint32_t trim = 1);
+  uint64_t addDataDouble(const std::string& subKey, uint64_t time, double data, uint32_t trim = 1);
 
-  std::string addDataDouble(const std::string& subKey, double data, uint32_t trim) { return addDataDouble(subKey, data, "*", trim); }
+  uint64_t addDataDouble(const std::string& subKey, double data, uint32_t trim = 1)
+    { return addDataDouble(subKey, 0, data, trim); }
 
   //  addDataListSingle : Adds data from a provided container that has the signature:
   //                        template<typename T, typename Allocator = std::allocator<T>>
@@ -143,13 +152,18 @@ public:
   //                      Currently only std::vector satisfies these criteria. This method effectively
   //                      performs a memcpy of the contiguous inner storage of the container.
   //
-  template<template<typename T, typename A> class C, typename T, typename A> std::string
-  addDataListSingle(const std::string& subKey, const C<T, A>& data, const std::string& id = "*", uint32_t trim = 1)
-    { return add_single_data_list_helper(subKey, data.data(), data.size(), id, trim); }
-
-  template<template<typename T, typename A> class C, typename T, typename A> std::string
-  addDataListSingle(const std::string& subKey, const C<T, A>& data, uint32_t trim)
-    { return add_single_data_list_helper(subKey, data.data(), data.size(), "*", trim); }
+  template<template<typename T, typename A> class C, typename T, typename A> uint64_t
+  addDataListSingle(const std::string& subKey, uint64_t time, const C<T, A>& data, uint32_t trim = 1)
+  {
+    static_assert(std::is_same<C<T, A>, std::vector<T>>(), "wrong type C");
+    return add_single_data_list_helper(subKey, time, data.data(), data.size(), trim);
+  }
+  template<template<typename T, typename A> class C, typename T, typename A> uint64_t
+  addDataListSingle(const std::string& subKey, const C<T, A>& data, uint32_t trim = 1)
+  {
+    static_assert(std::is_same<C<T, A>, std::vector<T>>(), "wrong type C");
+    return add_single_data_list_helper(subKey, 0, data.data(), data.size(), trim);
+  }
 
   //  addDataListSingle : Adds data from a provided container that has the signature:
   //                        template<typename T, std::size_t Extent>
@@ -159,13 +173,13 @@ public:
   //                      Currently std::array and std::span satisfy these criteria. This method
   //                      effectively performs a memcpy of the contiguous inner storage of the container.
   //
-  template<template<typename T, size_t S> class C, typename T, size_t S> std::string
-  addDataListSingle(const std::string& subKey, const C<T, S>& data, const std::string& id = "*", uint32_t trim = 1)
-    { return add_single_data_list_helper(subKey, data.data(), data.size(), id, trim); }
+  template<template<typename T, size_t S> class C, typename T, size_t S> uint64_t
+  addDataListSingle(const std::string& subKey, uint64_t time, const C<T, S>& data, uint32_t trim = 1)
+    { return add_single_data_list_helper(subKey, time, data.data(), data.size(), trim); }
 
-  template<template<typename T, size_t S> class C, typename T, size_t S> std::string
-  addDataListSingle(const std::string& subKey, const C<T, S>& data, uint32_t trim)
-    { return add_single_data_list_helper(subKey, data.data(), data.size(), "*", trim); }
+  template<template<typename T, size_t S> class C, typename T, size_t S> uint64_t
+  addDataListSingle(const std::string& subKey, const C<T, S>& data, uint32_t trim = 1)
+    { return add_single_data_list_helper(subKey, 0, data.data(), data.size(), trim); }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Utility
@@ -184,7 +198,7 @@ public:
   using ListenSubFn = std::function<void(const std::string& baseKey, const std::string& subKey, const std::string& message)>;
 
   template<typename T>
-  using ReaderSubFn = std::function<void(const std::string& baseKey, const std::string& subKey, const swr::ItemStream<T>& data)>;
+  using ReaderSubFn = std::function<void(const std::string& baseKey, const std::string& subKey, const TimeValList<T>& data)>;
 
   bool publish(const std::string& subKey, const std::string& message, const std::string& baseKey = "")
     { return _redis->publish(build_key(baseKey, COMMANDS_STUB, subKey), message) >= 0; }
@@ -247,14 +261,20 @@ private:
 
   std::pair<std::string, std::string> split_key(const std::string& key);
 
+  std::string time_to_id(uint64_t time = 0) { return std::to_string(time ? time : get_host_time()) + "-0"; }
+
+  uint64_t id_to_time(const std::string& id) { return std::stoull(id); }
+
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Helper functions adding and removing stream readers
   //
-  bool add_reader_helper(const std::string& baseKey, const std::string& stub, const std::string& subKey, ReaderSubFn<swr::Attrs> func);
+  using reader_sub_fn = std::function<void(const std::string& baseKey, const std::string& subKey, const swr::ItemStream& data)>;
 
-  template<typename T> ReaderSubFn<swr::Attrs> make_reader_callback(ReaderSubFn<T> func);
+  bool add_reader_helper(const std::string& baseKey, const std::string& stub, const std::string& subKey, reader_sub_fn func);
 
-  template<typename T> ReaderSubFn<swr::Attrs> make_list_reader_callback(ReaderSubFn<std::vector<T>> func);
+  template<typename T> reader_sub_fn make_reader_callback(ReaderSubFn<T> func);
+
+  template<typename T> reader_sub_fn make_list_reader_callback(ReaderSubFn<std::vector<T>> func);
 
   bool remove_reader_helper(const std::string& baseKey, const std::string& stub, const std::string& subKey);
 
@@ -270,61 +290,63 @@ private:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Helper functions for getting and adding data
   //
-  template<typename T> swr::ItemStream<T>
+  template<typename T> TimeValList<T>
   get_forward_data_helper(const std::string& baseKey, const std::string& subKey,
                           const std::string& minID, const std::string& maxID, uint32_t count);
 
-  template<typename T> swr::ItemStream<std::vector<T>>
+  template<typename T> TimeValList<std::vector<T>>
   get_forward_data_list_helper(const std::string& baseKey, const std::string& subKey,
                                const std::string& minID, const std::string& maxID, uint32_t count);
 
-  template<typename T> swr::ItemStream<T>
+  template<typename T> TimeValList<T>
   get_reverse_data_helper(const std::string& baseKey, const std::string& subKey, const std::string& maxID, uint32_t count);
 
-  template<typename T> swr::ItemStream<std::vector<T>>
+  template<typename T> TimeValList<std::vector<T>>
   get_reverse_data_list_helper(const std::string& baseKey, const std::string& subKey, const std::string& maxID, uint32_t count);
 
-  template<typename T> std::string
+  template<typename T> uint64_t
   get_single_data_helper(const std::string& baseKey, const std::string& subKey, T& dest, const std::string& maxID);
 
-  template<typename T> std::string
+  template<typename T> uint64_t
   get_single_data_list_helper(const std::string& baseKey, const std::string& subKey, std::vector<T>& dest, const std::string& maxID);
 
-  template<typename T> std::string
-  add_single_data_list_helper(const std::string& subKey, const T* data, size_t size, const std::string& id, uint32_t trim);
+  template<typename T> uint64_t
+  add_single_data_list_helper(const std::string& subKey, uint64_t time, const T* data, size_t size, uint32_t trim);
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Redis stuff
   //
   std::unique_ptr<RedisConnection> _redis;
 
-  std::string _baseKey;
+  std::string _base_key;
 
   uint32_t _timeout;
+
+  uint64_t get_host_time();
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Pub/Sub Listener and Stream Reader
   //
   bool start_listener();
   std::thread _listener;
-  bool _listenerRun;
+  bool _listener_run;
   bool stop_listener();
 
-  std::unordered_map<std::string, std::vector<ListenSubFn>> _patternSubs;
-  std::unordered_map<std::string, std::vector<ListenSubFn>> _commandSubs;
+  std::unordered_map<std::string, std::vector<ListenSubFn>> _pattern_subs;
+  std::unordered_map<std::string, std::vector<ListenSubFn>> _command_subs;
 
   bool start_reader(uint16_t slot);
   bool stop_reader(uint16_t slot);
 
-  struct ReaderInfo
+  struct reader_info
   {
     std::thread thread;
-    std::unordered_map<std::string, std::vector<ReaderSubFn<swr::Attrs>>> subs;
+    std::unordered_map<std::string, std::vector<reader_sub_fn>> subs;
     std::unordered_map<std::string, std::string> keyids;
     std::string control;
     bool run = false;
   };
-  std::unordered_map<uint16_t, ReaderInfo> _reader;
+  std::unordered_map<uint16_t, reader_info> _reader;
 };
 
 #include "RedisAdapterTempl.hpp"

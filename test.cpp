@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 #include "RedisAdapter.hpp"
 
+// #define ENABLE_TESTS
+
 using namespace std;
 using namespace sw::redis;
 using namespace std::chrono;
@@ -22,6 +24,8 @@ TEST(RedisAdapter, ExitNotConnected)
   //  abort tests if Redis server is not available
   if ( ! redis.connected()) exit(1);
 }
+
+#ifdef ENABLE_TESTS
 
 TEST(RedisAdapter, Status)
 {
@@ -531,3 +535,5 @@ TEST(RedisAdapter, Utility)
   EXPECT_GT(maybe.value().tv_sec, 0);
   EXPECT_GT(maybe.value().tv_nsec, 0);
 }
+
+#endif

@@ -19,7 +19,7 @@ using namespace sw::redis;
 //    return  : RedisAdapter
 //
 RedisAdapter::RedisAdapter(const string& baseKey, const RedisConnection::Options& options, uint32_t timeout)
-: _baseKey(baseKey), _timeout(timeout)
+: _base_key(baseKey), _timeout(timeout)
 {
   RedisConnection::Options opts;
 
@@ -63,7 +63,7 @@ RedisAdapter::~RedisAdapter()
 //
 string RedisAdapter::getStatus(const string& subKey, const string& baseKey)
 {
-  ItemStream<Attrs> raw;
+  ItemStream raw;
 
   _redis->xrevrange(build_key(baseKey, STATUS_STUB, subKey), "+", "-", 1, back_inserter(raw));
 
@@ -82,7 +82,7 @@ bool RedisAdapter::setStatus(const string& subKey, const string& value)
 {
   Attrs attrs = default_field_attrs(value);
 
-  return _redis->xaddTrim(_baseKey + STATUS_STUB + subKey, "*", attrs.begin(), attrs.end(), 1).size();
+  return _redis->xaddTrim(_base_key + STATUS_STUB + subKey, time_to_id(), attrs.begin(), attrs.end(), 1).size();
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -92,20 +92,20 @@ bool RedisAdapter::setStatus(const string& subKey, const string& value)
 //    maxID  : highest time to get log for
 //    return : ItemStream of Item<string>
 //
-ItemStream<string> RedisAdapter::getLog(const string& minID, const string& maxID)
+RedisAdapter::TimeValList<string> RedisAdapter::getLog(const string& minID, const string& maxID)
 {
-  ItemStream<Attrs> raw;
+  ItemStream raw;
 
-  _redis->xrange(_baseKey + LOG_STUB, minID, maxID, back_inserter(raw));
+  _redis->xrange(_base_key + LOG_STUB, minID, maxID, back_inserter(raw));
 
-  ItemStream<string> ret;
-  Item<string> retItem;
+  TimeValList<string> ret;
+  TimeVal<string> retItem;
   for (const auto& rawItem : raw)
   {
     retItem.second = default_field_value<string>(rawItem.second);
     if (retItem.second.size())
     {
-      retItem.first = rawItem.first;
+      retItem.first = id_to_time(rawItem.first);
       ret.push_back(retItem);
     }
   }
@@ -119,20 +119,20 @@ ItemStream<string> RedisAdapter::getLog(const string& minID, const string& maxID
 //    count  : greatest number of log items to get
 //    return : ItemStream of Item<string>
 //
-ItemStream<string> RedisAdapter::getLogAfter(const string& minID, uint32_t count)
+RedisAdapter::TimeValList<string> RedisAdapter::getLogAfter(const string& minID, uint32_t count)
 {
-  ItemStream<Attrs> raw;
+  ItemStream raw;
 
-  _redis->xrange(_baseKey + LOG_STUB, minID, "+", count, back_inserter(raw));
+  _redis->xrange(_base_key + LOG_STUB, minID, "+", count, back_inserter(raw));
 
-  ItemStream<string> ret;
-  Item<string> retItem;
+  TimeValList<string> ret;
+  TimeVal<string> retItem;
   for (const auto& rawItem : raw)
   {
     retItem.second = default_field_value<string>(rawItem.second);
     if (retItem.second.size())
     {
-      retItem.first = rawItem.first;
+      retItem.first = id_to_time(rawItem.first);
       ret.push_back(retItem);
     }
   }
@@ -146,20 +146,20 @@ ItemStream<string> RedisAdapter::getLogAfter(const string& minID, uint32_t count
 //    maxID  : highest time to get log for
 //    return : ItemStream of Item<string>
 //
-ItemStream<string> RedisAdapter::getLogBefore(const string& maxID, uint32_t count)
+RedisAdapter::TimeValList<string> RedisAdapter::getLogBefore(const string& maxID, uint32_t count)
 {
-  ItemStream<Attrs> raw;
+  ItemStream raw;
 
-  _redis->xrevrange(_baseKey + LOG_STUB, maxID, "-", count, back_inserter(raw));
+  _redis->xrevrange(_base_key + LOG_STUB, maxID, "-", count, back_inserter(raw));
 
-  ItemStream<string> ret;
-  Item<string> retItem;
+  TimeValList<string> ret;
+  TimeVal<string> retItem;
   for (auto rawItem = raw.rbegin(); rawItem != raw.rend(); rawItem++)   //  reverse iterate
   {
     retItem.second = default_field_value<string>(rawItem->second);
     if (retItem.second.size())
     {
-      retItem.first = rawItem->first;
+      retItem.first = id_to_time(rawItem->first);
       ret.push_back(retItem);
     }
   }
@@ -177,7 +177,7 @@ bool RedisAdapter::addLog(const string& message, uint32_t trim)
 {
   Attrs attrs = default_field_attrs(message);
 
-  return _redis->xaddTrim(_baseKey + LOG_STUB, "*", attrs.begin(), attrs.end(), trim).size();
+  return _redis->xaddTrim(_base_key + LOG_STUB, time_to_id(), attrs.begin(), attrs.end(), trim).size();
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -191,26 +191,28 @@ bool RedisAdapter::setSettingDouble(const string& subKey, const double value)
 {
   Attrs attrs = default_field_attrs(value);
 
-  return _redis->xaddTrim(_baseKey + SETTINGS_STUB + subKey, "*", attrs.begin(), attrs.end(), 1).size();
+  return _redis->xaddTrim(_base_key + SETTINGS_STUB + subKey, time_to_id(), attrs.begin(), attrs.end(), 1).size();
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  addDataDouble : add a data item of type double
 //
 //    subKey : sub key to add data to
+//    time   : time to add the data at (0 is current host time)
 //    data   : data to add
-//    id     : time to add the data at ("*" is current redis time)
 //    trim   : number of items to trim the stream to
-//    return : id of the added data item if successful
-//             empty string on failure
+//    return : time of the added data item if successful
+//             zero on failure
 //
-string RedisAdapter::addDataDouble(const string& subKey, double data, const string& id, uint32_t trim)
+uint64_t RedisAdapter::addDataDouble(const string& subKey, uint64_t time, double data, uint32_t trim)
 {
-  string key = _baseKey + DATA_STUB + subKey;
+  string key = _base_key + DATA_STUB + subKey;
   Attrs attrs = default_field_attrs(data);
 
-  return trim ? _redis->xaddTrim(key, id, attrs.begin(), attrs.end(), trim)
-              : _redis->xadd(key, id, attrs.begin(), attrs.end());
+  string id = trim ? _redis->xaddTrim(key, time_to_id(), attrs.begin(), attrs.end(), trim)
+                   : _redis->xadd(key, time_to_id(), attrs.begin(), attrs.end());
+
+  return id_to_time(id);
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -245,7 +247,7 @@ Optional<timespec> RedisAdapter::getTimespec()
 bool RedisAdapter::psubscribe(const string& pattern, ListenSubFn func, const string& baseKey)
 {
   stop_listener();
-  _patternSubs[build_key(baseKey, COMMANDS_STUB, pattern)].push_back(func);
+  _pattern_subs[build_key(baseKey, COMMANDS_STUB, pattern)].push_back(func);
   return start_listener();
 }
 
@@ -261,7 +263,7 @@ bool RedisAdapter::psubscribe(const string& pattern, ListenSubFn func, const str
 bool RedisAdapter::subscribe(const string& command, ListenSubFn func, const string& baseKey)
 {
   stop_listener();
-  _commandSubs[build_key(baseKey, COMMANDS_STUB, command)].push_back(func);
+  _command_subs[build_key(baseKey, COMMANDS_STUB, command)].push_back(func);
   return start_listener();
 }
 
@@ -277,14 +279,19 @@ bool RedisAdapter::unsubscribe(const string& unsub, const string& baseKey)
 {
   stop_listener();
   string key = build_key(baseKey, COMMANDS_STUB, unsub);
-  if (_patternSubs.count(key)) _patternSubs.erase(key);
-  if (_commandSubs.count(key)) _commandSubs.erase(key);
-  return (_patternSubs.size() || _commandSubs.size()) ? start_listener() : true;
+  if (_pattern_subs.count(key)) _pattern_subs.erase(key);
+  if (_command_subs.count(key)) _command_subs.erase(key);
+  return (_pattern_subs.size() || _command_subs.size()) ? start_listener() : true;
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  Private methods
 //
+uint64_t RedisAdapter::get_host_time()
+{
+  return duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
+}
+
 bool RedisAdapter::start_listener()
 {
   if (_listener.joinable()) return false;
@@ -310,10 +317,10 @@ bool RedisAdapter::start_listener()
       //  begin lambda in lambda ///////////////////////////
       sub.on_pmessage([&](string pat, string key, string msg)
         {
-          if (_patternSubs.count(pat))
+          if (_pattern_subs.count(pat))
           {
             auto split = split_key(key);
-            for (auto& func : _patternSubs.at(pat))
+            for (auto& func : _pattern_subs.at(pat))
               { func(split.first, split.second, msg); }
           }
         }
@@ -322,33 +329,33 @@ bool RedisAdapter::start_listener()
       //  begin lambda in lambda ///////////////////////////
       sub.on_message([&](string key, string msg)
         {
-          if (_commandSubs.count(key))
+          if (_command_subs.count(key))
           {
             auto split = split_key(key);
-            for (auto& func : _commandSubs.at(key))
+            for (auto& func : _command_subs.at(key))
               { func(split.first, split.second, msg); }
           }
         }
       );  //  end lambda in lambda /////////////////////////
 
-      for (const auto& cs : _commandSubs) { sub.subscribe(cs.first); }
+      for (const auto& cs : _command_subs) { sub.subscribe(cs.first); }
 
-      for (const auto& ps : _patternSubs) { sub.psubscribe(ps.first); }
+      for (const auto& ps : _pattern_subs) { sub.psubscribe(ps.first); }
 
-      sub.subscribe(_baseKey + CONTROL_STUB);
+      sub.subscribe(_base_key + CONTROL_STUB);
 
-      _listenerRun = true;
+      _listener_run = true;
 
       cv.notify_all();  //  notify about to enter loop (NOT in loop)
 
-      while (_listenerRun)
+      while (_listener_run)
       {
         try { sub.consume(); }
         catch (const TimeoutError&) {}
         catch (const Error& e)
         {
           syslog(LOG_ERR, "consume in listener: %s", e.what());
-          _listenerRun = false;
+          _listener_run = false;
         }
       }
     }
@@ -363,19 +370,19 @@ bool RedisAdapter::start_listener()
 bool RedisAdapter::stop_listener()
 {
   if ( ! _listener.joinable()) return false;
-  _listenerRun = false;
-  _redis->publish(_baseKey + CONTROL_STUB, "");
+  _listener_run = false;
+  _redis->publish(_base_key + CONTROL_STUB, "");
   _listener.join();
   return true;
 }
 
-bool RedisAdapter::add_reader_helper(const string& baseKey, const string& stub, const string& subKey, ReaderSubFn<Attrs> func)
+bool RedisAdapter::add_reader_helper(const string& baseKey, const string& stub, const string& subKey, reader_sub_fn func)
 {
   string key = build_key(baseKey, stub, subKey);
   int32_t slot = _redis->keyslot(key);
   if (slot < 0) return false;
   stop_reader(slot);
-  ReaderInfo& info = _reader[slot];
+  reader_info& info = _reader[slot];
   if (info.control.empty())
   {
     //  use key in {} to ensure control hashes to this slot
@@ -393,7 +400,7 @@ bool RedisAdapter::remove_reader_helper(const string& baseKey, const string& stu
   int32_t slot = _redis->keyslot(key);
   if (slot < 0 || _reader.count(slot) == 0) return false;
   stop_reader(slot);
-  ReaderInfo& info = _reader.at(slot);
+  reader_info& info = _reader.at(slot);
   info.subs.erase(key);
   info.keyids.erase(key);
   if (info.subs.empty())
@@ -408,7 +415,7 @@ bool RedisAdapter::start_reader(uint16_t slot)
 {
   if (_reader.count(slot) == 0) return false;
 
-  ReaderInfo& info = _reader.at(slot);
+  reader_info& info = _reader.at(slot);
 
   if (info.thread.joinable()) return false;
 
@@ -422,20 +429,20 @@ bool RedisAdapter::start_reader(uint16_t slot)
 
       cv.notify_all();  //  notify about to enter loop (NOT in loop)
 
-      for (Streams<Attrs> out; info.run; out.clear())
+      for (Streams out; info.run; out.clear())
       {
         if (_redis->xreadMultiBlock(info.keyids.begin(), info.keyids.end(), _timeout, inserter(out, out.end())))
         {
-          for (auto& is : out)
+          for (auto& item : out)
           {
-            if (is.second.size())
-              { info.keyids[is.first] = is.second.back().first; }
+            if (item.second.size())
+              { info.keyids[item.first] = item.second.back().first; }
 
-            if (info.subs.count(is.first))
+            if (info.subs.count(item.first))
             {
-              auto split = split_key(is.first);
-              for (ReaderSubFn<Attrs>& func : info.subs.at(is.first))
-                { func(split.first, split.second, is.second); }
+              auto split = split_key(item.first);
+              for (auto& func : info.subs.at(item.first))
+                { func(split.first, split.second, item.second); }
             }
           }
         }
@@ -457,7 +464,7 @@ bool RedisAdapter::start_reader(uint16_t slot)
 bool RedisAdapter::stop_reader(uint16_t slot)
 {
   if (_reader.count(slot) == 0) return false;
-  ReaderInfo& info = _reader.at(slot);
+  reader_info& info = _reader.at(slot);
   if ( ! info.thread.joinable()) return false;
   info.run = false;
   Attrs attrs = default_field_attrs("");
@@ -468,7 +475,7 @@ bool RedisAdapter::stop_reader(uint16_t slot)
 
 string RedisAdapter::build_key(const string& baseKey, const string& stub, const string& subKey)
 {
-  return (baseKey.size() ? baseKey : _baseKey) + stub + subKey;
+  return (baseKey.size() ? baseKey : _base_key) + stub + subKey;
 }
 
 pair<string, string> RedisAdapter::split_key(const string& key)
