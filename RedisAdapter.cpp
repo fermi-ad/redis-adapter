@@ -195,7 +195,7 @@ bool RedisAdapter::setSettingDouble(const string& subKey, const double value)
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  addDataDouble : add a data item of type double
+//  addDataDoubleAt : add a data item of type double
 //
 //    subKey : sub key to add data to
 //    time   : time to add the data at (0 is current host time)
@@ -204,13 +204,13 @@ bool RedisAdapter::setSettingDouble(const string& subKey, const double value)
 //    return : time of the added data item if successful
 //             zero on failure
 //
-uint64_t RedisAdapter::addDataDouble(const string& subKey, uint64_t time, double data, uint32_t trim)
+uint64_t RedisAdapter::addDataDoubleAt(const string& subKey, uint64_t time, double data, uint32_t trim)
 {
   string key = _base_key + DATA_STUB + subKey;
   Attrs attrs = default_field_attrs(data);
 
-  string id = trim ? _redis->xaddTrim(key, time_to_id(), attrs.begin(), attrs.end(), trim)
-                   : _redis->xadd(key, time_to_id(), attrs.begin(), attrs.end());
+  string id = trim ? _redis->xaddTrim(key, time_to_id(time), attrs.begin(), attrs.end(), trim)
+                   : _redis->xadd(key, time_to_id(time), attrs.begin(), attrs.end());
 
   return id_to_time(id);
 }
@@ -218,12 +218,12 @@ uint64_t RedisAdapter::addDataDouble(const string& subKey, uint64_t time, double
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  getTimespec : get server time as a timespec
 //
-//    return  : Optional with timespec on success
-//              Optional empty on failure
+//    return  : optional with timespec on success
+//              optional empty on failure
 //
-Optional<timespec> RedisAdapter::getTimespec()
+optional<timespec> RedisAdapter::getTimespec()
 {
-  Optional<timespec> ret;
+  optional<timespec> ret;
   vector<string> result = _redis->time();
   // The redis command time is returns an array with the first element being
   // the time in seconds and the second being the microseconds within that second

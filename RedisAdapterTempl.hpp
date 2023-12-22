@@ -49,8 +49,8 @@ template<typename T> RedisAdapter::Attrs RedisAdapter::default_field_attrs(const
 //  getSetting : get setting for home device as type T (T is trivial, string)
 //
 //    subKey : sub key to get setting from
-//    return : string or Optional with setting value if successful
-//             empty string or Optional if unsuccessful
+//    return : string or optional with setting value if successful
+//             empty string or optional if unsuccessful
 //
 template<> inline auto RedisAdapter::getSetting<std::string>(const std::string& subKey, const std::string& baseKey)
 {
@@ -482,7 +482,7 @@ RedisAdapter::addDataList(const std::string& subKey, const TimeValList<std::vect
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  addDataSingle<T> : add a data item of type T (T is trivial, string or Attrs)
+//  addDataSingleAt<T> : add a data item of type T (T is trivial, string or Attrs)
 //
 //    subKey : sub key to add data to
 //    time   : time to add the data at (0 for current host time)
@@ -492,7 +492,7 @@ RedisAdapter::addDataList(const std::string& subKey, const TimeValList<std::vect
 //             zero on failure
 //
 template<> inline uint64_t
-RedisAdapter::addDataSingle(const std::string& subKey, uint64_t time, const Attrs& data, uint32_t trim)
+RedisAdapter::addDataSingleAt(const std::string& subKey, uint64_t time, const Attrs& data, uint32_t trim)
 {
   std::string key = _base_key + DATA_STUB + subKey;
 
@@ -502,7 +502,7 @@ RedisAdapter::addDataSingle(const std::string& subKey, uint64_t time, const Attr
   return id_to_time(id);
 }
 template<typename T> uint64_t
-RedisAdapter::addDataSingle(const std::string& subKey, uint64_t time, const T& data, uint32_t trim)
+RedisAdapter::addDataSingleAt(const std::string& subKey, uint64_t time, const T& data, uint32_t trim)
 {
   static_assert( ! std::is_same<T, double>(), "use addDataDouble for double or 'f' suffix for float literal");
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");

@@ -119,16 +119,16 @@ public:
   addDataList(const std::string& subKey, const TimeValList<std::vector<T>>& data, uint32_t trim = 1);
 
   template<typename T> uint64_t
-  addDataSingle(const std::string& subKey, uint64_t time, const T& data, uint32_t trim = 1);
+  addDataSingleAt(const std::string& subKey, uint64_t time, const T& data, uint32_t trim = 1);
 
   template<typename T> uint64_t
   addDataSingle(const std::string& subKey, const T& data, uint32_t trim = 1)
-    { return addDataSingle(subKey, 0, data, trim); }
+    { return addDataSingleAt(subKey, 0, data, trim); }
 
-  uint64_t addDataDouble(const std::string& subKey, uint64_t time, double data, uint32_t trim = 1);
+  uint64_t addDataDoubleAt(const std::string& subKey, uint64_t time, double data, uint32_t trim = 1);
 
   uint64_t addDataDouble(const std::string& subKey, double data, uint32_t trim = 1)
-    { return addDataDouble(subKey, 0, data, trim); }
+    { return addDataDoubleAt(subKey, 0, data, trim); }
 
   //  addDataListSingle : Add data from a provided container that has the signature:
   //                        template<typename T, std::size_t Extent>
@@ -139,7 +139,7 @@ public:
   //                      effectively performs a memcpy of the contiguous inner storage of the container
   //
   template<template<typename T, size_t S> class C, typename T, size_t S> uint64_t
-  addDataListSingle(const std::string& subKey, uint64_t time, const C<T, S>& data, uint32_t trim = 1)
+  addDataListSingleAt(const std::string& subKey, uint64_t time, const C<T, S>& data, uint32_t trim = 1)
     { return add_single_data_list_helper(subKey, time, data.data(), data.size(), trim); }
 
   template<template<typename T, size_t S> class C, typename T, size_t S> uint64_t
@@ -147,7 +147,7 @@ public:
     { return add_single_data_list_helper(subKey, 0, data.data(), data.size(), trim); }
 
   template<typename T> uint64_t
-  addDataListSingle(const std::string& subKey, uint64_t time, const std::vector<T>& data, uint32_t trim = 1)
+  addDataListSingleAt(const std::string& subKey, uint64_t time, const std::vector<T>& data, uint32_t trim = 1)
     { return add_single_data_list_helper(subKey, time, data.data(), data.size(), trim); }
 
   template<typename T> uint64_t
