@@ -44,7 +44,7 @@ TEST(RedisAdapter, Log)
   EXPECT_TRUE(redis.addLog("log 2"));
 
   //  get most recent 2 entries
-  auto log = redis.getLogCountBefore(2);
+  auto log = redis.getLogCount(2);
   EXPECT_EQ(log.size(), 2);
   EXPECT_STREQ(log.front().second.c_str(), "log 1");
   EXPECT_STREQ(log.back().second.c_str(), "log 2");

@@ -45,10 +45,9 @@ public:
   //  Log
   //
   TimeValList<std::string> getLog(uint64_t minTime, uint64_t maxTime = 0);
-  TimeValList<std::string> getLogAfter(uint64_t minTime, uint32_t count = 100);
+  TimeValList<std::string> getLogAfter(uint64_t minTime = 0, uint32_t count = 100);
   TimeValList<std::string> getLogBefore(uint64_t maxTime = 0, uint32_t count = 100);
-  TimeValList<std::string> getLogCountBefore(uint32_t count, uint64_t maxTime = 0)
-    { return getLogBefore(maxTime, count); }
+  TimeValList<std::string> getLogCount(uint32_t count) { return getLogBefore(0, count); }
 
   bool addLog(const std::string& message, uint32_t trim = 1000);
 
@@ -131,34 +130,13 @@ public:
   uint64_t addDataDouble(const std::string& subKey, double data, uint32_t trim = 1)
     { return addDataDouble(subKey, 0, data, trim); }
 
-  //  addDataListSingle : Adds data from a provided container that has the signature:
-  //                        template<typename T, typename Allocator = std::allocator<T>>
-  //                      and implements the methods:
-  //                        const T* data() const;
-  //                        size_type size() const;
-  //                      Currently only std::vector satisfies these criteria. This method effectively
-  //                      performs a memcpy of the contiguous inner storage of the container.
-  //
-  template<template<typename T, typename A> class C, typename T, typename A> uint64_t
-  addDataListSingle(const std::string& subKey, uint64_t time, const C<T, A>& data, uint32_t trim = 1)
-  {
-    static_assert(std::is_same<C<T, A>, std::vector<T>>(), "wrong type C");
-    return add_single_data_list_helper(subKey, time, data.data(), data.size(), trim);
-  }
-  template<template<typename T, typename A> class C, typename T, typename A> uint64_t
-  addDataListSingle(const std::string& subKey, const C<T, A>& data, uint32_t trim = 1)
-  {
-    static_assert(std::is_same<C<T, A>, std::vector<T>>(), "wrong type C");
-    return add_single_data_list_helper(subKey, 0, data.data(), data.size(), trim);
-  }
-
-  //  addDataListSingle : Adds data from a provided container that has the signature:
+  //  addDataListSingle : Add data from a provided container that has the signature:
   //                        template<typename T, std::size_t Extent>
   //                      and implements the methods:
   //                        const T* data() const;
   //                        size_type size() const;
   //                      Currently std::array and std::span satisfy these criteria. This method
-  //                      effectively performs a memcpy of the contiguous inner storage of the container.
+  //                      effectively performs a memcpy of the contiguous inner storage of the container
   //
   template<template<typename T, size_t S> class C, typename T, size_t S> uint64_t
   addDataListSingle(const std::string& subKey, uint64_t time, const C<T, S>& data, uint32_t trim = 1)
@@ -166,6 +144,14 @@ public:
 
   template<template<typename T, size_t S> class C, typename T, size_t S> uint64_t
   addDataListSingle(const std::string& subKey, const C<T, S>& data, uint32_t trim = 1)
+    { return add_single_data_list_helper(subKey, 0, data.data(), data.size(), trim); }
+
+  template<typename T> uint64_t
+  addDataListSingle(const std::string& subKey, uint64_t time, const std::vector<T>& data, uint32_t trim = 1)
+    { return add_single_data_list_helper(subKey, time, data.data(), data.size(), trim); }
+
+  template<typename T> uint64_t
+  addDataListSingle(const std::string& subKey, const std::vector<T>& data, uint32_t trim = 1)
     { return add_single_data_list_helper(subKey, 0, data.data(), data.size(), trim); }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
