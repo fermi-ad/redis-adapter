@@ -145,8 +145,8 @@ RedisAdapter::get_forward_data_helper(const std::string& baseKey, const std::str
                                       uint64_t minTime, uint64_t maxTime, uint32_t count)
 {
   std::string key = build_key(baseKey, DATA_STUB, subKey);
-  std::string minID = minTime ? time_to_id(minTime) : "-";
-  std::string maxID = maxTime ? time_to_id(maxTime) : "+";
+  std::string minID = min_time_to_id(minTime);
+  std::string maxID = max_time_to_id(maxTime);
   swr::ItemStream raw;
 
   if (count) { _redis->xrange(key, minID, maxID, count, std::back_inserter(raw)); }
@@ -169,8 +169,8 @@ RedisAdapter::get_forward_data_helper(const std::string& baseKey, const std::str
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
   std::string key = build_key(baseKey, DATA_STUB, subKey);
-  std::string minID = minTime ? time_to_id(minTime) : "-";
-  std::string maxID = maxTime ? time_to_id(maxTime) : "+";
+  std::string minID = min_time_to_id(minTime);
+  std::string maxID = max_time_to_id(maxTime);
   swr::ItemStream raw;
 
   if (count) { _redis->xrange(key, minID, maxID, count, std::back_inserter(raw)); }
@@ -209,8 +209,8 @@ RedisAdapter::get_forward_data_list_helper(const std::string& baseKey, const std
   static_assert(std::is_trivial<T>(), "wrong type T");
 
   std::string key = build_key(baseKey, DATA_STUB, subKey);
-  std::string minID = minTime ? time_to_id(minTime) : "-";
-  std::string maxID = maxTime ? time_to_id(maxTime) : "+";
+  std::string minID = min_time_to_id(minTime);
+  std::string maxID = max_time_to_id(maxTime);
   swr::ItemStream raw;
 
   if (count) { _redis->xrange(key, minID, maxID, count, std::back_inserter(raw)); }
@@ -246,7 +246,7 @@ RedisAdapter::get_reverse_data_helper(const std::string& baseKey, const std::str
                                       uint64_t maxTime, uint32_t count)
 {
   std::string key = build_key(baseKey, DATA_STUB, subKey);
-  std::string maxID = maxTime ? time_to_id(maxTime) : "+";
+  std::string maxID = max_time_to_id(maxTime);
   swr::ItemStream raw;
 
   if (count) { _redis->xrevrange(key, maxID, "-", count, std::back_inserter(raw)); }
@@ -269,7 +269,7 @@ RedisAdapter::get_reverse_data_helper(const std::string& baseKey, const std::str
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
   std::string key = build_key(baseKey, DATA_STUB, subKey);
-  std::string maxID = maxTime ? time_to_id(maxTime) : "+";
+  std::string maxID = max_time_to_id(maxTime);
   swr::ItemStream raw;
 
   if (count) { _redis->xrevrange(key, maxID, "-", count, std::back_inserter(raw)); }
@@ -307,7 +307,7 @@ RedisAdapter::get_reverse_data_list_helper(const std::string& baseKey, const std
   static_assert(std::is_trivial<T>(), "wrong type T");
 
   std::string key = build_key(baseKey, DATA_STUB, subKey);
-  std::string maxID = maxTime ? time_to_id(maxTime) : "+";
+  std::string maxID = max_time_to_id(maxTime);
   swr::ItemStream raw;
 
   if (count) { _redis->xrevrange(key, maxID, "-", count, std::back_inserter(raw)); }
@@ -342,10 +342,9 @@ template<> inline uint64_t
 RedisAdapter::get_single_data_helper(const std::string& baseKey, const std::string& subKey,
                                      swr::Attrs& dest, uint64_t maxTime)
 {
-  std::string maxID = maxTime ? time_to_id(maxTime) : "+";
   swr::ItemStream raw;
 
-  _redis->xrevrange(build_key(baseKey, DATA_STUB, subKey), maxID, "-", 1, std::back_inserter(raw));
+  _redis->xrevrange(build_key(baseKey, DATA_STUB, subKey), max_time_to_id(maxTime), "-", 1, std::back_inserter(raw));
 
   uint64_t time = 0;
   if (raw.size())
@@ -361,10 +360,9 @@ RedisAdapter::get_single_data_helper(const std::string& baseKey, const std::stri
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
-  std::string maxID = maxTime ? time_to_id(maxTime) : "+";
   swr::ItemStream raw;
 
-  _redis->xrevrange(build_key(baseKey, DATA_STUB, subKey), maxID, "-", 1, std::back_inserter(raw));
+  _redis->xrevrange(build_key(baseKey, DATA_STUB, subKey), max_time_to_id(maxTime), "-", 1, std::back_inserter(raw));
 
   uint64_t time = 0;
   if (raw.size())
@@ -395,10 +393,9 @@ RedisAdapter::get_single_data_list_helper(const std::string& baseKey, const std:
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
-  std::string maxID = maxTime ? time_to_id(maxTime) : "+";
   swr::ItemStream raw;
 
-  _redis->xrevrange(build_key(baseKey, DATA_STUB, subKey), maxID, "-", 1, std::back_inserter(raw));
+  _redis->xrevrange(build_key(baseKey, DATA_STUB, subKey), max_time_to_id(maxTime), "-", 1, std::back_inserter(raw));
 
   uint64_t time = 0;
   if (raw.size())

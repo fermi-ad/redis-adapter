@@ -8,15 +8,16 @@
 #include "RedisConnection.hpp"
 #include <thread>
 
-namespace sw  //  https://github.com/sewenew/redis-plus-plus#redis-stream
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  Containers for stream data suggested by the redis++ readme.md
+//    https://github.com/sewenew/redis-plus-plus#redis-stream
+//
+namespace sw::redis
 {
-  namespace redis
-  {
-    using Attrs = std::unordered_map<std::string, std::string>;
-    using Item = std::pair<std::string, Attrs>;
-    using ItemStream = std::vector<Item>;
-    using Streams = std::unordered_map<std::string, ItemStream>;
-  }
+  using Attrs = std::unordered_map<std::string, std::string>;
+  using Item = std::pair<std::string, Attrs>;
+  using ItemStream = std::vector<Item>;
+  using Streams = std::unordered_map<std::string, ItemStream>;
 }
 
 namespace swr = sw::redis;
@@ -60,7 +61,7 @@ public:
   TimeValList<std::string> getLog(uint64_t minTime, uint64_t maxTime = 0);
   TimeValList<std::string> getLogAfter(uint64_t minTime, uint32_t count = 100);
   TimeValList<std::string> getLogBefore(uint64_t maxTime = 0, uint32_t count = 100);
-  TimeValList<std::string> getLogCountBefore(uint32_t count = 100, uint64_t maxTime = 0)
+  TimeValList<std::string> getLogCountBefore(uint32_t count, uint64_t maxTime = 0)
     { return getLogBefore(maxTime, count); }
 
   bool addLog(const std::string& message, uint32_t trim = 1000);
@@ -261,9 +262,14 @@ private:
 
   std::pair<std::string, std::string> split_key(const std::string& key);
 
+  uint64_t id_to_time(const std::string& id) { return std::stoull(id); }
+
   std::string time_to_id(uint64_t time = 0) { return std::to_string(time ? time : get_host_time()) + "-0"; }
 
-  uint64_t id_to_time(const std::string& id) { return std::stoull(id); }
+  std::string min_time_to_id(uint64_t time) { return time ? time_to_id(time) : "-"; }
+
+  std::string max_time_to_id(uint64_t time) { return time ? time_to_id(time) : "+"; }
+
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Helper functions adding and removing stream readers

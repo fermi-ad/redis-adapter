@@ -1,8 +1,6 @@
 #include <gtest/gtest.h>
 #include "RedisAdapter.hpp"
 
-// #define ENABLE_TESTS
-
 using namespace std;
 using namespace sw::redis;
 using namespace std::chrono;
@@ -226,56 +224,54 @@ TEST(RedisAdapter, Data)
   EXPECT_STREQ(is_at.at(0).second.at("b").c_str(), "2");
 }
 
- #ifdef ENABLE_TESTS
-
 TEST(RedisAdapter, DataList)
 {
   RedisAdapter redis("TEST");
 
   //  add float vectors
-  ItemStream<vector<float>> is_vf = {{ "", { 1.1, 1.2, 1.3 }}, { "", { 2.1, 2.2, 2.3 }}};
+  RA::TimeValList<vector<float>> is_vf = {{ 0, { 1.1, 1.2, 1.3 }}, { 0, { 2.1, 2.2, 2.3 }}};
   auto ids = redis.addDataList("abc", is_vf);
   EXPECT_EQ(ids.size(), 2);
-  EXPECT_GT(ids[0].size(), 0);
-  EXPECT_GT(ids[1].size(), 0);
+  EXPECT_GT(ids[0], 0);
+  EXPECT_GT(ids[1], 0);
 
   //  get float vector data
   is_vf = redis.getDataList<float>("abc", ids[0], ids[1]);
   EXPECT_EQ(is_vf.size(), 2);
-  EXPECT_STREQ(is_vf.at(0).first.c_str(), ids[0].c_str());
+  EXPECT_EQ(is_vf.at(0).first, ids[0]);
   EXPECT_EQ(is_vf.at(0).second.size(), 3);
   EXPECT_FLOAT_EQ(is_vf.at(0).second[0], 1.1);
   EXPECT_FLOAT_EQ(is_vf.at(0).second[1], 1.2);
   EXPECT_FLOAT_EQ(is_vf.at(0).second[2], 1.3);
-  EXPECT_STREQ(is_vf.at(1).first.c_str(), ids[1].c_str());
+  EXPECT_EQ(is_vf.at(1).first, ids[1]);
   EXPECT_EQ(is_vf.at(1).second.size(), 3);
   EXPECT_FLOAT_EQ(is_vf.at(1).second[0], 2.1);
   EXPECT_FLOAT_EQ(is_vf.at(1).second[1], 2.2);
   EXPECT_FLOAT_EQ(is_vf.at(1).second[2], 2.3);
 
   //  get float vector data before
-  is_vf = redis.getDataListBefore<float>("abc", GDA{.maxID = ids[1], .count = 2});
+  is_vf = redis.getDataListBefore<float>("abc", GDA{ .maxTime = ids[1], .count = 2 });
   EXPECT_EQ(is_vf.size(), 2);
-  EXPECT_STREQ(is_vf.at(0).first.c_str(), ids[0].c_str());
+  EXPECT_EQ(is_vf.at(0).first, ids[0]);
   EXPECT_EQ(is_vf.at(0).second.size(), 3);
   EXPECT_FLOAT_EQ(is_vf.at(0).second[0], 1.1);
   EXPECT_FLOAT_EQ(is_vf.at(0).second[1], 1.2);
   EXPECT_FLOAT_EQ(is_vf.at(0).second[2], 1.3);
-  EXPECT_STREQ(is_vf.at(1).first.c_str(), ids[1].c_str());
+  EXPECT_EQ(is_vf.at(1).first, ids[1]);
   EXPECT_EQ(is_vf.at(1).second.size(), 3);
   EXPECT_FLOAT_EQ(is_vf.at(1).second[0], 2.1);
   EXPECT_FLOAT_EQ(is_vf.at(1).second[1], 2.2);
   EXPECT_FLOAT_EQ(is_vf.at(1).second[2], 2.3);
 
   //  get float vector data after
-  is_vf = redis.getDataListAfter<float>("abc", GDA{.minID = ids[0], .count = 2});
+  is_vf = redis.getDataListAfter<float>("abc", GDA{ .minTime = ids[0], .count = 2 });
   EXPECT_EQ(is_vf.size(), 2);
-  EXPECT_STREQ(is_vf.at(0).first.c_str(), ids[0].c_str());
+  EXPECT_EQ(is_vf.at(0).first, ids[0]);
   EXPECT_EQ(is_vf.at(0).second.size(), 3);
   EXPECT_FLOAT_EQ(is_vf.at(0).second[0], 1.1);
   EXPECT_FLOAT_EQ(is_vf.at(0).second[1], 1.2);
   EXPECT_FLOAT_EQ(is_vf.at(0).second[2], 1.3);
-  EXPECT_STREQ(is_vf.at(1).first.c_str(), ids[1].c_str());
+  EXPECT_EQ(is_vf.at(1).first, ids[1]);
   EXPECT_EQ(is_vf.at(1).second.size(), 3);
   EXPECT_FLOAT_EQ(is_vf.at(1).second[0], 2.1);
   EXPECT_FLOAT_EQ(is_vf.at(1).second[1], 2.2);
@@ -291,13 +287,13 @@ TEST(RedisAdapter, StatusListener)
 
   //  add status reader
   bool waiting = true;
-  EXPECT_TRUE(redis.addStatusReader("xyz", [&](const string& base, const string& sub, const ItemStream<string>& ats)
+  EXPECT_TRUE(redis.addStatusReader("xyz", [&](const string& base, const string& sub, const RA::TimeValList<string>& ats)
     {
       waiting = false;
       EXPECT_STREQ(base.c_str(), "TEST");
       EXPECT_STREQ(sub.c_str(), "xyz");
       EXPECT_GT(ats.size(), 0);
-      EXPECT_GT(ats[0].first.size(), 0);
+      EXPECT_GT(ats[0].first, 0);
       EXPECT_STREQ(ats[0].second.c_str(), "OK");
     }
   ));
@@ -336,13 +332,13 @@ TEST(RedisAdapter, LogListener)
 
   //  add log reader
   bool waiting = true;
-  EXPECT_TRUE(redis.addLogReader([&](const string& base, const string& sub, const ItemStream<string>& ats)
+  EXPECT_TRUE(redis.addLogReader([&](const string& base, const string& sub, const RA::TimeValList<string>& ats)
     {
       waiting = false;
       EXPECT_STREQ(base.c_str(), "TEST");
       EXPECT_EQ(sub.size(), 0);
       EXPECT_GT(ats.size(), 0);
-      EXPECT_GT(ats[0].first.size(), 0);
+      EXPECT_GT(ats[0].first, 0);
       EXPECT_STREQ(ats[0].second.c_str(), "log 2");
     }
   ));
@@ -381,13 +377,13 @@ TEST(RedisAdapter, SettingListener)
 
   //  add status reader
   bool waiting = true;
-  EXPECT_TRUE(redis.addSettingReader<float>("xyz", [&](const string& base, const string& sub, const ItemStream<float>& ats)
+  EXPECT_TRUE(redis.addSettingReader<float>("xyz", [&](const string& base, const string& sub, const RA::TimeValList<float>& ats)
     {
       waiting = false;
       EXPECT_STREQ(base.c_str(), "TEST");
       EXPECT_STREQ(sub.c_str(), "xyz");
       EXPECT_GT(ats.size(), 0);
-      EXPECT_GT(ats[0].first.size(), 0);
+      EXPECT_GT(ats[0].first, 0);
       EXPECT_FLOAT_EQ(ats[0].second, 1.23);
     }
   ));
@@ -424,17 +420,17 @@ TEST(RedisAdapter, DataListener)
   vector<float> vf = { 1, 2, 3 };
 
   //  this should not be seen
-  EXPECT_GT(redis.addDataListSingle("xyz", vf).size(), 0);
+  EXPECT_GT(redis.addDataListSingle("xyz", vf), 0);
 
   //  add reader
   bool waiting = true;
-  EXPECT_TRUE(redis.addDataListReader<float>("xyz", [&](const string& base, const string& sub, const ItemStream<vector<float>>& ats)
+  EXPECT_TRUE(redis.addDataListReader<float>("xyz", [&](const string& base, const string& sub, const RA::TimeValList<vector<float>>& ats)
     {
       waiting = false;
       EXPECT_STREQ(base.c_str(), "TEST");
       EXPECT_STREQ(sub.c_str(), "xyz");
       EXPECT_GT(ats.size(), 0);
-      EXPECT_GT(ats[0].first.size(), 0);
+      EXPECT_GT(ats[0].first, 0);
       EXPECT_EQ(ats[0].second.size(), 3);
       EXPECT_FLOAT_EQ(ats[0].second[0], 1.23);
       EXPECT_FLOAT_EQ(ats[0].second[1], 3.45);
@@ -445,7 +441,7 @@ TEST(RedisAdapter, DataListener)
 
   //  trigger reader
   vf[0] = 1.23; vf[1] = 3.45; vf[2] = 5.67;
-  EXPECT_GT(redis.addDataListSingle("xyz", vf).size(), 0);
+  EXPECT_GT(redis.addDataListSingle("xyz", vf), 0);
 
   for (int i = 0; i < 20 && waiting; i++)
     this_thread::sleep_for(milliseconds(5));
@@ -460,7 +456,7 @@ TEST(RedisAdapter, DataListener)
   //  try to trigger reader
   vf[0] = 0; vf[1] = 0; vf[2] = 0;
   waiting = true;
-  EXPECT_GT(redis.addDataListSingle("xyz", vf).size(), 0);
+  EXPECT_GT(redis.addDataListSingle("xyz", vf), 0);
 
   for (int i = 0; i < 20 && waiting; i++)
     this_thread::sleep_for(milliseconds(5));
@@ -536,5 +532,3 @@ TEST(RedisAdapter, Utility)
   EXPECT_GT(maybe.value().tv_sec, 0);
   EXPECT_GT(maybe.value().tv_nsec, 0);
 }
-
-#endif
