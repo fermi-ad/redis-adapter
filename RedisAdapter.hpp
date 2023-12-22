@@ -57,11 +57,11 @@ public:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Log
   //
-  TimeValList<std::string> getLog(const std::string& minID, const std::string& maxID = "+");
-  TimeValList<std::string> getLogAfter(const std::string& minID, uint32_t count = 100);
-  TimeValList<std::string> getLogBefore(const std::string& maxID = "+", uint32_t count = 100);
-  TimeValList<std::string> getLogBefore(uint32_t count)
-    { return getLogBefore("+", count); }
+  TimeValList<std::string> getLog(uint64_t minTime, uint64_t maxTime = 0);
+  TimeValList<std::string> getLogAfter(uint64_t minTime, uint32_t count = 100);
+  TimeValList<std::string> getLogBefore(uint64_t maxTime = 0, uint32_t count = 100);
+  TimeValList<std::string> getLogCountBefore(uint32_t count = 100, uint64_t maxTime = 0)
+    { return getLogBefore(maxTime, count); }
 
   bool addLog(const std::string& message, uint32_t trim = 1000);
 
@@ -115,11 +115,11 @@ public:
   getDataListAfter(const std::string& subKey, const GetDataArgs& args = {})
     { return get_forward_data_list_helper<T>(args.baseKey, subKey, args.minID, "+", args.count); }
 
-  template<typename T> std::string
+  template<typename T> uint64_t
   getDataSingle(const std::string& subKey, T& dest, const GetDataArgs& args = {})
     { return get_single_data_helper<T>(args.baseKey, subKey, dest, args.maxID); }
 
-  template<typename T> std::string
+  template<typename T> uint64_t
   getDataListSingle(const std::string& subKey, std::vector<T>& dest, const GetDataArgs& args = {})
     { return get_single_data_list_helper<T>(args.baseKey, subKey, dest, args.maxID); }
 

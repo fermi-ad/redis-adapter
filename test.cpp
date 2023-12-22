@@ -25,8 +25,6 @@ TEST(RedisAdapter, ExitNotConnected)
   if ( ! redis.connected()) exit(1);
 }
 
-#ifdef ENABLE_TESTS
-
 TEST(RedisAdapter, Status)
 {
   RedisAdapter redis("TEST");
@@ -47,7 +45,7 @@ TEST(RedisAdapter, Log)
   EXPECT_TRUE(redis.addLog("log 2"));
 
   //  get most recent 2 entries
-  auto log = redis.getLogBefore(2);
+  auto log = redis.getLogCountBefore(2);
   EXPECT_EQ(log.size(), 2);
   EXPECT_STREQ(log.front().second.c_str(), "log 1");
   EXPECT_STREQ(log.back().second.c_str(), "log 2");
@@ -125,33 +123,33 @@ TEST(RedisAdapter, DataSingle)
   RedisAdapter redis("TEST");
 
   //  set/get string single element
-  EXPECT_GT(redis.addDataSingle("abc", "xxx").size(), 0);
+  EXPECT_GT(redis.addDataSingle("abc", "xxx"), 0);
   string s;
-  EXPECT_GT(redis.getDataSingle("abc", s).size(), 0);
+  EXPECT_GT(redis.getDataSingle("abc", s), 0);
   EXPECT_STREQ(s.c_str(), "xxx");
 
   //  set/get float single element
-  EXPECT_GT(redis.addDataSingle("abc", 1.23f).size(), 0);   //  Note value MUST have 'f' suffix else it's a double
+  EXPECT_GT(redis.addDataSingle("abc", 1.23f), 0);   //  Note value MUST have 'f' suffix else it's a double
   float f = 0;
-  EXPECT_GT(redis.getDataSingle("abc", f).size(), 0);
+  EXPECT_GT(redis.getDataSingle("abc", f), 0);
   EXPECT_FLOAT_EQ(f, 1.23);                                 //  Here it doesn't matter, we are just comparing
 
   //  set/get float single element
-  EXPECT_GT(redis.addDataSingle<float>("abc", 1.23).size(), 0);   //  Here it's OK we are calling specialization <float>
-  EXPECT_GT(redis.getDataSingle("abc", f).size(), 0);
+  EXPECT_GT(redis.addDataSingle<float>("abc", 1.23), 0);   //  Here it's OK we are calling specialization <float>
+  EXPECT_GT(redis.getDataSingle("abc", f), 0);
   EXPECT_FLOAT_EQ(f, 1.23);                                       //  Here it doesn't matter, we are just comparing
 
   //  set/get double single element
-  EXPECT_GT(redis.addDataDouble("abc", 1.23).size(), 0);
+  EXPECT_GT(redis.addDataDouble("abc", 1.23), 0);
   double d = 0;
-  EXPECT_GT(redis.getDataSingle("abc", d).size(), 0);
+  EXPECT_GT(redis.getDataSingle("abc", d), 0);
   EXPECT_DOUBLE_EQ(d, 1.23);
 
   //  set/get float vector single element
   vector<float> vf = { 1.23, 3.45, 5.67 };
-  EXPECT_GT(redis.addDataListSingle("abc", vf).size(), 0);
+  EXPECT_GT(redis.addDataListSingle("abc", vf), 0);
   vf.clear();
-  EXPECT_GT(redis.getDataListSingle("abc", vf).size(), 0);
+  EXPECT_GT(redis.getDataListSingle("abc", vf), 0);
   EXPECT_EQ(vf.size(), 3);
   EXPECT_FLOAT_EQ(vf[0], 1.23);
   EXPECT_FLOAT_EQ(vf[1], 3.45);
@@ -159,25 +157,27 @@ TEST(RedisAdapter, DataSingle)
 
   //  set/get int array single element (also span if c++20)
   array<int, 3> ai = { 1, 2, 3 };
-  EXPECT_GT(redis.addDataListSingle("abc", ai).size(), 0);
+  EXPECT_GT(redis.addDataListSingle("abc", ai), 0);
   //  note it comes back as a vector
   vector<int> vi;
-  EXPECT_GT(redis.getDataListSingle("abc", vi).size(), 0);
+  EXPECT_GT(redis.getDataListSingle("abc", vi), 0);
   EXPECT_EQ(vi.size(), 3);
   EXPECT_EQ(vi[0], 1);
   EXPECT_EQ(vi[1], 2);
   EXPECT_EQ(vi[2], 3);
 }
 
+#ifdef ENABLE_TESTS
+
 TEST(RedisAdapter, Data)
 {
   RedisAdapter redis("TEST");
 
   //  set/get data
-  string idA = redis.addDataSingle("abc", "xxx");
-  EXPECT_GT(idA.size(), 0);
-  string idB = redis.addDataSingle("abc", "yyy");
-  EXPECT_GT(idB.size(), 0);
+  uint64_t idA = redis.addDataSingle("abc", "xxx");
+  EXPECT_GT(idA, 0);
+  uint64_t idB = redis.addDataSingle("abc", "yyy");
+  EXPECT_GT(idB, 0);
   auto is_str = redis.getData<string>("abc", idA, idB);
   EXPECT_EQ(is_str.size(), 2);
   EXPECT_GT(is_str.at(0).first.size(), 0);

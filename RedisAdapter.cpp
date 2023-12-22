@@ -92,9 +92,11 @@ bool RedisAdapter::setStatus(const string& subKey, const string& value)
 //    maxID  : highest time to get log for
 //    return : ItemStream of Item<string>
 //
-RedisAdapter::TimeValList<string> RedisAdapter::getLog(const string& minID, const string& maxID)
+RedisAdapter::TimeValList<string> RedisAdapter::getLog(uint64_t minTime, uint64_t maxTime)
 {
   ItemStream raw;
+  string minID = minTime ? time_to_id(minTime) : "-";
+  string maxID = maxTime ? time_to_id(maxTime) : "+";
 
   _redis->xrange(_base_key + LOG_STUB, minID, maxID, back_inserter(raw));
 
@@ -119,9 +121,10 @@ RedisAdapter::TimeValList<string> RedisAdapter::getLog(const string& minID, cons
 //    count  : greatest number of log items to get
 //    return : ItemStream of Item<string>
 //
-RedisAdapter::TimeValList<string> RedisAdapter::getLogAfter(const string& minID, uint32_t count)
+RedisAdapter::TimeValList<string> RedisAdapter::getLogAfter(uint64_t minTime, uint32_t count)
 {
   ItemStream raw;
+  string minID = minTime ? time_to_id(minTime) : "-";
 
   _redis->xrange(_base_key + LOG_STUB, minID, "+", count, back_inserter(raw));
 
@@ -146,9 +149,10 @@ RedisAdapter::TimeValList<string> RedisAdapter::getLogAfter(const string& minID,
 //    maxID  : highest time to get log for
 //    return : ItemStream of Item<string>
 //
-RedisAdapter::TimeValList<string> RedisAdapter::getLogBefore(const string& maxID, uint32_t count)
+RedisAdapter::TimeValList<string> RedisAdapter::getLogBefore(uint64_t maxTime, uint32_t count)
 {
   ItemStream raw;
+  string maxID = maxTime ? time_to_id(maxTime) : "+";
 
   _redis->xrevrange(_base_key + LOG_STUB, maxID, "-", count, back_inserter(raw));
 
