@@ -211,11 +211,11 @@ TEST(RedisAdapter, Data)
   EXPECT_EQ(is_int.at(2).second, 3);
 
   //  add/get Attrs data
-  RA::TimeValList<Attrs> is_at = {{ 0, {{ "a", "1" }, { "b", "2" }}}};
+  RA::TimeValList<RA::Attrs> is_at = {{ 0, {{ "a", "1" }, { "b", "2" }}}};
   ids = redis.addData("abc", is_at);
   EXPECT_EQ(ids.size(), 1);
   EXPECT_GT(ids[0], 0);
-  is_at = redis.getData<Attrs>("abc", ids[0], ids[0]);
+  is_at = redis.getData<RA::Attrs>("abc", ids[0], ids[0]);
   EXPECT_EQ(is_at.size(), 1);
   EXPECT_EQ(is_at.at(0).first, ids[0]);
   EXPECT_GT(is_at.at(0).second.count("a"), 0);

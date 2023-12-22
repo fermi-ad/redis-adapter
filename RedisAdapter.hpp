@@ -9,20 +9,6 @@
 #include <thread>
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  Containers for stream data suggested by the redis++ readme.md
-//    https://github.com/sewenew/redis-plus-plus#redis-stream
-//
-namespace sw::redis
-{
-  using Attrs = std::unordered_map<std::string, std::string>;
-  using Item = std::pair<std::string, Attrs>;
-  using ItemStream = std::vector<Item>;
-  using Streams = std::unordered_map<std::string, ItemStream>;
-}
-
-namespace swr = sw::redis;
-
-//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  class RedisAdapter
 //
 //  Provides a framework for AD Instrumentation front-ends and back-ends to exchange
@@ -34,8 +20,8 @@ public:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Containers for getting/setting data using RedisAdapter methods
   //
-  template<typename T> using TimeVal = std::pair<uint64_t, T>;        //  analagous to swr::Item
-  template<typename T> using TimeValList = std::vector<TimeVal<T>>;   //  analagous to swr::ItemStream
+  template<typename T> using TimeVal = std::pair<uint64_t, T>;        //  analagous to Item
+  template<typename T> using TimeValList = std::vector<TimeVal<T>>;   //  analagous to ItemStream
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Construction / Destruction
@@ -191,7 +177,7 @@ public:
 
   bool deleteKey(const std::string& key) { return _redis->del(key) >= 0; }
 
-  swr::Optional<timespec> getTimespec();
+  std::optional<timespec> getTimespec();
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Publish/Subscribe
@@ -244,7 +230,21 @@ public:
   bool removeDataReader(const std::string& subKey, const std::string& baseKey = "")
     { return remove_reader_helper(baseKey, DATA_STUB, subKey); }
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  Containers for stream data suggested by the redis++ readme.md
+  //    https://github.com/sewenew/redis-plus-plus#redis-stream
+  //
+  using Attrs = std::unordered_map<std::string, std::string>;
+
 private:
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  Containers for stream data suggested by the redis++ readme.md
+  //    https://github.com/sewenew/redis-plus-plus#redis-stream
+  //
+  using Item = std::pair<std::string, Attrs>;
+  using ItemStream = std::vector<Item>;
+  using Streams = std::unordered_map<std::string, ItemStream>;
+
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Redis key and field constants
   //
@@ -270,11 +270,10 @@ private:
 
   std::string max_time_to_id(uint64_t time) { return time ? time_to_id(time) : "+"; }
 
-
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Helper functions adding and removing stream readers
   //
-  using reader_sub_fn = std::function<void(const std::string& baseKey, const std::string& subKey, const swr::ItemStream& data)>;
+  using reader_sub_fn = std::function<void(const std::string& baseKey, const std::string& subKey, const ItemStream& data)>;
 
   bool add_reader_helper(const std::string& baseKey, const std::string& stub, const std::string& subKey, reader_sub_fn func);
 
@@ -285,13 +284,13 @@ private:
   bool remove_reader_helper(const std::string& baseKey, const std::string& stub, const std::string& subKey);
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  Helper functions for getting and setting DEFAULT_FIELD in swr::Attrs
+  //  Helper functions for getting and setting DEFAULT_FIELD in Attrs
   //
-  template<typename T> auto default_field_value(const swr::Attrs& attrs);
+  template<typename T> auto default_field_value(const Attrs& attrs);
 
-  template<typename T> swr::Attrs default_field_attrs(const T* data, size_t size);
+  template<typename T> Attrs default_field_attrs(const T* data, size_t size);
 
-  template<typename T> swr::Attrs default_field_attrs(const T& data);
+  template<typename T> Attrs default_field_attrs(const T& data);
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Helper functions for getting and adding data
