@@ -135,16 +135,18 @@ template<typename T> bool RedisAdapter::setSettingList(const std::string& subKey
 //
 //    baseKey : base key of device
 //    subKey  : sub key to get data from
-//    minID   : lowest time to get data for
-//    maxID   : highest time to get data for
+//    minTime : lowest time to get data for
+//    maxTime : highest time to get data for
 //    count   : max number of items to get
 //    return  : TimeValList of TimeVal<T>
 //
 template<> inline RedisAdapter::TimeValList<swr::Attrs>
 RedisAdapter::get_forward_data_helper(const std::string& baseKey, const std::string& subKey,
-                                      const std::string& minID, const std::string& maxID, uint32_t count)
+                                      uint64_t minTime, uint64_t maxTime, uint32_t count)
 {
   std::string key = build_key(baseKey, DATA_STUB, subKey);
+  std::string minID = minTime ? time_to_id(minTime) : "-";
+  std::string maxID = maxTime ? time_to_id(maxTime) : "+";
   swr::ItemStream raw;
 
   if (count) { _redis->xrange(key, minID, maxID, count, std::back_inserter(raw)); }
@@ -162,11 +164,13 @@ RedisAdapter::get_forward_data_helper(const std::string& baseKey, const std::str
 }
 template<typename T> RedisAdapter::TimeValList<T>
 RedisAdapter::get_forward_data_helper(const std::string& baseKey, const std::string& subKey,
-                                      const std::string& minID, const std::string& maxID, uint32_t count)
+                                      uint64_t minTime, uint64_t maxTime, uint32_t count)
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
   std::string key = build_key(baseKey, DATA_STUB, subKey);
+  std::string minID = minTime ? time_to_id(minTime) : "-";
+  std::string maxID = maxTime ? time_to_id(maxTime) : "+";
   swr::ItemStream raw;
 
   if (count) { _redis->xrange(key, minID, maxID, count, std::back_inserter(raw)); }
@@ -200,11 +204,13 @@ RedisAdapter::get_forward_data_helper(const std::string& baseKey, const std::str
 //
 template<typename T> RedisAdapter::TimeValList<std::vector<T>>
 RedisAdapter::get_forward_data_list_helper(const std::string& baseKey, const std::string& subKey,
-                                           const std::string& minID, const std::string& maxID, uint32_t count)
+                                           uint64_t minTime, uint64_t maxTime, uint32_t count)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
   std::string key = build_key(baseKey, DATA_STUB, subKey);
+  std::string minID = minTime ? time_to_id(minTime) : "-";
+  std::string maxID = maxTime ? time_to_id(maxTime) : "+";
   swr::ItemStream raw;
 
   if (count) { _redis->xrange(key, minID, maxID, count, std::back_inserter(raw)); }
@@ -231,15 +237,16 @@ RedisAdapter::get_forward_data_list_helper(const std::string& baseKey, const std
 //
 //    baseKey : base key of device
 //    subKey  : sub key to get data from
-//    maxID   : highest time to get data for
+//    maxTime : highest time to get data for
 //    count   : max number of items to get
 //    return  : TimeValList of TimeVal<Attrs>
 //
 template<> inline RedisAdapter::TimeValList<swr::Attrs>
 RedisAdapter::get_reverse_data_helper(const std::string& baseKey, const std::string& subKey,
-                                      const std::string& maxID, uint32_t count)
+                                      uint64_t maxTime, uint32_t count)
 {
   std::string key = build_key(baseKey, DATA_STUB, subKey);
+  std::string maxID = maxTime ? time_to_id(maxTime) : "+";
   swr::ItemStream raw;
 
   if (count) { _redis->xrevrange(key, maxID, "-", count, std::back_inserter(raw)); }
@@ -257,11 +264,12 @@ RedisAdapter::get_reverse_data_helper(const std::string& baseKey, const std::str
 }
 template<typename T> RedisAdapter::TimeValList<T>
 RedisAdapter::get_reverse_data_helper(const std::string& baseKey, const std::string& subKey,
-                                      const std::string& maxID, uint32_t count)
+                                      uint64_t maxTime, uint32_t count)
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
   std::string key = build_key(baseKey, DATA_STUB, subKey);
+  std::string maxID = maxTime ? time_to_id(maxTime) : "+";
   swr::ItemStream raw;
 
   if (count) { _redis->xrevrange(key, maxID, "-", count, std::back_inserter(raw)); }
@@ -288,17 +296,18 @@ RedisAdapter::get_reverse_data_helper(const std::string& baseKey, const std::str
 //
 //    baseKey : base key of device
 //    subKey  : sub key to get data from
-//    maxID   : highest time to get data for
+//    maxTime : highest time to get data for
 //    count   : max number of items to get
 //    return  : ItemStream of Item<vector<T>>
 //
 template<typename T> RedisAdapter::TimeValList<std::vector<T>>
 RedisAdapter::get_reverse_data_list_helper(const std::string& baseKey, const std::string& subKey,
-                                           const std::string& maxID, uint32_t count)
+                                           uint64_t maxTime, uint32_t count)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
   std::string key = build_key(baseKey, DATA_STUB, subKey);
+  std::string maxID = maxTime ? time_to_id(maxTime) : "+";
   swr::ItemStream raw;
 
   if (count) { _redis->xrevrange(key, maxID, "-", count, std::back_inserter(raw)); }
@@ -325,14 +334,15 @@ RedisAdapter::get_reverse_data_list_helper(const std::string& baseKey, const std
 //    baseKey : base key of device
 //    subKey  : sub key to get data from
 //    dest    : destination to copy data to
-//    maxID   : time that equals or exceeds the data to get
+//    maxTime : time that equals or exceeds the data to get
 //    return  : time of the data item if successful
 //              zero on failure
 //
 template<> inline uint64_t
 RedisAdapter::get_single_data_helper(const std::string& baseKey, const std::string& subKey,
-                                     swr::Attrs& dest, const std::string& maxID)
+                                     swr::Attrs& dest, uint64_t maxTime)
 {
+  std::string maxID = maxTime ? time_to_id(maxTime) : "+";
   swr::ItemStream raw;
 
   _redis->xrevrange(build_key(baseKey, DATA_STUB, subKey), maxID, "-", 1, std::back_inserter(raw));
@@ -347,10 +357,11 @@ RedisAdapter::get_single_data_helper(const std::string& baseKey, const std::stri
 }
 template<typename T> uint64_t
 RedisAdapter::get_single_data_helper(const std::string& baseKey, const std::string& subKey,
-                                     T& dest, const std::string& maxID)
+                                     T& dest, uint64_t maxTime)
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
+  std::string maxID = maxTime ? time_to_id(maxTime) : "+";
   swr::ItemStream raw;
 
   _redis->xrevrange(build_key(baseKey, DATA_STUB, subKey), maxID, "-", 1, std::back_inserter(raw));
@@ -374,16 +385,17 @@ RedisAdapter::get_single_data_helper(const std::string& baseKey, const std::stri
 //    baseKey : base key of device
 //    subKey  : sub key to get data from
 //    dest    : destination to copy data to
-//    maxID   : time that equals or exceeds the data to get
+//    maxTime : time that equals or exceeds the data to get
 //    return  : id of the data item if successful
 //              empty string on failure
 //
 template<typename T> uint64_t
 RedisAdapter::get_single_data_list_helper(const std::string& baseKey, const std::string& subKey,
-                                          std::vector<T>& dest, const std::string& maxID)
+                                          std::vector<T>& dest, uint64_t maxTime)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
+  std::string maxID = maxTime ? time_to_id(maxTime) : "+";
   swr::ItemStream raw;
 
   _redis->xrevrange(build_key(baseKey, DATA_STUB, subKey), maxID, "-", 1, std::back_inserter(raw));

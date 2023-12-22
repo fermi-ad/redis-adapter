@@ -7,7 +7,8 @@ using namespace std;
 using namespace sw::redis;
 using namespace std::chrono;
 
-using GDA = RedisAdapter::GetDataArgs;
+using RA = RedisAdapter;
+using GDA = RA::GetDataArgs;
 
 TEST(RedisAdapter, Connected)
 {
@@ -167,8 +168,6 @@ TEST(RedisAdapter, DataSingle)
   EXPECT_EQ(vi[2], 3);
 }
 
-#ifdef ENABLE_TESTS
-
 TEST(RedisAdapter, Data)
 {
   RedisAdapter redis("TEST");
@@ -180,52 +179,54 @@ TEST(RedisAdapter, Data)
   EXPECT_GT(idB, 0);
   auto is_str = redis.getData<string>("abc", idA, idB);
   EXPECT_EQ(is_str.size(), 2);
-  EXPECT_GT(is_str.at(0).first.size(), 0);
+  EXPECT_GT(is_str.at(0).first, 0);
   EXPECT_STREQ(is_str.at(0).second.c_str(), "xxx");
-  EXPECT_GT(is_str.at(1).first.size(), 0);
+  EXPECT_GT(is_str.at(1).first, 0);
   EXPECT_STREQ(is_str.at(1).second.c_str(), "yyy");
 
   //  add multiple data
-  ItemStream<int> is_int = {{ "", 1 }, { "", 2 }, { "", 3 }};
+  RA::TimeValList<int> is_int = {{ 0, 1 }, { 0, 2 }, { 0, 3 }};
   auto ids = redis.addData("abc", is_int);
   EXPECT_EQ(ids.size(), 3);
-  EXPECT_GT(ids[0].size(), 0);
-  EXPECT_GT(ids[1].size(), 0);
-  EXPECT_GT(ids[2].size(), 0);
+  EXPECT_GT(ids[0], 0);
+  EXPECT_GT(ids[1], 0);
+  EXPECT_GT(ids[2], 0);
 
   //  get data after
-  is_int = redis.getDataAfter<int>("abc", GDA{ .minID = ids[0], .count = 3 });
+  is_int = redis.getDataAfter<int>("abc", GDA{ .minTime = ids[0], .count = 3 });
   EXPECT_EQ(is_int.size(), 3);
-  EXPECT_GT(is_int.at(0).first.size(), 0);
+  EXPECT_GT(is_int.at(0).first, 0);
   EXPECT_EQ(is_int.at(0).second, 1);
-  EXPECT_GT(is_int.at(1).first.size(), 0);
+  EXPECT_GT(is_int.at(1).first, 0);
   EXPECT_EQ(is_int.at(1).second, 2);
-  EXPECT_GT(is_int.at(2).first.size(), 0);
+  EXPECT_GT(is_int.at(2).first, 0);
   EXPECT_EQ(is_int.at(2).second, 3);
 
   //  get data before
-  is_int = redis.getDataBefore<int>("abc", GDA{ .maxID = ids[2], .count = 3 });
+  is_int = redis.getDataBefore<int>("abc", GDA{ .maxTime = ids[2], .count = 3 });
   EXPECT_EQ(is_int.size(), 3);
-  EXPECT_GT(is_int.at(0).first.size(), 0);
+  EXPECT_GT(is_int.at(0).first, 0);
   EXPECT_EQ(is_int.at(0).second, 1);
-  EXPECT_GT(is_int.at(1).first.size(), 0);
+  EXPECT_GT(is_int.at(1).first, 0);
   EXPECT_EQ(is_int.at(1).second, 2);
-  EXPECT_GT(is_int.at(2).first.size(), 0);
+  EXPECT_GT(is_int.at(2).first, 0);
   EXPECT_EQ(is_int.at(2).second, 3);
 
   //  add/get Attrs data
-  ItemStream<Attrs> is_at = {{ "", {{ "a", "1" }, { "b", "2" }}}};
+  RA::TimeValList<Attrs> is_at = {{ 0, {{ "a", "1" }, { "b", "2" }}}};
   ids = redis.addData("abc", is_at);
   EXPECT_EQ(ids.size(), 1);
-  EXPECT_GT(ids[0].size(), 0);
+  EXPECT_GT(ids[0], 0);
   is_at = redis.getData<Attrs>("abc", ids[0], ids[0]);
   EXPECT_EQ(is_at.size(), 1);
-  EXPECT_STREQ(is_at.at(0).first.c_str(), ids[0].c_str());
+  EXPECT_EQ(is_at.at(0).first, ids[0]);
   EXPECT_GT(is_at.at(0).second.count("a"), 0);
   EXPECT_STREQ(is_at.at(0).second.at("a").c_str(), "1");
   EXPECT_GT(is_at.at(0).second.count("b"), 0);
   EXPECT_STREQ(is_at.at(0).second.at("b").c_str(), "2");
 }
+
+ #ifdef ENABLE_TESTS
 
 TEST(RedisAdapter, DataList)
 {

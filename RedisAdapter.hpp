@@ -79,12 +79,12 @@ public:
   //  Data (getting)
   //
   template<typename T> TimeValList<T>
-  getData(const std::string& subKey, const std::string& minID, const std::string& maxID, const std::string& baseKey = "")
-    { return get_forward_data_helper<T>(baseKey, subKey, minID, maxID, 0); }
+  getData(const std::string& subKey, const uint64_t minTime, uint64_t maxTime, const std::string& baseKey = "")
+    { return get_forward_data_helper<T>(baseKey, subKey, minTime, maxTime, 0); }
 
   template<typename T> TimeValList<std::vector<T>>
-  getDataList(const std::string& subKey, const std::string& minID, const std::string& maxID, const std::string& baseKey = "")
-    { return get_forward_data_list_helper<T>(baseKey, subKey, minID, maxID, 0); }
+  getDataList(const std::string& subKey, uint64_t minTime, uint64_t maxTime, const std::string& baseKey = "")
+    { return get_forward_data_list_helper<T>(baseKey, subKey, minTime, maxTime, 0); }
 
   //  GetDataArgs : structure for providing arguments to getDataXXXX functions
   //                each field can be overidden or left as the default value
@@ -94,34 +94,34 @@ public:
   //
   struct GetDataArgs
   {
-    std::string minID = "-";
-    std::string maxID = "+";
     std::string baseKey;
+    uint64_t minTime = 0;
+    uint64_t maxTime = 0;
     uint32_t count = 1;
   };
   template<typename T> TimeValList<T>
   getDataBefore(const std::string& subKey, const GetDataArgs& args = {})
-    { return get_reverse_data_helper<T>(args.baseKey, subKey, args.maxID, args.count); }
+    { return get_reverse_data_helper<T>(args.baseKey, subKey, args.maxTime, args.count); }
 
   template<typename T> TimeValList<std::vector<T>>
   getDataListBefore(const std::string& subKey, const GetDataArgs& args = {})
-    { return get_reverse_data_list_helper<T>(args.baseKey, subKey, args.maxID, args.count); }
+    { return get_reverse_data_list_helper<T>(args.baseKey, subKey, args.maxTime, args.count); }
 
   template<typename T> TimeValList<T>
   getDataAfter(const std::string& subKey, const GetDataArgs& args = {})
-    { return get_forward_data_helper<T>(args.baseKey, subKey, args.minID, "+", args.count); }
+    { return get_forward_data_helper<T>(args.baseKey, subKey, args.minTime, 0, args.count); }
 
   template<typename T> TimeValList<std::vector<T>>
   getDataListAfter(const std::string& subKey, const GetDataArgs& args = {})
-    { return get_forward_data_list_helper<T>(args.baseKey, subKey, args.minID, "+", args.count); }
+    { return get_forward_data_list_helper<T>(args.baseKey, subKey, args.minTime, 0, args.count); }
 
   template<typename T> uint64_t
   getDataSingle(const std::string& subKey, T& dest, const GetDataArgs& args = {})
-    { return get_single_data_helper<T>(args.baseKey, subKey, dest, args.maxID); }
+    { return get_single_data_helper<T>(args.baseKey, subKey, dest, args.maxTime); }
 
   template<typename T> uint64_t
   getDataListSingle(const std::string& subKey, std::vector<T>& dest, const GetDataArgs& args = {})
-    { return get_single_data_list_helper<T>(args.baseKey, subKey, dest, args.maxID); }
+    { return get_single_data_list_helper<T>(args.baseKey, subKey, dest, args.maxTime); }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Data (adding)
@@ -292,23 +292,23 @@ private:
   //
   template<typename T> TimeValList<T>
   get_forward_data_helper(const std::string& baseKey, const std::string& subKey,
-                          const std::string& minID, const std::string& maxID, uint32_t count);
+                          uint64_t minTime, uint64_t maxTime, uint32_t count);
 
   template<typename T> TimeValList<std::vector<T>>
   get_forward_data_list_helper(const std::string& baseKey, const std::string& subKey,
-                               const std::string& minID, const std::string& maxID, uint32_t count);
+                               uint64_t minTime, uint64_t maxTime, uint32_t count);
 
   template<typename T> TimeValList<T>
-  get_reverse_data_helper(const std::string& baseKey, const std::string& subKey, const std::string& maxID, uint32_t count);
+  get_reverse_data_helper(const std::string& baseKey, const std::string& subKey, uint64_t maxTime, uint32_t count);
 
   template<typename T> TimeValList<std::vector<T>>
-  get_reverse_data_list_helper(const std::string& baseKey, const std::string& subKey, const std::string& maxID, uint32_t count);
+  get_reverse_data_list_helper(const std::string& baseKey, const std::string& subKey, uint64_t maxTme, uint32_t count);
 
   template<typename T> uint64_t
-  get_single_data_helper(const std::string& baseKey, const std::string& subKey, T& dest, const std::string& maxID);
+  get_single_data_helper(const std::string& baseKey, const std::string& subKey, T& dest, uint64_t maxTime);
 
   template<typename T> uint64_t
-  get_single_data_list_helper(const std::string& baseKey, const std::string& subKey, std::vector<T>& dest, const std::string& maxID);
+  get_single_data_list_helper(const std::string& baseKey, const std::string& subKey, std::vector<T>& dest, uint64_t maxTime);
 
   template<typename T> uint64_t
   add_single_data_list_helper(const std::string& subKey, uint64_t time, const T* data, size_t size, uint32_t trim);
