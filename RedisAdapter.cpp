@@ -287,7 +287,7 @@ bool RedisAdapter::unsubscribe(const string& unsub, const string& baseKey)
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  Private methods
 //
-uint64_t RedisAdapter::get_host_time()
+uint64_t RedisAdapter::get_host_time() const
 {
   return duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
 }
@@ -473,12 +473,12 @@ bool RedisAdapter::stop_reader(uint16_t slot)
   return true;
 }
 
-string RedisAdapter::build_key(const string& baseKey, const string& stub, const string& subKey)
+string RedisAdapter::build_key(const string& baseKey, const string& stub, const string& subKey) const
 {
   return (baseKey.size() ? baseKey : _base_key) + stub + subKey;
 }
 
-pair<string, string> RedisAdapter::split_key(const string& key)
+pair<string, string> RedisAdapter::split_key(const string& key) const
 {
   size_t idx = key.find(COMMANDS_STUB);
   if (idx != string::npos)

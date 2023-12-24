@@ -244,17 +244,19 @@ private:
 
   const std::string CONTROL_STUB  = ":[*-CTRL-*]";
 
-  std::string build_key(const std::string& baseKey, const std::string& stub, const std::string& subKey);
+  std::string build_key(const std::string& baseKey, const std::string& stub, const std::string& subKey) const;
 
-  std::pair<std::string, std::string> split_key(const std::string& key);
+  std::pair<std::string, std::string> split_key(const std::string& key) const;
 
-  uint64_t id_to_time(const std::string& id) { return std::stoull(id); }
+  uint64_t id_to_time(const std::string& id) const { return std::stoull(id); }
 
-  std::string time_to_id(uint64_t time = 0) { return std::to_string(time ? time : get_host_time()) + "-0"; }
+  std::string time_to_id(uint64_t time = 0) const { return std::to_string(time ? time : get_host_time()) + "-0"; }
 
-  std::string min_time_to_id(uint64_t time) { return time ? time_to_id(time) : "-"; }
+  std::string min_time_to_id(uint64_t time) const { return time ? time_to_id(time) : "-"; }
 
-  std::string max_time_to_id(uint64_t time) { return time ? time_to_id(time) : "+"; }
+  std::string max_time_to_id(uint64_t time) const { return time ? time_to_id(time) : "+"; }
+
+  uint64_t get_host_time() const;
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Helper functions adding and removing stream readers
@@ -263,20 +265,20 @@ private:
 
   bool add_reader_helper(const std::string& baseKey, const std::string& stub, const std::string& subKey, reader_sub_fn func);
 
-  template<typename T> reader_sub_fn make_reader_callback(ReaderSubFn<T> func);
+  template<typename T> reader_sub_fn make_reader_callback(ReaderSubFn<T> func) const;
 
-  template<typename T> reader_sub_fn make_list_reader_callback(ReaderSubFn<std::vector<T>> func);
+  template<typename T> reader_sub_fn make_list_reader_callback(ReaderSubFn<std::vector<T>> func) const;
 
   bool remove_reader_helper(const std::string& baseKey, const std::string& stub, const std::string& subKey);
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Helper functions for getting and setting DEFAULT_FIELD in Attrs
   //
-  template<typename T> auto default_field_value(const Attrs& attrs);
+  template<typename T> auto default_field_value(const Attrs& attrs) const;
 
-  template<typename T> Attrs default_field_attrs(const T* data, size_t size);
+  template<typename T> Attrs default_field_attrs(const T* data, size_t size) const;
 
-  template<typename T> Attrs default_field_attrs(const T& data);
+  template<typename T> Attrs default_field_attrs(const T& data) const;
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Helper functions for getting and adding data
@@ -312,8 +314,6 @@ private:
   std::string _base_key;
 
   uint32_t _timeout;
-
-  uint64_t get_host_time();
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Pub/Sub Listener and Stream Reader

@@ -10,13 +10,13 @@
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  Helper functions for getting DEFAULT_FIELD in Attrs
 //
-template<> inline auto RedisAdapter::default_field_value<std::string>(const Attrs& attrs)
+template<> inline auto RedisAdapter::default_field_value<std::string>(const Attrs& attrs) const
 {
   std::string ret;
   if (attrs.count(DEFAULT_FIELD)) ret = attrs.at(DEFAULT_FIELD);
   return ret;
 }
-template<typename T> auto RedisAdapter::default_field_value(const Attrs& attrs)
+template<typename T> auto RedisAdapter::default_field_value(const Attrs& attrs) const
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
@@ -28,17 +28,17 @@ template<typename T> auto RedisAdapter::default_field_value(const Attrs& attrs)
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  Helper functions for setting DEFAULT_FIELD in Attrs
 //
-template<> inline RedisAdapter::Attrs RedisAdapter::default_field_attrs(const std::string& data)
+template<> inline RedisAdapter::Attrs RedisAdapter::default_field_attrs(const std::string& data) const
 {
   return {{ DEFAULT_FIELD, data }};
 }
-template<typename T> RedisAdapter::Attrs RedisAdapter::default_field_attrs(const T* data, size_t size)
+template<typename T> RedisAdapter::Attrs RedisAdapter::default_field_attrs(const T* data, size_t size) const
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
   return {{ DEFAULT_FIELD, data ? std::string((const char*)data, size * sizeof(T)) : "" }};
 }
-template<typename T> RedisAdapter::Attrs RedisAdapter::default_field_attrs(const T& data)
+template<typename T> RedisAdapter::Attrs RedisAdapter::default_field_attrs(const T& data) const
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
@@ -551,7 +551,7 @@ RedisAdapter::add_single_data_list_helper(const std::string& subKey, uint64_t ti
 //    return : closure that reader thread can call upon data arrival
 //
 template<> inline RedisAdapter::reader_sub_fn
-RedisAdapter::make_reader_callback(ReaderSubFn<Attrs> func)
+RedisAdapter::make_reader_callback(ReaderSubFn<Attrs> func) const
 {
   return [&, func](const std::string& base, const std::string& sub, const ItemStream& raw)
   {
@@ -567,7 +567,7 @@ RedisAdapter::make_reader_callback(ReaderSubFn<Attrs> func)
   };
 }
 template<typename T> RedisAdapter::reader_sub_fn
-RedisAdapter::make_reader_callback(ReaderSubFn<T> func)
+RedisAdapter::make_reader_callback(ReaderSubFn<T> func) const
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
@@ -599,7 +599,7 @@ RedisAdapter::make_reader_callback(ReaderSubFn<T> func)
 //    return : closure that reader thread can call upon data arrival
 //
 template<typename T> RedisAdapter::reader_sub_fn
-RedisAdapter::make_list_reader_callback(ReaderSubFn<std::vector<T>> func)
+RedisAdapter::make_list_reader_callback(ReaderSubFn<std::vector<T>> func) const
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
