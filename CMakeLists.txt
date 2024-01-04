@@ -33,8 +33,8 @@ file(GLOB REDIS_ADAPTER_HEADERS RedisConnection.hpp RedisAdapter.hpp RedisAdapte
 # Create a list of the directories our headers are in
 get_directories_of_files("${REDIS_ADAPTER_HEADERS}" REDIS_ADAPTER_INCLUDE_DIRS)
 list(REMOVE_DUPLICATES REDIS_ADAPTER_INCLUDE_DIRS)
-list(APPEND REDIS_ADAPTER_INCLUDE_DIRS hiredis)
-list(APPEND REDIS_ADAPTER_INCLUDE_DIRS redis-plus-plus/src)
+list(APPEND REDIS_ADAPTER_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/hiredis)
+list(APPEND REDIS_ADAPTER_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/redis-plus-plus/src)
 
 # Link static hiredis and static redis++ to RedisAdapter
 list(APPEND REDIS_ADAPTER_LIBRARIES hiredis)
@@ -47,11 +47,15 @@ set(REDIS_ADAPTER_LIBRARIES ${REDIS_ADAPTER_LIBRARIES} PARENT_SCOPE)
 set(REDIS_ADAPTER_INCLUDE_DIRS ${REDIS_ADAPTER_INCLUDE_DIRS} PARENT_SCOPE)
 set(REDIS_ADAPTER_COMPILER_FEATURES cxx_std_17 PARENT_SCOPE)
 
+include_directories(${REDIS_ADAPTER_INCLUDE_DIRS})
+set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR})
+
 # Turn off shared libraries so hiredis wont make one
 option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
 # We dont want hiredis tests built
 option(DISABLE_TESTS "If tests should be compiled or not" ON)
 add_subdirectory(hiredis)
+set_target_properties(hiredis PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # We dont want redis++ tests built
 option(REDIS_PLUS_PLUS_BUILD_TEST "Build tests for redis++" OFF)
@@ -60,14 +64,16 @@ option(REDIS_PLUS_PLUS_BUILD_SHARED "Build shared library" OFF)
 add_subdirectory(redis-plus-plus)
 
 add_library(RedisAdapter_static STATIC ${REDIS_ADAPTER_SOURCES})
+target_link_libraries(RedisAdapter_static ${REDIS_ADAPTER_LIBRARIES})
+
 add_library(RedisAdapter SHARED ${REDIS_ADAPTER_SOURCES})
+target_link_libraries(RedisAdapter ${REDIS_ADAPTER_LIBRARIES})
 
 # We dont want googlemock built
 option(BUILD_GMOCK "Builds the googlemock subproject" OFF)
 enable_testing()
 add_subdirectory(googletest)
 include(GoogleTest)
-include_directories(${REDIS_ADAPTER_INCLUDE_DIRS})
 add_executable(TestRedisAdapter ${REDIS_ADAPTER_SOURCES} test.cpp)
 target_link_libraries(TestRedisAdapter ${REDIS_ADAPTER_LIBRARIES} GTest::gtest_main)
 gtest_discover_tests(TestRedisAdapter)
