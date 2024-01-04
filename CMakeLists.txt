@@ -48,7 +48,7 @@ set(REDIS_ADAPTER_INCLUDE_DIRS ${REDIS_ADAPTER_INCLUDE_DIRS} PARENT_SCOPE)
 set(REDIS_ADAPTER_COMPILER_FEATURES cxx_std_17 PARENT_SCOPE)
 
 include_directories(${REDIS_ADAPTER_INCLUDE_DIRS})
-set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR})
+set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
 # Turn off shared libraries so hiredis wont make one
 option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
