@@ -32,7 +32,7 @@ project(RedisAdapterTest LANGUAGES CXX)
 # Include the CMakeLists.txt file for RedisAdapter
 add_subdirectory(RedisAdapter)
 
-# Compile this project's sources and RedisAdapter's sources into a single executable called RedisAdapterTest
+# Compile this project's sources and RedisAdapter's sources into RedisAdapterTest
 add_executable(RedisAdapterTest main.cpp ${REDIS_ADAPTER_SOURCES})
 
 # Add RedisAdapter's include directories
