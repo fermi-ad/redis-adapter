@@ -413,6 +413,37 @@ TEST(RedisAdapter, SettingListener)
   EXPECT_TRUE(waiting);
 }
 
+
+TEST(RedisAdapter, SettingStringListener)
+{
+  RedisAdapter redis("TEST");
+
+  EXPECT_TRUE(redis.setSetting("str", "FAIL"));
+
+  //  add status reader
+  bool waiting = true;
+  EXPECT_TRUE(redis.addSettingReader<string>("str", [&](const string& base, const string& sub, const RA::TimeValList<string>& ats)
+    {
+      waiting = false;
+      EXPECT_STREQ(base.c_str(), "TEST");
+      EXPECT_STREQ(sub.c_str(), "str");
+      EXPECT_GT(ats.size(), 0);
+      EXPECT_GT(ats[0].first, 0);
+      EXPECT_STREQ(ats[0].second.c_str(), "123");
+    }
+  ));
+  this_thread::sleep_for(milliseconds(5));
+
+  //  trigger status reader
+  EXPECT_TRUE(redis.setSetting("str", "123"));
+
+  for (int i = 0; i < 20 && waiting; i++)
+    this_thread::sleep_for(milliseconds(5));
+
+  //  should not be waiting anymore
+  EXPECT_FALSE(waiting);
+}
+
 TEST(RedisAdapter, DataListener)
 {
   RedisAdapter redis("TEST");

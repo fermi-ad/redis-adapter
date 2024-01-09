@@ -1,6 +1,6 @@
 #pragma once
 
-#include <sw/redis++/redis++.h>
+#include "sw/redis++/redis++.h"
 #include <syslog.h>
 
 namespace swr = sw::redis;
@@ -270,6 +270,7 @@ public:
       if (_cluster) { _cluster->xread(fst, lst, chr::milliseconds(tmo), out); return true; }
       if (_singler) { _singler->xread(fst, lst, chr::milliseconds(tmo), out); return true; }
     }
+    catch (const swr::TimeoutError&) { return true; }
     catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
     return false;
   }
