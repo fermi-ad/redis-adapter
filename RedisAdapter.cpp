@@ -229,8 +229,8 @@ optional<timespec> RedisAdapter::getTimespec()
   // the time in seconds and the second being the microseconds within that second
   if (result.size() == 2)
   {
-    ret = { .tv_sec  = stoll(result[0]),    // unix time in seconds
-            .tv_nsec = stoll(result[1]) };  // nanoseconds in the second
+    ret = { .tv_sec  = stoll(result[0]),          // unix time in seconds
+            .tv_nsec = stoll(result[1]) * 1000 }; // nanoseconds in the second
   }
   return ret;
 }

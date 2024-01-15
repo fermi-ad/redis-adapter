@@ -248,7 +248,7 @@ private:
 
   std::pair<std::string, std::string> split_key(const std::string& key) const;
 
-  uint64_t id_to_time(const std::string& id) const { return std::stoull(id); }
+  uint64_t id_to_time(const std::string& id) const { try { return std::stoull(id); } catch(...) {} return 0; }
 
   std::string time_to_id(uint64_t time = 0) const { return std::to_string(time ? time : get_host_time()) + "-0"; }
 
