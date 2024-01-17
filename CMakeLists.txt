@@ -62,12 +62,15 @@ target_link_libraries(RedisAdapter ${REDIS_ADAPTER_LIBRARIES})
 # "make install" to project directory
 install(TARGETS RedisAdapter_static RedisAdapter ARCHIVE DESTINATION lib64)
 
-# Build TestRedisAdapter app with googletest
-# We dont want googlemock built
-option(BUILD_GMOCK "Builds the googlemock subproject" OFF)
-enable_testing()
-add_subdirectory(googletest)
-include(GoogleTest)
-add_executable(TestRedisAdapter ${REDIS_ADAPTER_SOURCES} test.cpp)
-target_link_libraries(TestRedisAdapter ${REDIS_ADAPTER_LIBRARIES} GTest::gtest_main)
-gtest_discover_tests(TestRedisAdapter)
+# Build RedisAdapterTest and googletest if REDIS_ADAPTER_TEST is true
+# Specify on command-line: "cmake .. -DREDIS_ADAPTER_TEST=1"
+if(REDIS_ADAPTER_TEST)
+  # We dont want googlemock built
+  option(BUILD_GMOCK "Builds the googlemock subproject" OFF)
+  enable_testing()
+  add_subdirectory(googletest)
+  include(GoogleTest)
+  add_executable(RedisAdapterTest ${REDIS_ADAPTER_SOURCES} test.cpp)
+  target_link_libraries(RedisAdapterTest ${REDIS_ADAPTER_LIBRARIES} GTest::gtest_main)
+  gtest_discover_tests(RedisAdapterTest)
+endif()

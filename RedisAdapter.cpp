@@ -226,11 +226,12 @@ optional<timespec> RedisAdapter::getTimespec()
   optional<timespec> ret;
   vector<string> result = _redis->time();
   // The redis command time is returns an array with the first element being
-  // the time in seconds and the second being the microseconds within that second
+  // the time in seconds and the second being the nanoseconds within that second
   if (result.size() == 2)
   {
-    ret = { .tv_sec  = stoll(result[0]),          // unix time in seconds
-            .tv_nsec = stoll(result[1]) * 1000 }; // nanoseconds in the second
+    static_assert(sizeof(time_t) == sizeof(long), "time_t is not the same size as long");
+    ret = { .tv_sec  = stol(result[0]),           // unix time in seconds
+            .tv_nsec = stol(result[1]) * 1000 };  // nanoseconds in the second
   }
   return ret;
 }
