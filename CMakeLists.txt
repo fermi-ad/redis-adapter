@@ -4,6 +4,9 @@ project(RedisAdapter LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# "make install" to project directory
+set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR}/install)
+
 # Find our cmake modules
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
@@ -55,6 +58,9 @@ target_link_libraries(RedisAdapter_static ${REDIS_ADAPTER_LIBRARIES})
 # Build RedisAdapter shared library
 add_library(RedisAdapter SHARED ${REDIS_ADAPTER_SOURCES})
 target_link_libraries(RedisAdapter ${REDIS_ADAPTER_LIBRARIES})
+
+# "make install" to project directory
+install(TARGETS RedisAdapter_static RedisAdapter ARCHIVE DESTINATION lib64)
 
 # Build TestRedisAdapter app with googletest
 # We dont want googlemock built
