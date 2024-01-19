@@ -18,6 +18,12 @@ class RedisAdapter
 {
 public:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  Containers for stream data suggested by the redis++ readme.md
+  //    https://github.com/sewenew/redis-plus-plus#redis-stream
+  //
+  using Attrs = std::unordered_map<std::string, std::string>;
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Containers for getting/setting data using RedisAdapter methods
   //
   template<typename T> using TimeVal = std::pair<uint64_t, T>;        //  analagous to Item
@@ -159,11 +165,19 @@ public:
   //
   bool connected() { return _redis->ping(); }
 
-  bool copyKey(const std::string& src, const std::string& dst) { return _redis->copy(src, dst) == 1; }
+  bool copySetting(const std::string& subKeySrc, const std::string& subKeyDst, const std::string& baseKey = "");
 
-  bool deleteKey(const std::string& key) { return _redis->del(key) >= 0; }
+  bool copyData(const std::string& subKeySrc, const std::string& subKeyDst, const std::string& baseKey = "");
 
-  std::optional<timespec> getTimespec();
+  bool renameSetting(const std::string& subKeySrc, const std::string& subKeyDst);
+
+  bool renameData(const std::string& subKeySrc, const std::string& subKeyDst);
+
+  bool deleteSetting(const std::string& subKey) { return _redis->del(build_key("", SETTINGS_STUB, subKey)) >= 0; }
+
+  bool deleteData(const std::string& subKey) { return _redis->del(build_key("", DATA_STUB, subKey)) >= 0; }
+
+  uint64_t getServerTime();
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Publish/Subscribe
@@ -215,12 +229,6 @@ public:
 
   bool removeDataReader(const std::string& subKey, const std::string& baseKey = "")
     { return remove_reader_helper(baseKey, DATA_STUB, subKey); }
-
-  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  Containers for stream data suggested by the redis++ readme.md
-  //    https://github.com/sewenew/redis-plus-plus#redis-stream
-  //
-  using Attrs = std::unordered_map<std::string, std::string>;
 
 private:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

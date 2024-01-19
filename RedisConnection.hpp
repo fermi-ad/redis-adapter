@@ -386,6 +386,29 @@ public:
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  rename : rename a key to another key
+  //
+  //    src    : the key to rename from
+  //    dst    : the key to rename to
+  //    return : true if connected
+  //             false if not connected
+  //
+  //  Note that this method will fail on a cluster unless src and dst hash to the same slot
+  //    https://stackoverflow.com/questions/38042629/redis-cross-slot-error
+  //    https://redis.io/docs/reference/cluster-spec/
+  //
+  bool rename(const std::string& src, const std::string& dst)
+  {
+    try
+    {
+      if (_cluster) { _cluster->rename(src, dst); return true; }
+      if (_singler) { _singler->rename(src, dst); return true; }
+    }
+    catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
+    return false;
+  }
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  time() - gets current server time
   //
   //    return : vector<string> = { seconds, microseconds }

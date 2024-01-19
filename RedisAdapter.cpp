@@ -216,24 +216,77 @@ uint64_t RedisAdapter::addDataDoubleAt(const string& subKey, uint64_t time, doub
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  getTimespec : get server time as a timespec
+//  copySetting : copy a local or foreign setting to a local setting
 //
-//    return  : optional with timespec on success
-//              optional empty on failure
+//    subKeySrc : sub key to copy from
+//    subKeyDst : sub key to copy to
+//    baseKey   : base key to copy from
+//    return    : boolean success
 //
-optional<timespec> RedisAdapter::getTimespec()
+bool RedisAdapter::copySetting(const string& subKeySrc, const string& subKeyDst, const string& baseKey)
 {
-  optional<timespec> ret;
-  vector<string> result = _redis->time();
+  return _redis->copy(build_key(baseKey, SETTINGS_STUB, subKeySrc), build_key("", SETTINGS_STUB, subKeyDst)) > 0;
+}
+
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  copyData : copy local or foreign data to local data
+//
+//    subKeySrc : sub key to copy from
+//    subKeyDst : sub key to copy to
+//    baseKey   : base key to copy from
+//    return    : boolean success
+//
+bool RedisAdapter::copyData(const string& subKeySrc, const string& subKeyDst, const string& baseKey)
+{
+  return _redis->copy(build_key(baseKey, DATA_STUB, subKeySrc), build_key("", DATA_STUB, subKeyDst)) > 0;
+}
+
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  renameSetting : rename a local setting
+//
+//    subKeySrc : sub key to rename from
+//    subKeyDst : sub key to rename to
+//    return    : boolean success
+//
+bool RedisAdapter::renameSetting(const string& subKeySrc, const string& subKeyDst)
+{
+  return _redis->rename(build_key("", SETTINGS_STUB, subKeySrc), build_key("", SETTINGS_STUB, subKeyDst));
+}
+
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  renameData : rename local data
+//
+//    subKeySrc : sub key to rename from
+//    subKeyDst : sub key to rename to
+//    return    : boolean success
+//
+bool RedisAdapter::renameData(const string& subKeySrc, const string& subKeyDst)
+{
+  return _redis->rename(build_key("", DATA_STUB, subKeySrc), build_key("", DATA_STUB, subKeyDst));
+}
+
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  getServerTime : get Redis server time as nanoseconds
+//
+//    return  : zero on failure
+//              non-zero nanoseconds on success
+//
+uint64_t RedisAdapter::getServerTime()
+{
+  uint64_t nanos = 0;
+  vector<string> time = _redis->time();
   // The redis command time is returns an array with the first element being
-  // the time in seconds and the second being the nanoseconds within that second
-  if (result.size() == 2)
+  // the time in seconds and the second being the microseconds within that second
+  if (time.size() == 2)
   {
-    static_assert(sizeof(time_t) == sizeof(long), "time_t is not the same size as long");
-    ret = { .tv_sec  = stol(result[0]),           // unix time in seconds
-            .tv_nsec = stol(result[1]) * 1000 };  // nanoseconds in the second
+    try
+    {
+      nanos = stoull(time[0]) * 1000 * 1000 * 1000  // time since epoch in seconds
+            + stoull(time[1]) * 1000;               // nanoseconds in the second
+    }
+    catch (...) {}
   }
-  return ret;
+  return nanos;
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

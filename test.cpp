@@ -128,15 +128,15 @@ TEST(RedisAdapter, DataSingle)
   EXPECT_STREQ(s.c_str(), "xxx");
 
   //  set/get float single element
-  EXPECT_GT(redis.addDataSingle("abc", 1.23f), 0);   //  Note value MUST have 'f' suffix else it's a double
+  EXPECT_GT(redis.addDataSingle("abc", 1.23f), 0);  //  Note value MUST have 'f' suffix else it's a double
   float f = 0;
   EXPECT_GT(redis.getDataSingle("abc", f), 0);
-  EXPECT_FLOAT_EQ(f, 1.23);                                 //  Here it doesn't matter, we are just comparing
+  EXPECT_FLOAT_EQ(f, 1.23);                         //  Here it doesn't matter, we are just comparing
 
   //  set/get float single element
-  EXPECT_GT(redis.addDataSingle<float>("abc", 1.23), 0);   //  Here it's OK we are calling specialization <float>
+  EXPECT_GT(redis.addDataSingle<float>("abc", 1.23), 0);  //  Here it's OK we are calling specialization <float>
   EXPECT_GT(redis.getDataSingle("abc", f), 0);
-  EXPECT_FLOAT_EQ(f, 1.23);                                       //  Here it doesn't matter, we are just comparing
+  EXPECT_FLOAT_EQ(f, 1.23);                               //  Here it doesn't matter, we are just comparing
 
   //  set/get double single element
   EXPECT_GT(redis.addDataDouble("abc", 1.23), 0);
@@ -584,13 +584,36 @@ TEST(RedisAdapter, Utility)
 {
   RedisAdapter redis("TEST");
 
-  //  copyKey
+  EXPECT_TRUE(redis.deleteSetting("dstset"));
 
-  //  deleteKey
+  int val = 1;
+  EXPECT_TRUE(redis.setSetting("srcset", val));
+  EXPECT_TRUE(redis.copySetting("srcset", "dstset"));
+  EXPECT_EQ(redis.getSetting<int>("dstset"), 1);
 
-  //  getTimespec
-  auto maybe = redis.getTimespec();
-  EXPECT_TRUE(maybe.has_value());
-  EXPECT_GT(maybe.value().tv_sec, 0);
-  EXPECT_GT(maybe.value().tv_nsec, 0);
+  EXPECT_TRUE(redis.deleteData("dstdat"));
+
+  val = 1;
+  EXPECT_GT(redis.addDataSingle("srcdat", val), 0);
+  EXPECT_TRUE(redis.copyData("srcdat", "dstdat"));
+  EXPECT_GT(redis.getDataSingle("dstdat", val), 0);
+  EXPECT_EQ(val, 1);
+
+  EXPECT_TRUE(redis.deleteSetting("dstset"));
+
+  val = 1;
+  EXPECT_TRUE(redis.setSetting("srcset", val));
+  EXPECT_TRUE(redis.renameSetting("srcset", "dstset"));
+  EXPECT_EQ(redis.getSetting<int>("dstset"), 1);
+
+  EXPECT_TRUE(redis.deleteData("dstdat"));
+
+  val = 1;
+  EXPECT_GT(redis.addDataSingle("srcdat", val), 0);
+  EXPECT_TRUE(redis.renameData("srcdat", "dstdat"));
+  EXPECT_GT(redis.getDataSingle("dstdat", val), 0);
+  EXPECT_EQ(val, 1);
+
+  uint64_t nanos = redis.getServerTime();
+  EXPECT_GT(nanos, 0);
 }
