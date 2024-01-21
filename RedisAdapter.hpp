@@ -78,19 +78,14 @@ public:
   getDataList(const std::string& subKey, uint64_t minTime, uint64_t maxTime, const std::string& baseKey = "")
     { return get_forward_data_list_helper<T>(baseKey, subKey, minTime, maxTime, 0); }
 
-  //  GetDataArgs : structure for providing arguments to getDataXXXX functions
-  //                each field can be overidden or left as the default value
-  //  suggested usage:
-  //    using GDA = RedisAdapter::GetDataArgs;
-  //    redis.getDataBefore("my:subkey", GDA{ .baseKey="my:basekey", .count=10 });
-  //
-  struct GetDataArgs
-  {
-    std::string baseKey;
-    uint64_t minTime = 0;
-    uint64_t maxTime = 0;
-    uint32_t count = 1;
-  };
+  struct GetDataArgs        //  GetDataArgs : structure for providing arguments to
+  {                         //                getData functions - each field can be
+    std::string baseKey;    //                overidden or left as the default value
+    uint64_t minTime = 0;   //  Suggested usage:
+    uint64_t maxTime = 0;   //    using GDA = RedisAdapter::GetDataArgs;
+    uint32_t count = 1;     //    redis.getDataAfter("my:subkey",
+  };                        //                       GDA{ .minTime=1000, .count=10 });
+
   template<typename T> TimeValList<T>
   getDataBefore(const std::string& subKey, const GetDataArgs& args = {})
     { return get_reverse_data_helper<T>(args.baseKey, subKey, args.maxTime, args.count); }
@@ -165,17 +160,19 @@ public:
   //
   bool connected() { return _redis->ping(); }
 
-  bool copySetting(const std::string& subKeySrc, const std::string& subKeyDst, const std::string& baseKey = "");
+  bool copySetting(const std::string& srcSubKey, const std::string& dstSubKey, const std::string& baseKey = "")
+    { return copy_key_helper(srcSubKey, dstSubKey, SETTINGS_STUB, baseKey); }
 
-  bool copyData(const std::string& subKeySrc, const std::string& subKeyDst, const std::string& baseKey = "");
+  bool copyData(const std::string& srcSubKey, const std::string& dstSubKey, const std::string& baseKey = "")
+    { return copy_key_helper(srcSubKey, dstSubKey, DATA_STUB, baseKey); }
 
   bool renameSetting(const std::string& subKeySrc, const std::string& subKeyDst);
 
   bool renameData(const std::string& subKeySrc, const std::string& subKeyDst);
 
-  bool deleteSetting(const std::string& subKey) { return _redis->del(build_key("", SETTINGS_STUB, subKey)) >= 0; }
+  bool deleteSetting(const std::string& subKey) { return _redis->del(build_key(SETTINGS_STUB, subKey)) >= 0; }
 
-  bool deleteData(const std::string& subKey) { return _redis->del(build_key("", DATA_STUB, subKey)) >= 0; }
+  bool deleteData(const std::string& subKey) { return _redis->del(build_key(DATA_STUB, subKey)) >= 0; }
 
   uint64_t getServerTime();
 
@@ -188,7 +185,7 @@ public:
   using ReaderSubFn = std::function<void(const std::string& baseKey, const std::string& subKey, const TimeValList<T>& data)>;
 
   bool publish(const std::string& subKey, const std::string& message, const std::string& baseKey = "")
-    { return _redis->publish(build_key(baseKey, COMMANDS_STUB, subKey), message) >= 0; }
+    { return _redis->publish(build_key(COMMANDS_STUB, subKey, baseKey), message) >= 0; }
 
   bool psubscribe(const std::string& pattern, ListenSubFn func, const std::string& baseKey = "");
 
@@ -252,7 +249,7 @@ private:
 
   const std::string CONTROL_STUB  = ":[*-CTRL-*]";
 
-  std::string build_key(const std::string& baseKey, const std::string& stub, const std::string& subKey) const;
+  std::string build_key(const std::string& keyStub, const std::string& subKey = "", const std::string& baseKey = "") const;
 
   std::pair<std::string, std::string> split_key(const std::string& key) const;
 
@@ -266,18 +263,20 @@ private:
 
   uint64_t get_host_time() const;
 
+  bool copy_key_helper(const std::string& srcSubKey, const std::string& dstSubKey, const std::string& keyStub, const std::string& baseKey);
+
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Helper functions adding and removing stream readers
   //
   using reader_sub_fn = std::function<void(const std::string& baseKey, const std::string& subKey, const ItemStream& data)>;
 
-  bool add_reader_helper(const std::string& baseKey, const std::string& stub, const std::string& subKey, reader_sub_fn func);
+  bool add_reader_helper(const std::string& baseKey, const std::string& keyStub, const std::string& subKey, reader_sub_fn func);
 
   template<typename T> reader_sub_fn make_reader_callback(ReaderSubFn<T> func) const;
 
   template<typename T> reader_sub_fn make_list_reader_callback(ReaderSubFn<std::vector<T>> func) const;
 
-  bool remove_reader_helper(const std::string& baseKey, const std::string& stub, const std::string& subKey);
+  bool remove_reader_helper(const std::string& baseKey, const std::string& keyStub, const std::string& subKey);
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Helper functions for getting and setting DEFAULT_FIELD in Attrs

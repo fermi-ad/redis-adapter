@@ -131,30 +131,6 @@ public:
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  del() - delete the specified keys
-  //
-  //    fst    : first element of a vector<string> of keys (any type) to delete
-  //    lst    : last element of a vector<string> of keys (any type) to delete
-  //    return : number of keys found and deleted
-  //             -1 if not connected
-  //
-  //  Note that this method will fail on a cluster unless the specified keys all hash to the same slot
-  //    https://stackoverflow.com/questions/38042629/redis-cross-slot-error
-  //    https://redis.io/docs/reference/cluster-spec/
-  //
-  template<typename Input>
-  int32_t del(Input fst, Input lst)
-  {
-    try
-    {
-      if (_cluster) return _cluster->del(fst, lst);
-      if (_singler) return _singler->del(fst, lst);
-    }
-    catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
-    return -1;
-  }
-
-  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  xrange : read a forward-id-ordered (newest last) list of elements from a stream
   //
   //    key    : the stream to read
@@ -343,6 +319,24 @@ public:
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  exists : test if a key exists
+  //
+  //    key    : the key to look for
+  //    return : 1 if key exists
+  //             0 if key does not exist
+  //            -1 if unsuccsessful or not connected
+  //
+  int32_t exists(const std::string& key)
+  {
+    try
+    {
+      if (_cluster) return _cluster->exists(key);
+      if (_singler) return _singler->exists(key);
+    }
+    catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
+    return -1;
+  }
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  keyslot : find the cluster slot for a key
   //
   //    key    : the key to find a slot for
@@ -369,6 +363,7 @@ public:
   //    return : 1 if key copied
   //             0 if key not copied
   //            -1 if error or not connected
+  //            -2 if CROSSSLOT error
   //
   //  Note that this method will fail on a cluster unless src and dst hash to the same slot
   //    https://stackoverflow.com/questions/38042629/redis-cross-slot-error
@@ -381,7 +376,11 @@ public:
       if (_cluster) return _cluster->command<long long>("copy", src, dst);
       if (_singler) return _singler->command<long long>("copy", src, dst);
     }
-    catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
+    catch (const swr::Error& e)
+    {
+      if (std::string(e.what()).find("CROSSSLOT") != std::string::npos) return -2;
+      syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what());
+    }
     return -1;
   }
 
