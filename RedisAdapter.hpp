@@ -161,7 +161,7 @@ public:
   bool connected() { return _redis->ping(); }
 
   bool copySetting(const std::string& srcSubKey, const std::string& dstSubKey, const std::string& baseKey = "")
-    { return copy_key_helper(srcSubKey, dstSubKey, SETTINGS_STUB, baseKey); }
+    { return copy_key_helper(srcSubKey, dstSubKey, SETTING_STUB, baseKey); }
 
   bool copyData(const std::string& srcSubKey, const std::string& dstSubKey, const std::string& baseKey = "")
     { return copy_key_helper(srcSubKey, dstSubKey, DATA_STUB, baseKey); }
@@ -170,7 +170,7 @@ public:
 
   bool renameData(const std::string& subKeySrc, const std::string& subKeyDst);
 
-  bool deleteSetting(const std::string& subKey) { return _redis->del(build_key(SETTINGS_STUB, subKey)) >= 0; }
+  bool deleteSetting(const std::string& subKey) { return _redis->del(build_key(SETTING_STUB, subKey)) >= 0; }
 
   bool deleteData(const std::string& subKey) { return _redis->del(build_key(DATA_STUB, subKey)) >= 0; }
 
@@ -185,7 +185,7 @@ public:
   using ReaderSubFn = std::function<void(const std::string& baseKey, const std::string& subKey, const TimeValList<T>& data)>;
 
   bool publish(const std::string& subKey, const std::string& message, const std::string& baseKey = "")
-    { return _redis->publish(build_key(COMMANDS_STUB, subKey, baseKey), message) >= 0; }
+    { return _redis->publish(build_key(COMMAND_STUB, subKey, baseKey), message) >= 0; }
 
   bool psubscribe(const std::string& pattern, ListenSubFn func, const std::string& baseKey = "");
 
@@ -201,11 +201,11 @@ public:
 
   template<typename T>
   bool addSettingReader(const std::string& subKey, ReaderSubFn<T> func, const std::string& baseKey = "")
-    { return add_reader_helper(baseKey, SETTINGS_STUB, subKey, make_reader_callback(func)); }
+    { return add_reader_helper(baseKey, SETTING_STUB, subKey, make_reader_callback(func)); }
 
   template<typename T>
   bool addSettingListReader(const std::string& subKey, ReaderSubFn<std::vector<T>> func, const std::string& baseKey = "")
-    { return add_reader_helper(baseKey, SETTINGS_STUB, subKey, make_list_reader_callback(func)); }
+    { return add_reader_helper(baseKey, SETTING_STUB, subKey, make_list_reader_callback(func)); }
 
   template<typename T>
   bool addDataReader(const std::string& subKey, ReaderSubFn<T> func, const std::string& baseKey = "")
@@ -222,7 +222,7 @@ public:
     { return remove_reader_helper(baseKey, LOG_STUB, ""); }
 
   bool removeSettingReader(const std::string& subKey, const std::string& baseKey = "")
-    { return remove_reader_helper(baseKey, SETTINGS_STUB, subKey); }
+    { return remove_reader_helper(baseKey, SETTING_STUB, subKey); }
 
   bool removeDataReader(const std::string& subKey, const std::string& baseKey = "")
     { return remove_reader_helper(baseKey, DATA_STUB, subKey); }
@@ -241,13 +241,13 @@ private:
   //
   const std::string DEFAULT_FIELD = "_";
 
-  const std::string LOG_STUB      = ":LOG";
-  const std::string STATUS_STUB   = ":STATUS:";     //  trailing colon
-  const std::string SETTINGS_STUB = ":SETTINGS:";   //  trailing colon
-  const std::string DATA_STUB     = ":DATA:";       //  trailing colon
-  const std::string COMMANDS_STUB = ":COMMANDS:";   //  trailing colon
+  const std::string LOG_STUB      = "[*-LOG-*]";
+  const std::string STATUS_STUB   = "[*-STATUS-*]";
+  const std::string SETTING_STUB  = "[*-SETTING-*]";
+  const std::string DATA_STUB     = "[*-DATA-*]";
+  const std::string COMMAND_STUB  = "[*-COMMAND-*]";
 
-  const std::string CONTROL_STUB  = ":[*-CTRL-*]";
+  const std::string CONTROL_STUB  = "[*-CTRL-*]";
 
   std::string build_key(const std::string& keyStub, const std::string& subKey = "", const std::string& baseKey = "") const;
 

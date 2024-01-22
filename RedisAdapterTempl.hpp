@@ -56,7 +56,7 @@ template<> inline auto RedisAdapter::getSetting<std::string>(const std::string& 
 {
   ItemStream raw;
 
-  _redis->xrevrange(build_key(SETTINGS_STUB, subKey, baseKey), "+", "-", 1, back_inserter(raw));
+  _redis->xrevrange(build_key(SETTING_STUB, subKey, baseKey), "+", "-", 1, back_inserter(raw));
 
   return raw.size() ? default_field_value<std::string>(raw.front().second) : "";
 }
@@ -66,7 +66,7 @@ template<typename T> auto RedisAdapter::getSetting(const std::string& subKey, co
 
   ItemStream raw;
 
-  _redis->xrevrange(build_key(SETTINGS_STUB, subKey, baseKey), "+", "-", 1, back_inserter(raw));
+  _redis->xrevrange(build_key(SETTING_STUB, subKey, baseKey), "+", "-", 1, back_inserter(raw));
 
   std::optional<T> ret;
   if (raw.size()) ret = default_field_value<T>(raw.front().second);
@@ -85,7 +85,7 @@ template<typename T> std::vector<T> RedisAdapter::getSettingList(const std::stri
 
   ItemStream raw;
 
-  _redis->xrevrange(build_key(SETTINGS_STUB, subKey, baseKey), "+", "-", 1, back_inserter(raw));
+  _redis->xrevrange(build_key(SETTING_STUB, subKey, baseKey), "+", "-", 1, back_inserter(raw));
 
   std::vector<T> ret;
   if (raw.size())
@@ -110,7 +110,7 @@ template<typename T> bool RedisAdapter::setSetting(const std::string& subKey, co
 
   Attrs attrs = default_field_attrs(value);
 
-  return _redis->xaddTrim(build_key(SETTINGS_STUB, subKey), time_to_id(), attrs.begin(), attrs.end(), 1).size();
+  return _redis->xaddTrim(build_key(SETTING_STUB, subKey), time_to_id(), attrs.begin(), attrs.end(), 1).size();
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -126,7 +126,7 @@ template<typename T> bool RedisAdapter::setSettingList(const std::string& subKey
 
   Attrs attrs = default_field_attrs(value.data(), value.size());
 
-  return _redis->xaddTrim(build_key(SETTINGS_STUB, subKey), time_to_id(), attrs.begin(), attrs.end(), 1).size();
+  return _redis->xaddTrim(build_key(SETTING_STUB, subKey), time_to_id(), attrs.begin(), attrs.end(), 1).size();
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

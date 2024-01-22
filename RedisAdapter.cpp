@@ -191,7 +191,7 @@ bool RedisAdapter::setSettingDouble(const string& subKey, const double value)
 {
   Attrs attrs = default_field_attrs(value);
 
-  return _redis->xaddTrim(build_key(SETTINGS_STUB, subKey), time_to_id(), attrs.begin(), attrs.end(), 1).size();
+  return _redis->xaddTrim(build_key(SETTING_STUB, subKey), time_to_id(), attrs.begin(), attrs.end(), 1).size();
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -224,7 +224,7 @@ uint64_t RedisAdapter::addDataDoubleAt(const string& subKey, uint64_t time, doub
 //
 bool RedisAdapter::renameSetting(const string& subKeySrc, const string& subKeyDst)
 {
-  return _redis->rename(build_key(SETTINGS_STUB, subKeySrc), build_key(SETTINGS_STUB, subKeyDst));
+  return _redis->rename(build_key(SETTING_STUB, subKeySrc), build_key(SETTING_STUB, subKeyDst));
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -275,7 +275,7 @@ uint64_t RedisAdapter::getServerTime()
 bool RedisAdapter::psubscribe(const string& pattern, ListenSubFn func, const string& baseKey)
 {
   stop_listener();
-  _pattern_subs[build_key(COMMANDS_STUB, pattern, baseKey)].push_back(func);
+  _pattern_subs[build_key(COMMAND_STUB, pattern, baseKey)].push_back(func);
   return start_listener();
 }
 
@@ -291,7 +291,7 @@ bool RedisAdapter::psubscribe(const string& pattern, ListenSubFn func, const str
 bool RedisAdapter::subscribe(const string& command, ListenSubFn func, const string& baseKey)
 {
   stop_listener();
-  _command_subs[build_key(COMMANDS_STUB, command, baseKey)].push_back(func);
+  _command_subs[build_key(COMMAND_STUB, command, baseKey)].push_back(func);
   return start_listener();
 }
 
@@ -306,7 +306,7 @@ bool RedisAdapter::subscribe(const string& command, ListenSubFn func, const stri
 bool RedisAdapter::unsubscribe(const string& unsub, const string& baseKey)
 {
   stop_listener();
-  string key = build_key(COMMANDS_STUB, unsub, baseKey);
+  string key = build_key(COMMAND_STUB, unsub, baseKey);
   if (_pattern_subs.count(key)) _pattern_subs.erase(key);
   if (_command_subs.count(key)) _command_subs.erase(key);
   return (_pattern_subs.size() || _command_subs.size()) ? start_listener() : true;
@@ -317,32 +317,26 @@ bool RedisAdapter::unsubscribe(const string& unsub, const string& baseKey)
 //
 string RedisAdapter::build_key(const string& keyStub, const string& subKey, const string& baseKey) const
 {
-  return "{" + (baseKey.size() ? baseKey : _base_key) + "}" + keyStub + subKey;
+  return "{" + (baseKey.size() ? baseKey : _base_key) + "}:" + keyStub + (subKey.size() ? ":" + subKey : "");
 }
 
 pair<string, string> RedisAdapter::split_key(const string& key) const
 {
-  size_t idx = key.find(COMMANDS_STUB);
-  if (idx != string::npos)
-    { return make_pair(key.substr(1, idx - 2), key.substr(idx + COMMANDS_STUB.size())); }
+  size_t idx = key.find(COMMAND_STUB), len = COMMAND_STUB.size();
 
-  idx = key.find(DATA_STUB);
-  if (idx != string::npos)
-    { return make_pair(key.substr(1, idx - 2), key.substr(idx + DATA_STUB.size())); }
+  if (idx == string::npos) { idx = key.find(DATA_STUB);    len = DATA_STUB.size(); }
 
-  idx = key.find(SETTINGS_STUB);
-  if (idx != string::npos)
-    { return make_pair(key.substr(1, idx - 2), key.substr(idx + SETTINGS_STUB.size())); }
+  if (idx == string::npos) { idx = key.find(SETTING_STUB); len = SETTING_STUB.size(); }
 
-  idx = key.find(STATUS_STUB);
-  if (idx != string::npos)
-    { return make_pair(key.substr(1, idx - 2), key.substr(idx + STATUS_STUB.size())); }
+  if (idx == string::npos) { idx = key.find(STATUS_STUB);  len = STATUS_STUB.size(); }
 
-  idx = key.find(LOG_STUB);
-  if (idx != string::npos)
-    { return make_pair(key.substr(1, idx - 2), ""); }
+  if (idx == string::npos) { idx = key.find(LOG_STUB);     len = LOG_STUB.size(); }
 
-  return {};
+  if (idx == string::npos) { idx = key.find(CONTROL_STUB); len = CONTROL_STUB.size(); }
+
+  if (idx == string::npos) return {};
+
+  return make_pair(key.substr(1, idx - 3), key.size() > idx + len ? key.substr(idx + len + 1) : "");
 }
 
 uint64_t RedisAdapter::get_host_time() const
