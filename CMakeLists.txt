@@ -60,11 +60,13 @@ set_target_properties(redis++_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
 add_library(RedisAdapter_shared SHARED ${REDIS_ADAPTER_SOURCES})
 target_link_libraries(RedisAdapter_shared ${REDIS_ADAPTER_LIBRARIES})
 set_target_properties(RedisAdapter_shared PROPERTIES PUBLIC_HEADER "${REDIS_ADAPTER_HEADERS}")
+set_target_properties(RedisAdapter_shared PROPERTIES LIBRARY_OUTPUT_NAME RedisAdapter)
 
 # Build RedisAdapter static library
 add_library(RedisAdapter_static STATIC ${REDIS_ADAPTER_SOURCES})
 target_link_libraries(RedisAdapter_static ${REDIS_ADAPTER_LIBRARIES})
 set_target_properties(RedisAdapter_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
+set_target_properties(RedisAdapter_static PROPERTIES ARCHIVE_OUTPUT_NAME RedisAdapter)
 
 # "make install" to project directory
 install(TARGETS RedisAdapter_shared PUBLIC_HEADER)
