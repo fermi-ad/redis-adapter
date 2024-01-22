@@ -193,6 +193,9 @@ public:
 
   bool unsubscribe(const std::string& unsub, const std::string& baseKey = "");
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  Stream Readers
+  //
   bool addStatusReader(const std::string& subKey, ReaderSubFn<std::string> func, const std::string& baseKey = "")
     { return add_reader_helper(baseKey, STATUS_STUB, subKey, make_reader_callback(func)); }
 
@@ -215,6 +218,8 @@ public:
   bool addDataListReader(const std::string& subKey, ReaderSubFn<std::vector<T>> func, const std::string& baseKey = "")
     { return add_reader_helper(baseKey, DATA_STUB, subKey, make_list_reader_callback(func)); }
 
+  bool addGenericReader(const std::string& key, ReaderSubFn<Attrs> func);
+
   bool removeStatusReader(const std::string& subKey, const std::string& baseKey = "")
     { return remove_reader_helper(baseKey, STATUS_STUB, subKey); }
 
@@ -226,6 +231,8 @@ public:
 
   bool removeDataReader(const std::string& subKey, const std::string& baseKey = "")
     { return remove_reader_helper(baseKey, DATA_STUB, subKey); }
+
+  bool removeGenericReader(const std::string& key);
 
 private:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

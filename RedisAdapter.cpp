@@ -312,6 +312,39 @@ bool RedisAdapter::unsubscribe(const string& unsub, const string& baseKey)
   return (_pattern_subs.size() || _command_subs.size()) ? start_listener() : true;
 }
 
+bool RedisAdapter::addGenericReader(const string& key, ReaderSubFn<Attrs> func)
+{
+  if (split_key(key).first.size()) return false;  //  reject if RedisAdapter key stub found
+  int32_t slot = _redis->keyslot(key);
+  if (slot < 0) return false;
+  stop_reader(slot);
+  reader_info& info = _reader[slot];
+  if (info.control.empty())
+  {
+    info.control = build_key(CONTROL_STUB, key);
+    info.keyids[info.control] = "$";
+  }
+  info.subs[key].push_back(make_reader_callback(func));
+  info.keyids[key] = "$";
+  return start_reader(slot);
+}
+
+bool RedisAdapter::removeGenericReader(const string& key)
+{
+  int32_t slot = _redis->keyslot(key);
+  if (slot < 0 || _reader.count(slot) == 0) return false;
+  stop_reader(slot);
+  reader_info& info = _reader.at(slot);
+  info.subs.erase(key);
+  info.keyids.erase(key);
+  if (info.subs.empty())
+  {
+    _reader.erase(slot);
+    return true;
+  }
+  return start_reader(slot);
+}
+
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  Private methods
 //
@@ -516,7 +549,10 @@ bool RedisAdapter::start_reader(uint16_t slot)
             {
               auto split = split_key(item.first);
               for (auto& func : info.subs.at(item.first))
-                { func(split.first, split.second, item.second); }
+              {
+                if (split.first.size()) { func(split.first, split.second, item.second); }
+                else { func(item.first, item.first, item.second); }
+              }
             }
           }
         }
