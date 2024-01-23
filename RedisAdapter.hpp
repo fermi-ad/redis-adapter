@@ -322,9 +322,6 @@ public:
   //
   using ListenSubFn = std::function<void(const std::string& baseKey, const std::string& subKey, const std::string& message)>;
 
-  template<typename T>
-  using ReaderSubFn = std::function<void(const std::string& baseKey, const std::string& subKey, const TimeValList<T>& data)>;
-
   bool publish(const std::string& subKey, const std::string& message, const std::string& baseKey = "")
     { return _redis->publish(build_key(COMMAND_STUB, subKey, baseKey), message) >= 0; }
 
@@ -337,6 +334,9 @@ public:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Stream Readers
   //
+  template<typename T>
+  using ReaderSubFn = std::function<void(const std::string& baseKey, const std::string& subKey, const TimeValList<T>& data)>;
+
   bool addStatusReader(const std::string& subKey, ReaderSubFn<std::string> func, const std::string& baseKey = "")
     { return add_reader_helper(baseKey, STATUS_STUB, subKey, make_reader_callback(func)); }
 
