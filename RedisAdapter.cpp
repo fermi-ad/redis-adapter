@@ -215,30 +215,6 @@ uint64_t RedisAdapter::addDataDoubleAt(const string& subKey, uint64_t time, doub
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  renameSetting : rename a local setting
-//
-//    subKeySrc : sub key to rename from
-//    subKeyDst : sub key to rename to
-//    return    : boolean success
-//
-bool RedisAdapter::renameSetting(const string& subKeySrc, const string& subKeyDst)
-{
-  return _redis->rename(build_key(SETTING_STUB, subKeySrc), build_key(SETTING_STUB, subKeyDst));
-}
-
-//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  renameData : rename local data
-//
-//    subKeySrc : sub key to rename from
-//    subKeyDst : sub key to rename to
-//    return    : boolean success
-//
-bool RedisAdapter::renameData(const string& subKeySrc, const string& subKeyDst)
-{
-  return _redis->rename(build_key(DATA_STUB, subKeySrc), build_key(DATA_STUB, subKeyDst));
-}
-
-//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  getServerTime : get Redis server time as nanoseconds
 //
 //    return  : zero on failure, nanoseconds on success

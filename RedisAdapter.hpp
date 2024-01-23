@@ -238,22 +238,22 @@ public:
   //    trim   : number of items to trim the stream to
   //    return : time of the added data item if successful, zero on failure
 
-  //  Overload for template<typename T, std::size_t Extent> (std::array and std::span)
+  //  overload for template<typename T, std::size_t Extent> (std::array and std::span)
   template<template<typename T, size_t S> class C, typename T, size_t S> uint64_t
   addDataListSingleAt(const std::string& subKey, uint64_t time, const C<T, S>& data, uint32_t trim = 1)
     { return add_single_data_list_helper(subKey, time, data.data(), data.size(), trim); }
 
-  //  Overload for vector
+  //  overload for vector
   template<typename T> uint64_t
   addDataListSingleAt(const std::string& subKey, uint64_t time, const std::vector<T>& data, uint32_t trim = 1)
     { return add_single_data_list_helper(subKey, time, data.data(), data.size(), trim); }
 
-  //  Overload for template<typename T, std::size_t Extent> (std::array and std::span)
+  //  overload for template<typename T, std::size_t Extent> (std::array and std::span)
   template<template<typename T, size_t S> class C, typename T, size_t S> uint64_t
   addDataListSingle(const std::string& subKey, const C<T, S>& data, uint32_t trim = 1)
     { return add_single_data_list_helper(subKey, 0, data.data(), data.size(), trim); }
 
-  //  Overload for vector
+  //  overload for vector
   template<typename T> uint64_t
   addDataListSingle(const std::string& subKey, const std::vector<T>& data, uint32_t trim = 1)
     { return add_single_data_list_helper(subKey, 0, data.data(), data.size(), trim); }
@@ -269,9 +269,11 @@ public:
   bool copyData(const std::string& srcSubKey, const std::string& dstSubKey, const std::string& baseKey = "")
     { return copy_key_helper(srcSubKey, dstSubKey, DATA_STUB, baseKey); }
 
-  bool renameSetting(const std::string& subKeySrc, const std::string& subKeyDst);
+  bool renameSetting(const std::string& subKeySrc, const std::string& subKeyDst)
+    { return _redis->rename(build_key(SETTING_STUB, subKeySrc), build_key(SETTING_STUB, subKeyDst)); }
 
-  bool renameData(const std::string& subKeySrc, const std::string& subKeyDst);
+  bool renameData(const std::string& subKeySrc, const std::string& subKeyDst)
+    { return _redis->rename(build_key(DATA_STUB, subKeySrc), build_key(DATA_STUB, subKeyDst)); }
 
   bool deleteSetting(const std::string& subKey) { return _redis->del(build_key(SETTING_STUB, subKey)) >= 0; }
 
