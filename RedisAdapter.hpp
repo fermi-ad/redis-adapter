@@ -42,33 +42,98 @@ public:
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Status
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  getStatus : get status as string
+  //
+  //    subKey  : sub key to get status from
+  //    baseKey : base key to get status from
+  //    return  : string with status on success, empty string on failure
   //
   std::string getStatus(const std::string& subKey, const std::string& baseKey = "");
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  setStatus : set status for home device as string
+  //
+  //    subKey : sub key to set status on
+  //    value  : status value to set
+  //    return : true on success, false on failure
+  //
   bool setStatus(const std::string& subKey, const std::string& value);
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Log
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  getLog        : get log for home device between specified times
+  //  getLogAfter   : get log for home device after specified time
+  //  getLogBefore  : get log for home device before specified time
+  //  getLogCount   : get latest count of log for home device
+  //
+  //    minID  : lowest time to get log for
+  //    maxID  : highest time to get log for
+  //    count  : greatest number of log items to get
+  //    return : TimeValList of TimeVal<string> log items
   //
   TimeValList<std::string> getLog(uint64_t minTime, uint64_t maxTime = 0);
   TimeValList<std::string> getLogAfter(uint64_t minTime = 0, uint32_t count = 100);
   TimeValList<std::string> getLogBefore(uint64_t maxTime = 0, uint32_t count = 100);
   TimeValList<std::string> getLogCount(uint32_t count) { return getLogBefore(0, count); }
 
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  addLog : add a log message for home device
+//
+//    message : log message to add
+//    trim    : number of items to trim log stream to
+//    return  : true for success, false for failure
+//
   bool addLog(const std::string& message, uint32_t trim = 1000);
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Settings
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  getSetting      : get setting as type T (T is trivial, string)
+  //  getSettingList  : get setting as type vector<T> (T is trivial)
+  //
+  //    subKey  : sub key to get setting from
+  //    baseKey : base key to get setting from
+  //    return  : string or optional with setting value if successful
+  //              empty string or optional if unsuccessful
   //
   template<typename T> auto getSetting(const std::string& subKey, const std::string& baseKey = "");
   template<typename T> std::vector<T> getSettingList(const std::string& subKey, const std::string& baseKey = "");
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  setSetting        : set setting as type T (T is trivial, string)
+  //  setSettingList    : set setting as vector<T> (T is trivial)
+  //  setSettingDouble  : set setting as type double
+  //
+  //    subKey : sub key to set setting on
+  //    value  : setting value to set
+  //    return : true on success, false on failure
+  //
   template<typename T> bool setSetting(const std::string& subKey, const T& value);
   template<typename T> bool setSettingList(const std::string& subKey, const std::vector<T>& value);
   bool setSettingDouble(const std::string& subKey, double value);
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  Data (getting)
+  //  Data (get)
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  getData     : get data as T (T is trivial, string or Attrs) between minTime and maxTime
+  //  getDataList : get data as type vector<T> (T is trivial) between minTime and maxTime
+  //  getDataBefore     : get data as T (T is trivial, string or Attrs) before maxTime
+  //  getDataListBefore : get data as type vector<T> (T is trivial) before maxTime
+  //  getDataAfter      : get data as T (T is trivial, string or Attrs) after minTime
+  //  getDataListAfter  : get data as type vector<T> (T is trivial) after minTime
+  //
+  //    baseKey : base key of device
+  //    subKey  : sub key to get data from
+  //    minTime : lowest time to get data for
+  //    maxTime : highest time to get data for
+  //    count   : max number of items to get
+  //    return  : TimeValList of TimeVal<T>
   //
   template<typename T> TimeValList<T>
   getData(const std::string& subKey, const uint64_t minTime, uint64_t maxTime, const std::string& baseKey = "")
@@ -102,6 +167,16 @@ public:
   getDataListAfter(const std::string& subKey, const GetDataArgs& args = {})
     { return get_forward_data_list_helper<T>(args.baseKey, subKey, args.minTime, 0, args.count); }
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  getDataSingle     : get data as T (T is trivial, string or Attrs) at or before maxTime
+  //  getDataListSingle : get data as type vector<T> (T is trivial) at or before maxTime
+  //
+  //    baseKey : base key of device
+  //    subKey  : sub key to get data from
+  //    dest    : destination to copy data to
+  //    maxTime : time that equals or exceeds the data to get
+  //    return  : time of the data item if successful, zero on failure
+  //
   template<typename T> uint64_t
   getDataSingle(const std::string& subKey, T& dest, const GetDataArgs& args = {})
     { return get_single_data_helper<T>(args.baseKey, subKey, dest, args.maxTime); }
@@ -111,7 +186,16 @@ public:
     { return get_single_data_list_helper<T>(args.baseKey, subKey, dest, args.maxTime); }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  Data (adding)
+  //  Data (add)
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  addData     : add multiple data items of type T (T is trivial, string or Attrs)
+  //  addDataList : add multiple vector<T> as data items (T is trivial)
+  //
+  //    subKey : sub key to add data to
+  //    data   : times and data to add (0 time means host time)
+  //    trim   : trim to greater of this value or number of data items
+  //    return : vector of ids of successfully added data items
   //
   template<typename T> std::vector<uint64_t>
   addData(const std::string& subKey, const TimeValList<T>& data, uint32_t trim = 1);
@@ -119,6 +203,19 @@ public:
   template<typename T> std::vector<uint64_t>
   addDataList(const std::string& subKey, const TimeValList<std::vector<T>>& data, uint32_t trim = 1);
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  addDataSingleAt : add a data item of type T (T is trivial, string or Attrs) at specified time
+  //  addDataSingle   : add a data item of type T (T is trivial, string or Attrs) at current time
+  //  addDataDoubleAt : add a data item of type double at specified time
+  //  addDataDouble   : add a data item of type double at current time
+  //
+  //    subKey : sub key to add data to
+  //    time   : time to add the data at (0 for current host time)
+  //    data   : data to add
+  //    trim   : number of items to trim the stream to
+  //    return : time of the added data item if successful
+  //             zero on failure
+  //
   template<typename T> uint64_t
   addDataSingleAt(const std::string& subKey, uint64_t time, const T& data, uint32_t trim = 1);
 
@@ -131,26 +228,32 @@ public:
   uint64_t addDataDouble(const std::string& subKey, double data, uint32_t trim = 1)
     { return addDataDoubleAt(subKey, 0, data, trim); }
 
-  //  addDataListSingle : Add data from a provided container that has the signature:
-  //                        template<typename T, std::size_t Extent>
-  //                      and implements the methods:
-  //                        const T* data() const;
-  //                        size_type size() const;
-  //                      Currently std::array and std::span satisfy these criteria. This method
-  //                      effectively performs a memcpy of the contiguous inner storage of the container
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  addDataListSingleAt : add a vector<T> data item (T is trivial) at specified time
+  //  addDataListSingle   : add a vector<T> data item (T is trivial) at current time
   //
+  //    subKey : sub key to add data to
+  //    time   : time to add the data at (0 is current host time)
+  //    data   : pointer to buffer of type T data to add
+  //    trim   : number of items to trim the stream to
+  //    return : time of the added data item if successful, zero on failure
+
+  //  Overload for template<typename T, std::size_t Extent> (std::array and std::span)
   template<template<typename T, size_t S> class C, typename T, size_t S> uint64_t
   addDataListSingleAt(const std::string& subKey, uint64_t time, const C<T, S>& data, uint32_t trim = 1)
     { return add_single_data_list_helper(subKey, time, data.data(), data.size(), trim); }
 
-  template<template<typename T, size_t S> class C, typename T, size_t S> uint64_t
-  addDataListSingle(const std::string& subKey, const C<T, S>& data, uint32_t trim = 1)
-    { return add_single_data_list_helper(subKey, 0, data.data(), data.size(), trim); }
-
+  //  Overload for vector
   template<typename T> uint64_t
   addDataListSingleAt(const std::string& subKey, uint64_t time, const std::vector<T>& data, uint32_t trim = 1)
     { return add_single_data_list_helper(subKey, time, data.data(), data.size(), trim); }
 
+  //  Overload for template<typename T, std::size_t Extent> (std::array and std::span)
+  template<template<typename T, size_t S> class C, typename T, size_t S> uint64_t
+  addDataListSingle(const std::string& subKey, const C<T, S>& data, uint32_t trim = 1)
+    { return add_single_data_list_helper(subKey, 0, data.data(), data.size(), trim); }
+
+  //  Overload for vector
   template<typename T> uint64_t
   addDataListSingle(const std::string& subKey, const std::vector<T>& data, uint32_t trim = 1)
     { return add_single_data_list_helper(subKey, 0, data.data(), data.size(), trim); }

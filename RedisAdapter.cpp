@@ -57,9 +57,9 @@ RedisAdapter::~RedisAdapter()
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  getStatus : get status as string
 //
-//    subKey : sub key to get status from
-//    return : string with status if successful
-//             empty string if failure
+//    subKey  : sub key to get status from
+//    baseKey : base key to get status from
+//    return  : string with status on success, empty string on failure
 //
 string RedisAdapter::getStatus(const string& subKey, const string& baseKey)
 {
@@ -181,7 +181,7 @@ bool RedisAdapter::addLog(const string& message, uint32_t trim)
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  setSettingDouble : set setting for home device as type double
+//  setSettingDouble : set setting as type double
 //
 //    subKey : sub key to set setting on
 //    value  : setting value to set
@@ -201,8 +201,7 @@ bool RedisAdapter::setSettingDouble(const string& subKey, const double value)
 //    time   : time to add the data at (0 is current host time)
 //    data   : data to add
 //    trim   : number of items to trim the stream to
-//    return : time of the added data item if successful
-//             zero on failure
+//    return : time of the added data item if successful, zero on failure
 //
 uint64_t RedisAdapter::addDataDoubleAt(const string& subKey, uint64_t time, double data, uint32_t trim)
 {
@@ -242,8 +241,7 @@ bool RedisAdapter::renameData(const string& subKeySrc, const string& subKeyDst)
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  getServerTime : get Redis server time as nanoseconds
 //
-//    return  : zero on failure
-//              non-zero nanoseconds on success
+//    return  : zero on failure, nanoseconds on success
 //
 uint64_t RedisAdapter::getServerTime()
 {
@@ -269,8 +267,7 @@ uint64_t RedisAdapter::getServerTime()
 //    pattern : pattern to subscribe to
 //    func    : function called on matching message
 //    baseKey : device basekey to subscribe to
-//    return  : true if listener started
-//              false if listener failed to start
+//    return  : true if listener started, false if listener failed to start
 //
 bool RedisAdapter::psubscribe(const string& pattern, ListenSubFn func, const string& baseKey)
 {
@@ -285,8 +282,7 @@ bool RedisAdapter::psubscribe(const string& pattern, ListenSubFn func, const str
 //    command : command to subscribe to
 //    func    : function called on matching message
 //    baseKey : device basekey to subscribe to
-//    return  : true if listener started
-//              false if listener failed to start
+//    return  : true if listener started, false if listener failed to start
 //
 bool RedisAdapter::subscribe(const string& command, ListenSubFn func, const string& baseKey)
 {
@@ -312,6 +308,13 @@ bool RedisAdapter::unsubscribe(const string& unsub, const string& baseKey)
   return (_pattern_subs.size() || _command_subs.size()) ? start_listener() : true;
 }
 
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  addGenericReader : add a reader for a key that does NOT follow RedisAdapter schema
+//
+//    key     : the key to add (must NOT be a RedisAdapter schema key)
+//    func    : function to call when data is read - data will be RedisAdapter::Attrs
+//    return  : true if reader started, false if reader failed to start
+//
 bool RedisAdapter::addGenericReader(const string& key, ReaderSubFn<Attrs> func)
 {
   if (split_key(key).first.size()) return false;  //  reject if RedisAdapter key stub found
@@ -329,8 +332,15 @@ bool RedisAdapter::addGenericReader(const string& key, ReaderSubFn<Attrs> func)
   return start_reader(slot);
 }
 
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  removeGenericReader : remove all readers for a key that does NOT follow RedisAdapter schema
+//
+//    key     : the key to remove (must NOT be a RedisAdapter schema key)
+//    return  : true if reader started, false if reader failed to start
+//
 bool RedisAdapter::removeGenericReader(const string& key)
 {
+  if (split_key(key).first.size()) return false;  //  reject if RedisAdapter key stub found
   int32_t slot = _redis->keyslot(key);
   if (slot < 0 || _reader.count(slot) == 0) return false;
   stop_reader(slot);
@@ -350,6 +360,11 @@ bool RedisAdapter::removeGenericReader(const string& key)
 //
 string RedisAdapter::build_key(const string& keyStub, const string& subKey, const string& baseKey) const
 {
+  //  surround base key with {} to locate keys with same base key in same cluster slot
+  //  this mitgates CROSSSLOT errors for copyKey and renameKey but also puts all keys
+  //  for a base key onto the same reader thread (this could be mitigate with an additional
+  //  load balancing strategy of mutiple threads per slot if necessary)
+  //  NOTE - none of this has ANY effect for single instance (non-cluster) Redis servers
   return "{" + (baseKey.size() ? baseKey : _base_key) + "}:" + keyStub + (subKey.size() ? ":" + subKey : "");
 }
 
@@ -369,6 +384,7 @@ pair<string, string> RedisAdapter::split_key(const string& key) const
 
   if (idx == string::npos) return {};
 
+  //  make sure to omit the {} from base key (see build_key) and correctly handle empty sub key
   return make_pair(key.substr(1, idx - 3), key.size() > idx + len ? key.substr(idx + len + 1) : "");
 }
 
@@ -384,9 +400,8 @@ bool RedisAdapter::copy_key_helper(const string& srcSubKey, const string& dstSub
 
   int32_t ret = _redis->copy(srcKey, dstKey);
 
-  //  WARNING - this cross-slot copy brings ALL the data from srcKey
-  //    to the client computer for a manual re-add to dstKey - this
-  //    is potentially network, memory and cpu intensive!
+  //  WARNING - this cross-slot copy brings ALL the data from srcKey to the client computer for
+  //            manual re-add to dstKey - this is potentially network, memory and cpu intensive!
   if (ret == -2 && _redis->exists(dstKey) == 0)
   {
     ItemStream raw;
