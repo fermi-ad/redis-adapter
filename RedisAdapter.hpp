@@ -229,8 +229,10 @@ public:
     { return addDataDoubleAt(subKey, 0, data, trim); }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  addDataListSingleAt : add a vector<T> data item (T is trivial) at specified time
-  //  addDataListSingle   : add a vector<T> data item (T is trivial) at current time
+  //  addDataListSingleAt : add a container<T> data item (T is trivial) at specified time
+  //  addDataListSingle   : add a container<T> data item (T is trivial) at current time
+  //
+  //  note - container must implement 'T* data()' and 'size_t size()' (vector, array or span)
   //
   //    subKey : sub key to add data to
   //    time   : time to add the data at (0 is current host time)
@@ -238,7 +240,7 @@ public:
   //    trim   : number of items to trim the stream to
   //    return : time of the added data item if successful, zero on failure
 
-  //  overload for template<typename T, std::size_t Extent> (std::array and std::span)
+  //  overload for array and span
   template<template<typename T, size_t S> class C, typename T, size_t S> uint64_t
   addDataListSingleAt(const std::string& subKey, uint64_t time, const C<T, S>& data, uint32_t trim = 1)
     { return add_single_data_list_helper(subKey, time, data.data(), data.size(), trim); }
@@ -248,7 +250,7 @@ public:
   addDataListSingleAt(const std::string& subKey, uint64_t time, const std::vector<T>& data, uint32_t trim = 1)
     { return add_single_data_list_helper(subKey, time, data.data(), data.size(), trim); }
 
-  //  overload for template<typename T, std::size_t Extent> (std::array and std::span)
+  //  overload for array and span
   template<template<typename T, size_t S> class C, typename T, size_t S> uint64_t
   addDataListSingle(const std::string& subKey, const C<T, S>& data, uint32_t trim = 1)
     { return add_single_data_list_helper(subKey, 0, data.data(), data.size(), trim); }
@@ -260,25 +262,59 @@ public:
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Utility
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  connected : test if server is connected and responsive
+  //
+  //    return : true if connected, false if not connected
   //
   bool connected() { return _redis->ping(); }
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  copySetting : copy any setting key to a home setting key (dest key must not exist)
+  //  copyData    : copy any data key to a home data key (dest key must not exist)
+  //
+  //    baseKey   : base key of source
+  //    srcSubKey : sub key of source
+  //    dstSubKey : sub key of destination
+  //    return    : true if successful, false if unsuccessful
+  //
   bool copySetting(const std::string& srcSubKey, const std::string& dstSubKey, const std::string& baseKey = "")
     { return copy_key_helper(srcSubKey, dstSubKey, SETTING_STUB, baseKey); }
 
   bool copyData(const std::string& srcSubKey, const std::string& dstSubKey, const std::string& baseKey = "")
     { return copy_key_helper(srcSubKey, dstSubKey, DATA_STUB, baseKey); }
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  renameSetting : rename a home setting key (dest key must not exist)
+  //  renameData    : rename a home data key (dest key must not exist)
+  //
+  //    srcSubKey : sub key of source
+  //    dstSubKey : sub key of destination
+  //    return    : true if successful, false if unsuccessful
+  //
   bool renameSetting(const std::string& subKeySrc, const std::string& subKeyDst)
     { return _redis->rename(build_key(SETTING_STUB, subKeySrc), build_key(SETTING_STUB, subKeyDst)); }
 
   bool renameData(const std::string& subKeySrc, const std::string& subKeyDst)
     { return _redis->rename(build_key(DATA_STUB, subKeySrc), build_key(DATA_STUB, subKeyDst)); }
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  deleteSetting : delete a home setting key
+  //  deleteData    : delete a home data key
+  //
+  //    subKey : sub key to delete
+  //    return : true if successful, false if unsuccessful
+  //
   bool deleteSetting(const std::string& subKey) { return _redis->del(build_key(SETTING_STUB, subKey)) >= 0; }
 
   bool deleteData(const std::string& subKey) { return _redis->del(build_key(DATA_STUB, subKey)) >= 0; }
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  getServerTime : get time since epoch in nanoseconds from server
+  //
+  //    return : nanoseconds if successful, zero if unsuccessful
+  //
   uint64_t getServerTime();
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -403,12 +439,10 @@ private:
   //  Helper functions for getting and adding data
   //
   template<typename T> TimeValList<T>
-  get_forward_data_helper(const std::string& baseKey, const std::string& subKey,
-                          uint64_t minTime, uint64_t maxTime, uint32_t count);
+  get_forward_data_helper(const std::string& baseKey, const std::string& subKey, uint64_t minTime, uint64_t maxTime, uint32_t count);
 
   template<typename T> TimeValList<std::vector<T>>
-  get_forward_data_list_helper(const std::string& baseKey, const std::string& subKey,
-                               uint64_t minTime, uint64_t maxTime, uint32_t count);
+  get_forward_data_list_helper(const std::string& baseKey, const std::string& subKey, uint64_t minTime, uint64_t maxTime, uint32_t count);
 
   template<typename T> TimeValList<T>
   get_reverse_data_helper(const std::string& baseKey, const std::string& subKey, uint64_t maxTime, uint32_t count);
