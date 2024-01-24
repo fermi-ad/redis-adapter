@@ -43,14 +43,7 @@ public:
   //
   RedisConnection(const Options& opts)
   {
-    _co.host = opts.host;
-    if (opts.user.size()) _co.user = opts.user;   //  dont overwrite redis++ default with ""
-    _co.password = opts.password;
-    _co.socket_timeout = chr::milliseconds(opts.timeout);
-    if (opts.port) _co.port = opts.port;          //  dont overwrite redis++ default with 0
-    _cpo.size = opts.size;
-
-    if ( ! connect()) syslog(LOG_ERR, "RedisConnection failed to connect in constructor");
+    if ( ! connect(opts)) syslog(LOG_ERR, "RedisConnection failed to connect in constructor");
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -71,17 +64,28 @@ public:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  connect : attempt to make either a cluster or single server connection
   //
+  //    options : see RedisConnection::Options above
   //    return : true if live server connected
   //             false if not connected
   //
-  bool connect()
+  bool connect(const Options& opts)
   {
-    try { _cluster = std::make_unique<swr::RedisCluster>(_co, _cpo); }  //  this one throws
+    swr::ConnectionOptions co;
+    swr::ConnectionPoolOptions cpo;
+
+    co.host = opts.host;
+    if (opts.user.size()) co.user = opts.user;  //  dont overwrite redis++ default with ""
+    co.password = opts.password;
+    co.socket_timeout = chr::milliseconds(opts.timeout);
+    if (opts.port) co.port = opts.port;         //  dont overwrite redis++ default with 0
+    cpo.size = opts.size;
+
+    try { _cluster = std::make_unique<swr::RedisCluster>(co, cpo); }  //  this one throws
     catch (...)
     {
       try
       {
-        _singler = std::make_unique<swr::Redis>(_co, _cpo);   //  this one does not
+        _singler = std::make_unique<swr::Redis>(co, cpo);   //  this one does not
         _singler->ping();                                     //  but this one does
       }
       catch (...) { _singler.reset(); }   //  reset _singler to null since not really connected
@@ -90,7 +94,7 @@ public:
     if (_cluster || _singler) return true;
 
     //  neither server type connected, log the failure and return false
-    syslog(LOG_ERR, "RedisConnection can't connnect(%zu) to %s:%i", _cpo.size, _co.host.c_str(), _co.port);
+    syslog(LOG_ERR, "RedisConnection can't connnect to %s:%i", co.host.c_str(), co.port);
     return false;
   }
 
@@ -461,9 +465,6 @@ public:
   }
 
 private:
-  swr::ConnectionOptions      _co;
-  swr::ConnectionPoolOptions  _cpo;
-
   std::unique_ptr<swr::RedisCluster> _cluster;
   std::unique_ptr<swr::Redis>        _singler;
 };
