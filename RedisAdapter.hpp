@@ -213,8 +213,7 @@ public:
   //    time   : time to add the data at (0 for current host time)
   //    data   : data to add
   //    trim   : number of items to trim the stream to
-  //    return : time of the added data item if successful
-  //             zero on failure
+  //    return : time of the added data item if successful, zero on failure
   //
   template<typename T> uint64_t
   addDataSingleAt(const std::string& subKey, uint64_t time, const T& data, uint32_t trim = 1);
@@ -319,24 +318,61 @@ public:
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Publish/Subscribe
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  ListenSubFn : callback function type for pub/sub notification
   //
   using ListenSubFn = std::function<void(const std::string& baseKey, const std::string& subKey, const std::string& message)>;
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  publish : publish a message to a channel made up of base key and sub key
+  //
+  //    baseKey : the base key to construct the channel from
+  //    subKey  : the sub key to construct the channel from
+  //    message : the message to send
+  //    return  : true on success, false on failure
+  //
   bool publish(const std::string& subKey, const std::string& message, const std::string& baseKey = "")
-    { return _redis->publish(build_key(COMMAND_STUB, subKey, baseKey), message) >= 0; }
+    { return _redis->publish(build_key(CHANNEL_STUB, subKey, baseKey), message) >= 0; }
 
-  bool psubscribe(const std::string& pattern, ListenSubFn func, const std::string& baseKey = "");
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  subscribe   : subscribe for messages on a single channel
+  //  psubscribe  : pattern subscribe for messages on a set of channels matching a pattern
+  //  unsubscribe : unsubscribe a single channel or pattern
+  //
+  //    baseKey : the base key to construct the channel from
+  //    subKey  : the sub key to construct the channel from
+  //    func    : the function to call when message received on this channel
+  //    return  : true on success, false on failure
+  //
+  bool subscribe(const std::string& subKey, ListenSubFn func, const std::string& baseKey = "");
 
-  bool subscribe(const std::string& command, ListenSubFn func, const std::string& baseKey = "");
+  bool psubscribe(const std::string& subKey, ListenSubFn func, const std::string& baseKey = "");
 
-  bool unsubscribe(const std::string& unsub, const std::string& baseKey = "");
+  bool unsubscribe(const std::string& subKey, const std::string& baseKey = "");
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Stream Readers
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  ReaderSubFn : callback function type for stream reader notification
   //
   template<typename T>
   using ReaderSubFn = std::function<void(const std::string& baseKey, const std::string& subKey, const TimeValList<T>& data)>;
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  addStatusReader      : add a stream reader for a status key (type string)
+  //  addLogReader         : add a stream reader for a log key (type string)
+  //  addSettingReader     : add a stream reader for a setting key (trivial type or string)
+  //  addSettingListReader : add a stream reader for a setting key (vector of trivial type)
+  //  addDataReader        : add a stream reader for a data key (trivial type, string or Attr)
+  //  addDataListReader    : add a stream reader for a data key (vector of trivial type)
+  //
+  //    baseKey : the base key to read from
+  //    subKey  : the sub key to read from
+  //    func    : the function to call when information is read on a key
+  //    return  : true on success, false on failure
+  //
   bool addStatusReader(const std::string& subKey, ReaderSubFn<std::string> func, const std::string& baseKey = "")
     { return add_reader_helper(baseKey, STATUS_STUB, subKey, make_reader_callback(func)); }
 
@@ -359,8 +395,25 @@ public:
   bool addDataListReader(const std::string& subKey, ReaderSubFn<std::vector<T>> func, const std::string& baseKey = "")
     { return add_reader_helper(baseKey, DATA_STUB, subKey, make_list_reader_callback(func)); }
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  addGenericReader : add a reader for a key that does NOT follow RedisAdapter schema
+  //
+  //    key     : the key to add (must NOT be a RedisAdapter schema key)
+  //    func    : function to call when data is read - data will be Attrs
+  //    return  : true if reader started, false if reader failed to start
+  //
   bool addGenericReader(const std::string& key, ReaderSubFn<Attrs> func);
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  removeStatusReader  : remove all readers for a status key
+  //  removeLogReader     : remove all readers for the log key
+  //  removeSettingReader : remove all readers for a setting key
+  //  removeDataReader    : remove all readers for a data key
+  //
+  //    baseKey : the base key to remove
+  //    subKey  : the sub key to remove
+  //    return  : true on success, false on failure
+  //
   bool removeStatusReader(const std::string& subKey, const std::string& baseKey = "")
     { return remove_reader_helper(baseKey, STATUS_STUB, subKey); }
 
@@ -373,6 +426,12 @@ public:
   bool removeDataReader(const std::string& subKey, const std::string& baseKey = "")
     { return remove_reader_helper(baseKey, DATA_STUB, subKey); }
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  removeGenericReader : remove all readers for key that does NOT follow RedisAdapter schema
+  //
+  //    key     : the key to remove (must NOT be a RedisAdapter schema key)
+  //    return  : true if reader started, false if reader failed to start
+  //
   bool removeGenericReader(const std::string& key);
 
 private:
@@ -393,9 +452,9 @@ private:
   const std::string STATUS_STUB   = "[*-STATUS-*]";
   const std::string SETTING_STUB  = "[*-SETTING-*]";
   const std::string DATA_STUB     = "[*-DATA-*]";
-  const std::string COMMAND_STUB  = "[*-COMMAND-*]";
+  const std::string CHANNEL_STUB  = "[*-CHANNEL-*]";
 
-  const std::string CONTROL_STUB  = "[*-CTRL-*]";
+  const std::string CONTROL_STUB  = "[*-CONTROL-*]";
 
   std::string build_key(const std::string& keyStub, const std::string& subKey = "", const std::string& baseKey = "") const;
 

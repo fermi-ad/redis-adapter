@@ -238,47 +238,47 @@ uint64_t RedisAdapter::getServerTime()
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  psubscribe : subscribe to a pattern
+//  subscribe : subscribe to a channel
 //
-//    pattern : pattern to subscribe to
-//    func    : function called on matching message
-//    baseKey : device basekey to subscribe to
+//    baseKey : the base key to construct the channel from
+//    subKey  : the sub key to construct the channel from
+//    func    : the function to call when message received on this channel
 //    return  : true if listener started, false if listener failed to start
 //
-bool RedisAdapter::psubscribe(const string& pattern, ListenSubFn func, const string& baseKey)
+bool RedisAdapter::subscribe(const string& subKey, ListenSubFn func, const string& baseKey)
 {
   stop_listener();
-  _pattern_subs[build_key(COMMAND_STUB, pattern, baseKey)].push_back(func);
+  _command_subs[build_key(CHANNEL_STUB, subKey, baseKey)].push_back(func);
   return start_listener();
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  subscribe : subscribe to a command
+//  psubscribe : subscribe to a pattern
 //
-//    command : command to subscribe to
-//    func    : function called on matching message
-//    baseKey : device basekey to subscribe to
+//    baseKey : the base key to construct the channel from
+//    subKey  : the sub key pattern to construct the channel from
+//    func    : the function to call when message received on this channel
 //    return  : true if listener started, false if listener failed to start
 //
-bool RedisAdapter::subscribe(const string& command, ListenSubFn func, const string& baseKey)
+bool RedisAdapter::psubscribe(const string& subKey, ListenSubFn func, const string& baseKey)
 {
   stop_listener();
-  _command_subs[build_key(COMMAND_STUB, command, baseKey)].push_back(func);
+  _pattern_subs[build_key(CHANNEL_STUB, subKey, baseKey)].push_back(func);
   return start_listener();
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  unsubscribe : unsubscribe from a command and/or pattern
 //
-//    unsub   : command or pattern to unsubscribe from
+//    subKey  : device subKey/pattern to unsubscribe from
 //    baseKey : device basekey to unsubscribe from
 //    return  : true if listener started or no more commands/patterns
 //              false if listener failed to start
 //
-bool RedisAdapter::unsubscribe(const string& unsub, const string& baseKey)
+bool RedisAdapter::unsubscribe(const string& subKey, const string& baseKey)
 {
   stop_listener();
-  string key = build_key(COMMAND_STUB, unsub, baseKey);
+  string key = build_key(CHANNEL_STUB, subKey, baseKey);
   if (_pattern_subs.count(key)) _pattern_subs.erase(key);
   if (_command_subs.count(key)) _command_subs.erase(key);
   return (_pattern_subs.size() || _command_subs.size()) ? start_listener() : true;
@@ -346,7 +346,7 @@ string RedisAdapter::build_key(const string& keyStub, const string& subKey, cons
 
 pair<string, string> RedisAdapter::split_key(const string& key) const
 {
-  size_t idx = key.find(COMMAND_STUB), len = COMMAND_STUB.size();
+  size_t idx = key.find(CHANNEL_STUB), len = CHANNEL_STUB.size();
 
   if (idx == string::npos) { idx = key.find(DATA_STUB);    len = DATA_STUB.size(); }
 
