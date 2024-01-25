@@ -199,8 +199,8 @@ public:
   addStreamList(const std::string& subKey, const TimeValList<std::vector<T>>& data, uint32_t trim = 1);
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  addStreamSingle : add a data item of type T (T is trivial, string or Attrs) at current time
-  //  addStreamDouble : add a data item of type double at current time
+  //  addStreamSingle       : add a single data item of type T (T is trivial, string or Attrs) at current time
+  //  addStreamSingleDouble : add a single data item of type double at current time
   //
   //    subKey : sub key to add data to
   //    data   : data to add
@@ -211,7 +211,7 @@ public:
   template<typename T> uint64_t
   addStreamSingle(const std::string& subKey, const T& data, const RA_AddStreamArgs& args = {});
 
-  uint64_t addStreamDouble(const std::string& subKey, double data, const RA_AddStreamArgs& args = {});
+  uint64_t addStreamSingleDouble(const std::string& subKey, double data, const RA_AddStreamArgs& args = {});
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  addStreamListSingle : add a container<T> item (T is trivial) at specified/current time

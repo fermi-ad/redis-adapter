@@ -86,7 +86,7 @@ TEST(RedisAdapter, DataSingle)
   EXPECT_FLOAT_EQ(f, 1.23);                               //  Here it doesn't matter, we are just comparing
 
   //  set/get double single element
-  EXPECT_GT(redis.addStreamDouble("abc", 1.23), 0);
+  EXPECT_GT(redis.addStreamSingleDouble("abc", 1.23), 0);
   double d = 0;
   EXPECT_GT(redis.getStreamSingle("abc", d), 0);
   EXPECT_DOUBLE_EQ(d, 1.23);

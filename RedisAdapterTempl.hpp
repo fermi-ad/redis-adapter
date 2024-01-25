@@ -403,7 +403,7 @@ RedisAdapter::addStreamList(const std::string& subKey, const TimeValList<std::ve
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  addStreamSingle : add a data item of type T (T is trivial, string or Attrs)
+//  addStreamSingle : add a single data item of type T (T is trivial, string or Attrs)
 //
 //    subKey : sub key to add data to
 //    time   : time to add the data at (0 for current host time)
@@ -414,7 +414,7 @@ RedisAdapter::addStreamList(const std::string& subKey, const TimeValList<std::ve
 template<typename T> uint64_t
 RedisAdapter::addStreamSingle(const std::string& subKey, const T& data, const RA_AddStreamArgs& args)
 {
-  static_assert( ! std::is_same<T, double>(), "use addStreamDouble for double or 'f' suffix for float literal");
+  static_assert( ! std::is_same<T, double>(), "use addStreamSingleDouble for double or 'f' suffix for float literal");
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
   std::string key = build_key(STREAM_STUB, subKey);
