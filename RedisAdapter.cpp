@@ -185,7 +185,7 @@ bool RedisAdapter::addLog(const string& message, const RA_AddLogArgs& args)
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  addStreamSingleDouble : add a single data item of type double
+//  addStreamDoubleSingle : add a single data item of type double
 //
 //    subKey : sub key to add data to
 //    time   : time to add the data at
@@ -193,7 +193,7 @@ bool RedisAdapter::addLog(const string& message, const RA_AddLogArgs& args)
 //    trim   : number of items to trim the stream to
 //    return : time of the added data item if successful, zero on failure
 //
-uint64_t RedisAdapter::addStreamSingleDouble(const string& subKey, double data, const RA_AddStreamArgs& args)
+uint64_t RedisAdapter::addStreamDoubleSingle(const string& subKey, double data, const RA_AddStreamArgs& args)
 {
   string key = build_key(STREAM_STUB, subKey);
   Attrs attrs = default_field_attrs(data);
