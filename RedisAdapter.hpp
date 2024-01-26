@@ -200,7 +200,7 @@ public:
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  addStreamSingle       : add a single data item of type T (T is trivial, string or Attrs) at specified/current time
-  //  addStreamDoubleSingle : add a single data item of type double at specified/current time
+  //  addStreamSingleDouble : add a single data item of type double at specified/current time
   //
   //    subKey : sub key to add data to
   //    data   : data to add
@@ -211,10 +211,10 @@ public:
   template<typename T> uint64_t
   addStreamSingle(const std::string& subKey, const T& data, const RA_AddStreamArgs& args = {});
 
-  uint64_t addStreamDoubleSingle(const std::string& subKey, double data, const RA_AddStreamArgs& args = {});
+  uint64_t addStreamSingleDouble(const std::string& subKey, double data, const RA_AddStreamArgs& args = {});
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  addStreamListSingle : add a container<T> item (T is trivial) at specified/current time
+  //  addStreamSingleList : add a container<T> item (T is trivial) at specified/current time
   //                        note: container must implement 'T* data()' and 'size_t size()'
   //
   //    subKey : sub key to add data to
@@ -225,12 +225,12 @@ public:
 
   //  overload for array and span
   template<template<typename T, size_t S> class C, typename T, size_t S> uint64_t
-  addStreamListSingle(const std::string& subKey, const C<T, S>& data, const RA_AddStreamArgs& args = {})
+  addStreamSingleList(const std::string& subKey, const C<T, S>& data, const RA_AddStreamArgs& args = {})
     { return add_single_stream_list_helper(subKey, args.time, data.data(), data.size(), args.trim); }
 
   //  overload for vector
   template<typename T> uint64_t
-  addStreamListSingle(const std::string& subKey, const std::vector<T>& data, const RA_AddStreamArgs& args = {})
+  addStreamSingleList(const std::string& subKey, const std::vector<T>& data, const RA_AddStreamArgs& args = {})
     { return add_single_stream_list_helper(subKey, args.time, data.data(), data.size(), args.trim); }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

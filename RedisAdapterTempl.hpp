@@ -414,7 +414,7 @@ RedisAdapter::addStreamList(const std::string& subKey, const TimeValList<std::ve
 template<typename T> uint64_t
 RedisAdapter::addStreamSingle(const std::string& subKey, const T& data, const RA_AddStreamArgs& args)
 {
-  static_assert( ! std::is_same<T, double>(), "use addStreamDoubleSingle for double or 'f' suffix for float literal");
+  static_assert( ! std::is_same<T, double>(), "use addStreamSingleDouble for double or 'f' suffix for float literal");
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
   std::string key = build_key(STREAM_STUB, subKey);

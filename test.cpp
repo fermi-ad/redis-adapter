@@ -86,14 +86,14 @@ TEST(RedisAdapter, DataSingle)
   EXPECT_FLOAT_EQ(f, 1.23);                               //  Here it doesn't matter, we are just comparing
 
   //  set/get double single element
-  EXPECT_GT(redis.addStreamDoubleSingle("abc", 1.23), 0);
+  EXPECT_GT(redis.addStreamSingleDouble("abc", 1.23), 0);
   double d = 0;
   EXPECT_GT(redis.getStreamSingle("abc", d), 0);
   EXPECT_DOUBLE_EQ(d, 1.23);
 
   //  set/get float vector single element
   vector<float> vf = { 1.23, 3.45, 5.67 };
-  EXPECT_GT(redis.addStreamListSingle("abc", vf), 0);
+  EXPECT_GT(redis.addStreamSingleList("abc", vf), 0);
   vf.clear();
   EXPECT_GT(redis.getStreamListSingle("abc", vf), 0);
   EXPECT_EQ(vf.size(), 3);
@@ -103,7 +103,7 @@ TEST(RedisAdapter, DataSingle)
 
   //  set/get int array single element (also span if c++20)
   array<int, 3> ai = { 1, 2, 3 };
-  EXPECT_GT(redis.addStreamListSingle("abc", ai), 0);
+  EXPECT_GT(redis.addStreamSingleList("abc", ai), 0);
   //  note it comes back as a vector
   vector<int> vi;
   EXPECT_GT(redis.getStreamListSingle("abc", vi), 0);
@@ -322,7 +322,7 @@ TEST(RedisAdapter, DataListener)
   vector<float> vf = { 1, 2, 3 };
 
   //  this should not be seen
-  EXPECT_GT(redis.addStreamListSingle("xyz", vf), 0);
+  EXPECT_GT(redis.addStreamSingleList("xyz", vf), 0);
 
   //  add reader
   bool waiting = true;
@@ -343,7 +343,7 @@ TEST(RedisAdapter, DataListener)
 
   //  trigger reader
   vf[0] = 1.23; vf[1] = 3.45; vf[2] = 5.67;
-  EXPECT_GT(redis.addStreamListSingle("xyz", vf), 0);
+  EXPECT_GT(redis.addStreamSingleList("xyz", vf), 0);
 
   for (int i = 0; i < 20 && waiting; i++)
     this_thread::sleep_for(milliseconds(5));
@@ -358,7 +358,7 @@ TEST(RedisAdapter, DataListener)
   //  try to trigger reader
   vf[0] = 0; vf[1] = 0; vf[2] = 0;
   waiting = true;
-  EXPECT_GT(redis.addStreamListSingle("xyz", vf), 0);
+  EXPECT_GT(redis.addStreamSingleList("xyz", vf), 0);
 
   for (int i = 0; i < 20 && waiting; i++)
     this_thread::sleep_for(milliseconds(5));
