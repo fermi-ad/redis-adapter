@@ -399,7 +399,7 @@ private:
   const std::string LOG_STUB      = "[*-LOG-*]";
   const std::string STATUS_STUB   = "[*-STATUS-*]";
   const std::string STREAM_STUB   = "[*-STREAM-*]";
-  const std::string CHANNEL_STUB  = "[*-CHANNEL-*]";
+  const std::string CHANNEL_STUB  = "<$-CHANNEL-$>";
 
   const std::string STOP_STUB = "[*-STOP-*]";
 
