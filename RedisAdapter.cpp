@@ -252,6 +252,12 @@ bool RedisAdapter::subscribe(const string& subKey, ListenSubFn func, const strin
 //
 bool RedisAdapter::psubscribe(const string& subKey, ListenSubFn func, const string& baseKey)
 {
+  //  don't allow psubscribe if wildcards in the base key
+  if (baseKey.size())
+    { if (baseKey.find_first_of("*?[]") != string::npos) { return false; } }
+  else
+    { if (_base_key.find_first_of("*?[]") != string::npos) { return false; } }
+
   stop_listener();
   _pattern_subs[build_key(CHANNEL_STUB, subKey, baseKey)].push_back(func);
   return start_listener();

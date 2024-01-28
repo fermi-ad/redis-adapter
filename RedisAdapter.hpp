@@ -394,14 +394,15 @@ private:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Redis key and field constants
   //
-  const std::string DEFAULT_FIELD = "_";
+  const std::string DEFAULT_FIELD = "_";              //  default field in stream Attrs
 
-  const std::string LOG_STUB      = "[*-LOG-*]";
+  const std::string LOG_STUB      = "[*-LOG-*]";      //  stream stubs for data
   const std::string STATUS_STUB   = "[*-STATUS-*]";
   const std::string STREAM_STUB   = "[*-STREAM-*]";
-  const std::string CHANNEL_STUB  = "<$-CHANNEL-$>";
 
-  const std::string STOP_STUB = "[*-STOP-*]";
+  const std::string STOP_STUB     = "[*-STOP-*]";     //  stream stub to stop reader thread
+
+  const std::string CHANNEL_STUB  = "<$-CHANNEL-$>";  //  pubsub channel stub
 
   std::string build_key(const std::string& keyStub, const std::string& subKey = "", const std::string& baseKey = "") const;
 

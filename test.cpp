@@ -397,7 +397,7 @@ TEST(RedisAdapter, PubSub)
 
   //  dont trigger subscription
   waiting = true;
-  EXPECT_TRUE(redis.publish("zzz", "000"));
+  EXPECT_TRUE(redis.publish("zzz", "001"));
 
   for (int i = 0; i < 20 && waiting; i++)
     this_thread::sleep_for(milliseconds(5));
@@ -411,10 +411,76 @@ TEST(RedisAdapter, PubSub)
 
   //  try to trigger subscription
   waiting = true;
-  EXPECT_TRUE(redis.publish("xyz", "000"));
+  EXPECT_TRUE(redis.publish("xyz", "002"));
 
   for (int i = 0; i < 20 && waiting; i++)
     this_thread::sleep_for(milliseconds(5));
+
+  //  should still be waiting
+  EXPECT_TRUE(waiting);
+}
+
+TEST(RedisAdapter, PSubscribe)
+{
+  RedisAdapter redis("TEST");
+
+  //  this publish should not be seen
+  EXPECT_TRUE(redis.publish("xyz", "000"));
+
+  //  subscribe
+  bool waiting = true;
+  EXPECT_TRUE(redis.psubscribe("xyz*", [&](const string& base, const string& sub, const string& msg)
+    {
+      waiting = false;
+      EXPECT_STREQ(base.c_str(), "TEST");
+      EXPECT_STREQ(sub.substr(0, 3).c_str(), "xyz");
+      EXPECT_STREQ(msg.c_str(), "123");
+    }
+  ));
+  this_thread::sleep_for(milliseconds(5));
+
+  //  trigger subscription
+  EXPECT_TRUE(redis.publish("xyz", "123"));
+
+  for (int i = 0; i < 20 && waiting; i++)
+    this_thread::sleep_for(milliseconds(5));
+
+  //  should not be waiting anymore
+  EXPECT_FALSE(waiting);
+
+  //  trigger subscription
+  waiting = true;
+  EXPECT_TRUE(redis.publish("xyz:abc", "123"));
+
+  for (int i = 0; i < 20 && waiting; i++)
+    this_thread::sleep_for(milliseconds(5));
+
+  //  should not be waiting anymore
+  EXPECT_FALSE(waiting);
+
+  //  dont trigger subscription
+  waiting = true;
+  EXPECT_TRUE(redis.publish("zzz", "001"));
+
+  for (int i = 0; i < 20 && waiting; i++)
+    this_thread::sleep_for(milliseconds(5));
+
+  //  should still be waiting
+  EXPECT_TRUE(waiting);
+
+  //  unsubscribe
+  EXPECT_TRUE(redis.unsubscribe("xyz*"));
+  this_thread::sleep_for(milliseconds(5));
+
+  //  try to trigger subscription
+  waiting = true;
+  EXPECT_TRUE(redis.publish("xyz", "002"));
+
+  for (int i = 0; i < 20 && waiting; i++)
+    this_thread::sleep_for(milliseconds(5));
+
+  //  no wildcards allowed in base key
+  EXPECT_FALSE(redis.psubscribe("xyz*", {}, "fgh*"));
 
   //  should still be waiting
   EXPECT_TRUE(waiting);
