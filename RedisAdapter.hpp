@@ -396,9 +396,9 @@ private:
   //
   const std::string DEFAULT_FIELD = "_";              //  default field in stream Attrs
 
-  const std::string LOG_STUB      = "[*-LOG-*]";      //  stream stubs for data
-  const std::string STATUS_STUB   = "[*-STATUS-*]";
-  const std::string STREAM_STUB   = "[*-STREAM-*]";
+  const std::string LOG_STUB      = "[*-LOG-*]";      //  stream stub for logging
+  const std::string STATUS_STUB   = "[*-STATUS-*]";   //  stream stub for status
+  const std::string STREAM_STUB   = "[*-STREAM-*]";   //  stream stub for general use
 
   const std::string STOP_STUB     = "[*-STOP-*]";     //  stream stub to stop reader thread
 
