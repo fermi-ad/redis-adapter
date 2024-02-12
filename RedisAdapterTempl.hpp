@@ -61,7 +61,7 @@ template<typename T> RedisAdapter::Attrs RedisAdapter::default_field_attrs(const
 //
 template<typename T> RedisAdapter::TimeValList<T>
 RedisAdapter::get_forward_stream_helper(const std::string& baseKey, const std::string& subKey,
-                                      uint64_t minTime, uint64_t maxTime, uint32_t count)
+                                        uint64_t minTime, uint64_t maxTime, uint32_t count)
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
@@ -90,7 +90,7 @@ RedisAdapter::get_forward_stream_helper(const std::string& baseKey, const std::s
 //  Attrs specialization
 template<> inline RedisAdapter::TimeValList<RedisAdapter::Attrs>
 RedisAdapter::get_forward_stream_helper(const std::string& baseKey, const std::string& subKey,
-                                      uint64_t minTime, uint64_t maxTime, uint32_t count)
+                                        uint64_t minTime, uint64_t maxTime, uint32_t count)
 {
   std::string key = build_key(STREAM_STUB, subKey, baseKey);
   std::string minID = min_time_to_id(minTime);
@@ -124,7 +124,7 @@ RedisAdapter::get_forward_stream_helper(const std::string& baseKey, const std::s
 //
 template<typename T> RedisAdapter::TimeValList<std::vector<T>>
 RedisAdapter::get_forward_stream_list_helper(const std::string& baseKey, const std::string& subKey,
-                                           uint64_t minTime, uint64_t maxTime, uint32_t count)
+                                             uint64_t minTime, uint64_t maxTime, uint32_t count)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
@@ -163,7 +163,7 @@ RedisAdapter::get_forward_stream_list_helper(const std::string& baseKey, const s
 //
 template<typename T> RedisAdapter::TimeValList<T>
 RedisAdapter::get_reverse_stream_helper(const std::string& baseKey, const std::string& subKey,
-                                      uint64_t maxTime, uint32_t count)
+                                        uint64_t maxTime, uint32_t count)
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
@@ -191,7 +191,7 @@ RedisAdapter::get_reverse_stream_helper(const std::string& baseKey, const std::s
 //  Attrs specialization
 template<> inline RedisAdapter::TimeValList<RedisAdapter::Attrs>
 RedisAdapter::get_reverse_stream_helper(const std::string& baseKey, const std::string& subKey,
-                                      uint64_t maxTime, uint32_t count)
+                                        uint64_t maxTime, uint32_t count)
 {
   std::string key = build_key(STREAM_STUB, subKey, baseKey);
   std::string maxID = max_time_to_id(maxTime);
@@ -223,7 +223,7 @@ RedisAdapter::get_reverse_stream_helper(const std::string& baseKey, const std::s
 //
 template<typename T> RedisAdapter::TimeValList<std::vector<T>>
 RedisAdapter::get_reverse_stream_list_helper(const std::string& baseKey, const std::string& subKey,
-                                           uint64_t maxTime, uint32_t count)
+                                             uint64_t maxTime, uint32_t count)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
@@ -260,7 +260,7 @@ RedisAdapter::get_reverse_stream_list_helper(const std::string& baseKey, const s
 //
 template<typename T> uint64_t
 RedisAdapter::get_single_stream_helper(const std::string& baseKey, const std::string& subKey,
-                                     T& dest, uint64_t maxTime)
+                                       T& dest, uint64_t maxTime)
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
@@ -283,7 +283,7 @@ RedisAdapter::get_single_stream_helper(const std::string& baseKey, const std::st
 //  Attrs specialization
 template<> inline uint64_t
 RedisAdapter::get_single_stream_helper(const std::string& baseKey, const std::string& subKey,
-                                     Attrs& dest, uint64_t maxTime)
+                                       Attrs& dest, uint64_t maxTime)
 {
   ItemStream raw;
 
@@ -309,7 +309,7 @@ RedisAdapter::get_single_stream_helper(const std::string& baseKey, const std::st
 //
 template<typename T> uint64_t
 RedisAdapter::get_single_stream_list_helper(const std::string& baseKey, const std::string& subKey,
-                                          std::vector<T>& dest, uint64_t maxTime)
+                                            std::vector<T>& dest, uint64_t maxTime)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 

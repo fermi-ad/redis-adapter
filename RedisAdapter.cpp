@@ -219,8 +219,8 @@ uint64_t RedisAdapter::getServerTime()
   {
     try
     {
-      nanos = stoull(time[0]) * 1000 * 1000 * 1000  // time since epoch in seconds
-            + stoull(time[1]) * 1000;               // nanoseconds in the second
+      nanos = stoull(time[0]) * 1000 * 1000 * 1000  //  seconds to nanoseconds
+            + stoull(time[1]) * 1000;               //  microseconds to nanoseconds
     }
     catch (...) {}
   }
@@ -290,10 +290,13 @@ bool RedisAdapter::unsubscribe(const string& subKey, const string& baseKey)
 bool RedisAdapter::addGenericReader(const string& key, ReaderSubFn<Attrs> func)
 {
   if (split_key(key).first.size()) return false;  //  reject if RedisAdapter key stub found
+
   int32_t slot = _redis->keyslot(key);
   if (slot < 0) return false;
+
   stop_reader(slot);
   reader_info& info = _reader[slot];
+
   if (info.stop.empty())
   {
     info.stop = build_key(STOP_STUB, key);
@@ -313,12 +316,15 @@ bool RedisAdapter::addGenericReader(const string& key, ReaderSubFn<Attrs> func)
 bool RedisAdapter::removeGenericReader(const string& key)
 {
   if (split_key(key).first.size()) return false;  //  reject if RedisAdapter key stub found
+
   int32_t slot = _redis->keyslot(key);
   if (slot < 0 || _reader.count(slot) == 0) return false;
+
   stop_reader(slot);
   reader_info& info = _reader.at(slot);
   info.subs.erase(key);
   info.keyids.erase(key);
+
   if (info.subs.empty())
   {
     _reader.erase(slot);
@@ -474,8 +480,10 @@ bool RedisAdapter::add_reader_helper(const string& baseKey, const string& keyStu
   string key = build_key(keyStub, subKey, baseKey);
   int32_t slot = _redis->keyslot(key);
   if (slot < 0) return false;
+
   stop_reader(slot);
   reader_info& info = _reader[slot];
+
   if (info.stop.empty())
   {
     info.stop = build_key(STOP_STUB, "", baseKey);
@@ -491,10 +499,12 @@ bool RedisAdapter::remove_reader_helper(const string& baseKey, const string& key
   string key = build_key(keyStub, subKey, baseKey);
   int32_t slot = _redis->keyslot(key);
   if (slot < 0 || _reader.count(slot) == 0) return false;
+
   stop_reader(slot);
   reader_info& info = _reader.at(slot);
   info.subs.erase(key);
   info.keyids.erase(key);
+
   if (info.subs.empty())
   {
     _reader.erase(slot);
@@ -559,8 +569,10 @@ bool RedisAdapter::start_reader(uint16_t slot)
 bool RedisAdapter::stop_reader(uint16_t slot)
 {
   if (_reader.count(slot) == 0) return false;
+
   reader_info& info = _reader.at(slot);
   if ( ! info.thread.joinable()) return false;
+
   info.run = false;
   Attrs attrs = default_field_attrs("");
   _redis->xaddTrim(info.stop, "*", attrs.begin(), attrs.end(), 1);
