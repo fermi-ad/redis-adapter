@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Start the process
-create-cluster start
+/usr/src/RedisAdapter/create-cluster start
 
 # Wait for a bit to ensure the service is ready
 echo "Waiting for the service to be ready..."
@@ -11,7 +11,7 @@ sleep 5 # Waits for 5 seconds; adjust this value as needed
 if [ $? -eq 0 ]; then
     echo "Start command executed successfully. Proceeding to create command."
     # Create the cluster
-    create-cluster create
+    /usr/src/RedisAdapter/create-cluster create
 
     # Check if the create command succeeded
     if [ $? -eq 0 ]; then
