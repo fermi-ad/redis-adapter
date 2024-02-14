@@ -1,13 +1,17 @@
 #!/bin/bash
 
 # Settings
-REDIS_SERVER="$(which redis-server)"
-REDIS_CLI="$(which redis-cli)"
-CLUSTER_HOST=127.0.0.1
-PORT=6379
-TIMEOUT=2000
-NODES=6
-REPLICAS=1
+#Can be set via environment variables otherwise default
+
+REDIS_SERVER="${REDIS_SERVER:-$(which redis-server)}"
+REDIS_CLI="${REDIS_CLI:-$(which redis-cli)}"
+CLUSTER_HOST="${CLUSTER_HOST:-127.0.0.1}"
+PORT="${PORT:-6379}"
+TIMEOUT="${TIMEOUT:-2000}"
+NODES="${NODES:-6}"
+REPLICAS="${REPLICAS:-1}"
+ADDITIONAL_SETTINGS="${ADDITIONAL_SETTINGS:-""}"
+
 
 # You may want to put the above config parameters into config.sh in order to
 # override the defaults without modifying this script.
@@ -24,7 +28,9 @@ if [ "$1" == "start" ]
 then
     while [ $((PORT < ENDPORT)) != "0" ]; do
         echo "Starting $PORT"
-        $REDIS_SERVER --port $PORT --protected-mode yes --cluster-enabled yes --cluster-config-file nodes-${PORT}.conf --cluster-node-timeout $TIMEOUT --appendonly no --dbfilename dump-${PORT}.rdb --logfile ${PORT}.log --daemonize yes --bind ${CLUSTER_HOST}
+	# Echo the command for starting the Redis server
+        echo "$REDIS_SERVER --port $PORT --protected-mode yes --cluster-enabled yes --cluster-config-file nodes-${PORT}.conf --cluster-node-timeout $TIMEOUT --appendonly no --dbfilename dump-${PORT}.rdb --logfile ${PORT}.log --daemonize yes --bind ${CLUSTER_HOST} ${ADDITIONAL_SETTINGS}"
+        $REDIS_SERVER --port $PORT --protected-mode yes --cluster-enabled yes --cluster-config-file nodes-${PORT}.conf --cluster-node-timeout $TIMEOUT --appendonly no --dbfilename dump-${PORT}.rdb --logfile ${PORT}.log --daemonize yes --bind ${CLUSTER_HOST} ${ADDITIONAL_SETTINGS}
         PORT=$((PORT+1))
     done
     exit 0
