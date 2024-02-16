@@ -70,9 +70,7 @@ set_target_properties(RedisAdapter_static PROPERTIES ARCHIVE_OUTPUT_NAME RedisAd
 
 # "make install" to project directory
 install(TARGETS RedisAdapter_shared PUBLIC_HEADER)
-install(TARGETS RedisAdapter_shared LIBRARY DESTINATION lib)
-install(TARGETS ${REDIS_ADAPTER_LIBRARIES} ARCHIVE DESTINATION lib)
-install(TARGETS RedisAdapter_static ARCHIVE DESTINATION lib)
+install(TARGETS RedisAdapter_static ARCHIVE DESTINATION lib64)
 
 # Build RedisAdapterTest and googletest if REDIS_ADAPTER_TEST is true
 # Specify on command-line: "cmake .. -DREDIS_ADAPTER_TEST=1"

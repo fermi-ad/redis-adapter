@@ -219,8 +219,8 @@ uint64_t RedisAdapter::getServerTime()
   {
     try
     {
-      nanos = stoull(time[0]) * 1000 * 1000 * 1000  //  seconds to nanoseconds
-            + stoull(time[1]) * 1000;               //  microseconds to nanoseconds
+      nanos = stoull(time[0]) * 1'000'000'000;  //  seconds to nanoseconds
+            + stoull(time[1]) * 1'000;          //  microseconds to nanoseconds
     }
     catch (...) {}
   }
