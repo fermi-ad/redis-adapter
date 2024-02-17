@@ -75,7 +75,7 @@ install(TARGETS ${REDIS_ADAPTER_LIBRARIES} ARCHIVE DESTINATION lib)
 install(TARGETS RedisAdapter_static ARCHIVE DESTINATION lib)
 
 # Build RedisAdapterTest and googletest if REDIS_ADAPTER_TEST is true
-# Specify on command-line: "cmake .. -DREDIS_ADAPTER_TEST=1"
+# Specify on command-line: "cmake -D REDIS_ADAPTER_TEST=1 .."
 if(REDIS_ADAPTER_TEST)
   # We dont want googlemock built
   option(BUILD_GMOCK "Builds the googlemock subproject" OFF)
