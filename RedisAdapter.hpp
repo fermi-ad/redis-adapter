@@ -63,8 +63,7 @@ public:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Construction / Destruction
   //
-  RedisAdapter(const std::string& baseKey, const RedisConnection::Options& options, uint32_t timeout = 500);
-  RedisAdapter(const std::string& baseKey, const std::string& host = "", uint16_t port = 0, uint32_t timeout = 500);
+  RedisAdapter(const std::string& baseKey, const RedisConnection::Options& options = {});
 
   RedisAdapter(const RedisAdapter& ra) = delete;       //  copy construction not allowed
   RedisAdapter& operator=(const RedisAdapter& ra) = delete;   //  assignment not allowed
@@ -241,7 +240,7 @@ public:
   //
   //    return : true if connected, false if not connected
   //
-  bool connected() { return _redis->ping(); }
+  bool connected() { return connect(_redis.ping()); }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  copyStream : copy any RA stream key to a home stream key (dest key must not exist)
@@ -261,7 +260,7 @@ public:
   //    return    : true if successful, false if unsuccessful
   //
   bool renameStream(const std::string& subKeySrc, const std::string& subKeyDst)
-    { return _redis->rename(build_key(STREAM_STUB, subKeySrc), build_key(STREAM_STUB, subKeyDst)); }
+    { return connect(_redis.rename(build_key(STREAM_STUB, subKeySrc), build_key(STREAM_STUB, subKeyDst))); }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  deleteStream : delete a home stream key
@@ -269,7 +268,7 @@ public:
   //    subKey : sub key to delete
   //    return : true if successful, false if unsuccessful
   //
-  bool deleteStream(const std::string& subKey) { return _redis->del(build_key(STREAM_STUB, subKey)) >= 0; }
+  bool deleteStream(const std::string& subKey) { return connect(_redis.del(build_key(STREAM_STUB, subKey)) >= 0); }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  getServerTime : get time since epoch in nanoseconds from server
@@ -295,7 +294,7 @@ public:
   //    return  : true on success, false on failure
   //
   bool publish(const std::string& subKey, const std::string& message, const std::string& baseKey = "")
-    { return _redis->publish(build_key(CHANNEL_STUB, subKey, baseKey), message) >= 0; }
+    { return connect(_redis.publish(build_key(CHANNEL_STUB, subKey, baseKey), message) >= 0); }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  subscribe   : subscribe for messages on a single channel
@@ -467,11 +466,15 @@ private:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Redis stuff
   //
-  std::unique_ptr<RedisConnection> _redis;
+  RedisConnection::Options _options;
+
+  RedisConnection _redis;
 
   std::string _base_key;
 
-  uint32_t _timeout;
+  std::thread _connector;
+
+  int32_t connect(int32_t result);
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Pub/Sub Listener and Stream Reader

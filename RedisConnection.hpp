@@ -23,6 +23,7 @@ public:
   //    host     : IP address of server "w.x.y.z"
   //    user     : username for connection
   //    password : password for connection
+  //    timeout  : connection and blocking read timeout
   //    port     : port server is listening on
   //    size     : connection pool size
   //
@@ -31,7 +32,7 @@ public:
     std::string host = "127.0.0.1";
     std::string user;
     std::string password;
-    uint32_t timeout = 0;   //  milliseconds
+    uint32_t timeout = 500;   //  milliseconds
     uint16_t port = 0;
     uint16_t size = 5;
   };
