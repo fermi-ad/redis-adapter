@@ -472,8 +472,6 @@ private:
 
   std::string _base_key;
 
-  std::thread _connector;
-
   int32_t connect(int32_t result);
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
