@@ -7,6 +7,7 @@
 
 #include "RedisConnection.hpp"
 #include <thread>
+#include <atomic>
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  struct RA_StatusArgs
@@ -467,12 +468,11 @@ private:
   //  Redis stuff
   //
   RedisConnection::Options _options;
-
   RedisConnection _redis;
-
   std::string _base_key;
 
   int32_t connect(int32_t result);
+  std::atomic_bool _connecting;
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Pub/Sub Listener and Stream Reader

@@ -3,8 +3,6 @@
 //
 //  This file contains the implementation of the RedisAdapter class
 
-#include <atomic>
-
 #include "RedisAdapter.hpp"
 
 using namespace std;
@@ -563,9 +561,7 @@ bool RedisAdapter::stop_reader(uint16_t slot)
 //    triggers a reconnect thread to launch (unless thread is already active)
 int32_t RedisAdapter::connect(int32_t result)
 {
-  atomic_bool idle = true;
-
-  if (result == 0 && idle.exchange(false))
+  if (result == 0 && _connecting.exchange(true) == false)
   {
     thread([&]()
       {
@@ -581,7 +577,7 @@ int32_t RedisAdapter::connect(int32_t result)
           stop_listener();
           start_listener();
         }
-        idle = true;  //  thread is done
+        _connecting = false;  //  thread is done
       }
     ).detach();   //  cast new thread into the void
   }
