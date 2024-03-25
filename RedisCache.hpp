@@ -6,6 +6,7 @@
 #include <variant>
 #include <string>
 #include <vector>
+#include <array>
 #include "RedisAdapter.hpp"
 
 template<typename Type>
@@ -15,7 +16,7 @@ private:
     std::mutex swapMutex; // Mutex That prevents swapping which buffer is for reading and writing.
 
     int readIndex = 0;
-    std::vector<Type> buffers[2];
+    std::array<std::vector<Type>, 2> buffers;
     uint64_t lastWrite = 0;
     std::string _subkey;
 
@@ -27,10 +28,10 @@ public:
         // If the cache has no data read in whatever's there to initilize the cache.
         if (lastWrite == 0) 
         {
-            lastWrite = _ra->getStreamListSingle(_subkey, buffers[readIndex]);
+            lastWrite = _ra->getStreamListSingle(_subkey, buffers.at(readIndex));
         }
 
-        std::vector<Type>& sourceBuffer = buffers[readIndex];
+        std::vector<Type>& sourceBuffer = buffers.at(readIndex);
         // Copy internel buffer to user
         destBuffer = sourceBuffer;
 
@@ -41,7 +42,7 @@ public:
         const std::vector<Type>& data = entry.front().second;
         int writeIndex = (readIndex + 1 ) % 2;
 
-        buffers[writeIndex] = data;
+        buffers.at(writeIndex) = data;
 
         {
             std::lock_guard<std::mutex> swapLock(swapMutex);
