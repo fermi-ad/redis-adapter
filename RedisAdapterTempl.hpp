@@ -61,13 +61,13 @@ template<typename T> RedisAdapter::Attrs RedisAdapter::default_field_attrs(const
 //
 template<typename T> RedisAdapter::TimeValList<T>
 RedisAdapter::get_forward_stream_helper(const std::string& baseKey, const std::string& subKey,
-                                        uint64_t minTime, uint64_t maxTime, uint32_t count)
+                                        RA_Time minTime, RA_Time maxTime, uint32_t count)
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
   std::string key = build_key(STREAM_STUB, subKey, baseKey);
-  std::string minID = min_time_to_id(minTime);
-  std::string maxID = max_time_to_id(maxTime);
+  std::string minID = minTime.id_or_min();
+  std::string maxID = maxTime.id_or_max();
   ItemStream raw;
 
   if (count) { connect(_redis.xrange(key, minID, maxID, count, std::back_inserter(raw))); }
@@ -80,7 +80,7 @@ RedisAdapter::get_forward_stream_helper(const std::string& baseKey, const std::s
     std::optional<T> maybe = default_field_value<T>(rawItem.second);
     if (maybe.has_value())
     {
-      retItem.first = id_to_time(rawItem.first);
+      retItem.first = RA_Time(rawItem.first);
       retItem.second = maybe.value();
       ret.push_back(retItem);
     }
@@ -90,11 +90,11 @@ RedisAdapter::get_forward_stream_helper(const std::string& baseKey, const std::s
 //  Attrs specialization
 template<> inline RedisAdapter::TimeValList<RedisAdapter::Attrs>
 RedisAdapter::get_forward_stream_helper(const std::string& baseKey, const std::string& subKey,
-                                        uint64_t minTime, uint64_t maxTime, uint32_t count)
+                                        RA_Time minTime, RA_Time maxTime, uint32_t count)
 {
   std::string key = build_key(STREAM_STUB, subKey, baseKey);
-  std::string minID = min_time_to_id(minTime);
-  std::string maxID = max_time_to_id(maxTime);
+  std::string minID = minTime.id_or_min();
+  std::string maxID = maxTime.id_or_max();
   ItemStream raw;
 
   if (count) { connect(_redis.xrange(key, minID, maxID, count, std::back_inserter(raw))); }
@@ -104,7 +104,7 @@ RedisAdapter::get_forward_stream_helper(const std::string& baseKey, const std::s
   TimeVal<Attrs> retItem;
   for (const auto& rawItem : raw)
   {
-    retItem.first = id_to_time(rawItem.first);
+    retItem.first = RA_Time(rawItem.first);
     retItem.second = rawItem.second;
     ret.push_back(retItem);
   }
@@ -124,13 +124,13 @@ RedisAdapter::get_forward_stream_helper(const std::string& baseKey, const std::s
 //
 template<typename T> RedisAdapter::TimeValList<std::vector<T>>
 RedisAdapter::get_forward_stream_list_helper(const std::string& baseKey, const std::string& subKey,
-                                             uint64_t minTime, uint64_t maxTime, uint32_t count)
+                                             RA_Time minTime, RA_Time maxTime, uint32_t count)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
   std::string key = build_key(STREAM_STUB, subKey, baseKey);
-  std::string minID = min_time_to_id(minTime);
-  std::string maxID = max_time_to_id(maxTime);
+  std::string minID = minTime.id_or_min();
+  std::string maxID = maxTime.id_or_max();
   ItemStream raw;
 
   if (count) { connect(_redis.xrange(key, minID, maxID, count, std::back_inserter(raw))); }
@@ -143,7 +143,7 @@ RedisAdapter::get_forward_stream_list_helper(const std::string& baseKey, const s
     const std::string str = default_field_value<std::string>(rawItem.second);
     if (str.size())
     {
-      retItem.first = id_to_time(rawItem.first);
+      retItem.first = RA_Time(rawItem.first);
       retItem.second.assign((T*)str.data(), (T*)(str.data() + str.size()));
       ret.push_back(retItem);
     }
@@ -163,12 +163,12 @@ RedisAdapter::get_forward_stream_list_helper(const std::string& baseKey, const s
 //
 template<typename T> RedisAdapter::TimeValList<T>
 RedisAdapter::get_reverse_stream_helper(const std::string& baseKey, const std::string& subKey,
-                                        uint64_t maxTime, uint32_t count)
+                                        RA_Time maxTime, uint32_t count)
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
   std::string key = build_key(STREAM_STUB, subKey, baseKey);
-  std::string maxID = max_time_to_id(maxTime);
+  std::string maxID = maxTime.id_or_max();
   ItemStream raw;
 
   if (count) { connect(_redis.xrevrange(key, maxID, "-", count, std::back_inserter(raw))); }
@@ -181,7 +181,7 @@ RedisAdapter::get_reverse_stream_helper(const std::string& baseKey, const std::s
     std::optional<T> maybe = default_field_value<T>(rawItem->second);
     if (maybe.has_value())
     {
-      retItem.first = id_to_time(rawItem->first);
+      retItem.first = RA_Time(rawItem->first);
       retItem.second = maybe.value();
       ret.push_back(retItem);
     }
@@ -191,10 +191,10 @@ RedisAdapter::get_reverse_stream_helper(const std::string& baseKey, const std::s
 //  Attrs specialization
 template<> inline RedisAdapter::TimeValList<RedisAdapter::Attrs>
 RedisAdapter::get_reverse_stream_helper(const std::string& baseKey, const std::string& subKey,
-                                        uint64_t maxTime, uint32_t count)
+                                        RA_Time maxTime, uint32_t count)
 {
   std::string key = build_key(STREAM_STUB, subKey, baseKey);
-  std::string maxID = max_time_to_id(maxTime);
+  std::string maxID = maxTime.id_or_max();
   ItemStream raw;
 
   if (count) { connect(_redis.xrevrange(key, maxID, "-", count, std::back_inserter(raw))); }
@@ -204,7 +204,7 @@ RedisAdapter::get_reverse_stream_helper(const std::string& baseKey, const std::s
   TimeVal<Attrs> retItem;
   for (auto rawItem = raw.rbegin(); rawItem != raw.rend(); rawItem++)   //  reverse iterate
   {
-    retItem.first = id_to_time(rawItem->first);
+    retItem.first = RA_Time(rawItem->first);
     retItem.second = rawItem->second;
     ret.push_back(retItem);
   }
@@ -223,12 +223,12 @@ RedisAdapter::get_reverse_stream_helper(const std::string& baseKey, const std::s
 //
 template<typename T> RedisAdapter::TimeValList<std::vector<T>>
 RedisAdapter::get_reverse_stream_list_helper(const std::string& baseKey, const std::string& subKey,
-                                             uint64_t maxTime, uint32_t count)
+                                             RA_Time maxTime, uint32_t count)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
   std::string key = build_key(STREAM_STUB, subKey, baseKey);
-  std::string maxID = max_time_to_id(maxTime);
+  std::string maxID = maxTime.id_or_max();
   ItemStream raw;
 
   if (count) { connect(_redis.xrevrange(key, maxID, "-", count, std::back_inserter(raw))); }
@@ -241,7 +241,7 @@ RedisAdapter::get_reverse_stream_list_helper(const std::string& baseKey, const s
     const std::string str = default_field_value<std::string>(rawItem->second);
     if (str.size())
     {
-      retItem.first = id_to_time(rawItem->first);
+      retItem.first = RA_Time(rawItem->first);
       retItem.second.assign((T*)str.data(), (T*)(str.data() + str.size()));
       ret.push_back(retItem);
     }
@@ -258,42 +258,40 @@ RedisAdapter::get_reverse_stream_list_helper(const std::string& baseKey, const s
 //    maxTime : time that equals or exceeds the data to get
 //    return  : time of the data item if successful, zero on failure
 //
-template<typename T> uint64_t
+template<typename T> RA_Time
 RedisAdapter::get_single_stream_helper(const std::string& baseKey, const std::string& subKey,
-                                       T& dest, uint64_t maxTime)
+                                       T& dest, RA_Time maxTime)
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
   ItemStream raw;
-  connect(_redis.xrevrange(build_key(STREAM_STUB, subKey, baseKey), max_time_to_id(maxTime), "-", 1, std::back_inserter(raw)));
+  connect(_redis.xrevrange(build_key(STREAM_STUB, subKey, baseKey), maxTime.id_or_max(), "-", 1, std::back_inserter(raw)));
 
-  uint64_t time = 0;
   if (raw.size())
   {
     std::optional<T> maybe = default_field_value<T>(raw.front().second);
     if (maybe.has_value())
     {
-      time = id_to_time(raw.front().first);
       dest = maybe.value();
+      return RA_Time(raw.front().first);
     }
   }
-  return time;
+  return {};
 }
 //  Attrs specialization
-template<> inline uint64_t
+template<> inline RA_Time
 RedisAdapter::get_single_stream_helper(const std::string& baseKey, const std::string& subKey,
-                                       Attrs& dest, uint64_t maxTime)
+                                       Attrs& dest, RA_Time maxTime)
 {
   ItemStream raw;
-  connect(_redis.xrevrange(build_key(STREAM_STUB, subKey, baseKey), max_time_to_id(maxTime), "-", 1, std::back_inserter(raw)));
+  connect(_redis.xrevrange(build_key(STREAM_STUB, subKey, baseKey), maxTime.id_or_max(), "-", 1, std::back_inserter(raw)));
 
-  uint64_t time = 0;
   if (raw.size())
   {
-    time = id_to_time(raw.front().first);
     dest = raw.front().second;
+    return RA_Time(raw.front().first);
   }
-  return time;
+  return {};
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -305,26 +303,25 @@ RedisAdapter::get_single_stream_helper(const std::string& baseKey, const std::st
 //    maxTime : time that equals or exceeds the data to get
 //    return  : id of the data item if successful, empty string on failure
 //
-template<typename T> uint64_t
+template<typename T> RA_Time
 RedisAdapter::get_single_stream_list_helper(const std::string& baseKey, const std::string& subKey,
-                                            std::vector<T>& dest, uint64_t maxTime)
+                                            std::vector<T>& dest, RA_Time maxTime)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
   ItemStream raw;
-  connect(_redis.xrevrange(build_key(STREAM_STUB, subKey, baseKey), max_time_to_id(maxTime), "-", 1, std::back_inserter(raw)));
+  connect(_redis.xrevrange(build_key(STREAM_STUB, subKey, baseKey), maxTime.id_or_max(), "-", 1, std::back_inserter(raw)));
 
-  uint64_t time = 0;
   if (raw.size())
   {
     const std::string str = default_field_value<std::string>(raw.front().second);
     if (str.size())
     {
-      time = id_to_time(raw.front().first);
       dest.assign((T*)str.data(), (T*)(str.data() + str.size()));
+      return RA_Time(raw.front().first);
     }
   }
-  return time;
+  return {};
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -335,20 +332,20 @@ RedisAdapter::get_single_stream_list_helper(const std::string& baseKey, const st
 //    trim   : trim to greater of this value or number of data items
 //    return : vector of ids of successfully added data items
 //
-template<typename T> std::vector<uint64_t>
+template<typename T> std::vector<RA_Time>
 RedisAdapter::addStream(const std::string& subKey, const TimeValList<T>& data, uint32_t trim)
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
-  std::vector<uint64_t> ret;
+  std::vector<RA_Time> ret;
   std::string key = build_key(STREAM_STUB, subKey);
   for (const auto& item : data)
   {
     Attrs attrs = default_field_attrs(item.second);
 
-    std::string id = _redis.xadd(key, time_to_id(item.first), attrs.begin(), attrs.end());
+    std::string id = _redis.xadd(key, item.first.id_or_now(), attrs.begin(), attrs.end());
 
-    if (id.size()) { ret.push_back(id_to_time(id)); }
+    if (id.size()) { ret.push_back(RA_Time(id)); }
   }
   if (trim && ret.size()) { _redis.xtrim(key, std::max(trim, (uint32_t)ret.size())); }
 
@@ -356,16 +353,16 @@ RedisAdapter::addStream(const std::string& subKey, const TimeValList<T>& data, u
   return ret;
 }
 //  Attrs specialization
-template<> inline std::vector<uint64_t>
+template<> inline std::vector<RA_Time>
 RedisAdapter::addStream(const std::string& subKey, const TimeValList<Attrs>& data, uint32_t trim)
 {
-  std::vector<uint64_t> ret;
+  std::vector<RA_Time> ret;
   std::string key = build_key(STREAM_STUB, subKey);
   for (const auto& item : data)
   {
-    std::string id = _redis.xadd(key, time_to_id(item.first), item.second.begin(), item.second.end());
+    std::string id = _redis.xadd(key, item.first.id_or_now(), item.second.begin(), item.second.end());
 
-    if (id.size()) { ret.push_back(id_to_time(id)); }
+    if (id.size()) { ret.push_back(RA_Time(id)); }
   }
   if (trim && ret.size()) { _redis.xtrim(key, std::max(trim, (uint32_t)ret.size())); }
 
@@ -381,20 +378,20 @@ RedisAdapter::addStream(const std::string& subKey, const TimeValList<Attrs>& dat
 //    trim   : trim to greater of this value or number of data items
 //    return : vector of ids of successfully added data items
 //
-template<typename T> std::vector<uint64_t>
+template<typename T> std::vector<RA_Time>
 RedisAdapter::addStreamList(const std::string& subKey, const TimeValList<std::vector<T>>& data, uint32_t trim)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
-  std::vector<uint64_t> ret;
+  std::vector<RA_Time> ret;
   std::string key = build_key(STREAM_STUB, subKey);
   for (const auto& item : data)
   {
     Attrs attrs = default_field_attrs(item.second.data(), item.second.size());
 
-    std::string id = _redis.xadd(key, time_to_id(item.first), attrs.begin(), attrs.end());
+    std::string id = _redis.xadd(key, item.first.id_or_now(), attrs.begin(), attrs.end());
 
-    if (id.size()) { ret.push_back(id_to_time(id)); }
+    if (id.size()) { ret.push_back(RA_Time(id)); }
   }
   if (trim && ret.size()) { _redis.xtrim(key, std::max(trim, (uint32_t)ret.size())); }
 
@@ -411,7 +408,7 @@ RedisAdapter::addStreamList(const std::string& subKey, const TimeValList<std::ve
 //    trim   : number of items to trim the stream to
 //    return : time of the added data item if successful, zero on failure
 //
-template<typename T> uint64_t
+template<typename T> RA_Time
 RedisAdapter::addStreamSingle(const std::string& subKey, const T& data, const RA_AddStreamArgs& args)
 {
   static_assert( ! std::is_same<T, double>(), "use addStreamSingleDouble for double or 'f' suffix for float literal");
@@ -420,21 +417,21 @@ RedisAdapter::addStreamSingle(const std::string& subKey, const T& data, const RA
   std::string key = build_key(STREAM_STUB, subKey);
   Attrs attrs = default_field_attrs(data);
 
-  std::string id = args.trim ? _redis.xaddTrim(key, time_to_id(args.time), attrs.begin(), attrs.end(), args.trim)
-                             : _redis.xadd(key, time_to_id(args.time), attrs.begin(), attrs.end());
+  std::string id = args.trim ? _redis.xaddTrim(key, args.time.id_or_now(), attrs.begin(), attrs.end(), args.trim)
+                             : _redis.xadd(key, args.time.id_or_now(), attrs.begin(), attrs.end());
   connect(id.size());
-  return id_to_time(id);
+  return RA_Time(id);
 }
 //  Attrs specialization
-template<> inline uint64_t
+template<> inline RA_Time
 RedisAdapter::addStreamSingle(const std::string& subKey, const Attrs& data, const RA_AddStreamArgs& args)
 {
   std::string key = build_key(STREAM_STUB, subKey);
 
-  std::string id = args.trim ? _redis.xaddTrim(key, time_to_id(args.time), data.begin(), data.end(), args.trim)
-                             : _redis.xadd(key, time_to_id(args.time), data.begin(), data.end());
+  std::string id = args.trim ? _redis.xaddTrim(key, args.time.id_or_now(), data.begin(), data.end(), args.trim)
+                             : _redis.xadd(key, args.time.id_or_now(), data.begin(), data.end());
   connect(id.size());
-  return id_to_time(id);
+  return RA_Time(id);
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -447,18 +444,18 @@ RedisAdapter::addStreamSingle(const std::string& subKey, const Attrs& data, cons
 //    trim   : number of items to trim the stream to
 //    return : time of the added data item if successful, zero on failure
 //
-template<typename T> uint64_t
-RedisAdapter::add_single_stream_list_helper(const std::string& subKey, uint64_t time, const T* data, size_t size, uint32_t trim)
+template<typename T> RA_Time
+RedisAdapter::add_single_stream_list_helper(const std::string& subKey, RA_Time time, const T* data, size_t size, uint32_t trim)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
   std::string key = build_key(STREAM_STUB, subKey);
   Attrs attrs = default_field_attrs(data, size);
 
-  std::string id = trim ? _redis.xaddTrim(key, time_to_id(time), attrs.begin(), attrs.end(), trim)
-                        : _redis.xadd(key, time_to_id(time), attrs.begin(), attrs.end());
+  std::string id = trim ? _redis.xaddTrim(key, time.id_or_now(), attrs.begin(), attrs.end(), trim)
+                        : _redis.xadd(key, time.id_or_now(), attrs.begin(), attrs.end());
   connect(id.size());
-  return id_to_time(id);
+  return RA_Time(id);
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -484,7 +481,7 @@ RedisAdapter::make_reader_callback(ReaderSubFn<T> func) const
       std::optional<T> maybe = default_field_value<T>(rawItem.second);
       if (maybe.has_value())
       {
-        retItem.first = id_to_time(rawItem.first);
+        retItem.first = RA_Time(rawItem.first);
         retItem.second = maybe.value();
         ret.push_back(retItem);
       }
@@ -502,7 +499,7 @@ RedisAdapter::make_reader_callback(ReaderSubFn<Attrs> func) const
     TimeVal<Attrs> retItem;
     for (const auto& rawItem : raw)
     {
-      retItem.first = id_to_time(rawItem.first);
+      retItem.first = RA_Time(rawItem.first);
       retItem.second = rawItem.second;
       ret.push_back(retItem);
     }
@@ -533,7 +530,7 @@ RedisAdapter::make_list_reader_callback(ReaderSubFn<std::vector<T>> func) const
       const std::string str = default_field_value<std::string>(rawItem.second);
       if (str.size())
       {
-        retItem.first = id_to_time(rawItem.first);
+        retItem.first = RA_Time(rawItem.first);
         retItem.second.assign((T*)str.data(), (T*)(str.data() + str.size()));
         ret.push_back(retItem);
       }

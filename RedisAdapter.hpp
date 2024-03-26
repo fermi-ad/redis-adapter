@@ -10,6 +10,30 @@
 #include <atomic>
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  struct RA_Time
+//
+//  Nanosecond time since epoch with an optional sequence number, provided as a result timestamp
+//  for 'get' methods, and specified as a new time for 'add' methods
+//
+//  RA_Times may have the same nanoseconds as long as sequence differs, and vice versa
+//
+//  The RA_Time with nanoseconds = 0 and sequence = 0 is illegal (or indicates error)
+//
+struct RA_Time
+{
+  RA_Time(uint64_t nanos = 0, uint64_t seq = 0) : nanoseconds(nanos), sequence(seq) {}
+  RA_Time(const std::string& id);
+
+  bool ok() const { return nanoseconds || sequence; }
+
+  std::string id_or_now() const;
+  std::string id_or_min() const;
+  std::string id_or_max() const;
+
+  uint64_t nanoseconds, sequence;
+};
+
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  struct RA_StatusArgs
 //  struct RA_GetLogArgs, struct RA_AddLogArgs
 //  struct RA_GetStreamArgs, struct RA_AddStreamArgs
@@ -29,16 +53,16 @@ struct RA_StatusArgs
 { std::string baseKey; std::string subKey; };
 
 struct RA_GetLogArgs
-{ std::string subKey; uint64_t minTime = 0; uint64_t maxTime = 0; uint32_t count = 100; };
+{ std::string subKey; RA_Time minTime; RA_Time maxTime; uint32_t count = 100; };
 
 struct RA_AddLogArgs
 { std::string subKey; uint32_t trim = 1000; };
 
 struct RA_GetStreamArgs
-{ std::string baseKey; uint64_t minTime = 0; uint64_t maxTime = 0; uint32_t count = 1; };
+{ std::string baseKey; RA_Time minTime; RA_Time maxTime; uint32_t count = 1; };
 
 struct RA_AddStreamArgs
-{ uint64_t time = 0; uint32_t trim = 1; };
+{ RA_Time time; uint32_t trim = 1; };
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  class RedisAdapter
@@ -58,7 +82,7 @@ public:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Containers for getting/setting data using RedisAdapter methods
   //
-  template<typename T> using TimeVal = std::pair<uint64_t, T>;        //  analagous to Item
+  template<typename T> using TimeVal = std::pair<RA_Time, T>;         //  analagous to Item
   template<typename T> using TimeValList = std::vector<TimeVal<T>>;   //  analagous to ItemStream
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -172,11 +196,11 @@ public:
   //    maxTime : time that equals or exceeds the data to get
   //    return  : time of the data item if successful, zero on failure
   //
-  template<typename T> uint64_t
+  template<typename T> RA_Time
   getStreamSingle(const std::string& subKey, T& dest, const RA_GetStreamArgs& args = {})
     { return get_single_stream_helper<T>(args.baseKey, subKey, dest, args.maxTime); }
 
-  template<typename T> uint64_t
+  template<typename T> RA_Time
   getStreamListSingle(const std::string& subKey, std::vector<T>& dest, const RA_GetStreamArgs& args = {})
     { return get_single_stream_list_helper<T>(args.baseKey, subKey, dest, args.maxTime); }
 
@@ -192,10 +216,10 @@ public:
   //    trim   : number of items to trim the stream to
   //    return : vector of ids of successfully added data items
   //
-  template<typename T> std::vector<uint64_t>
+  template<typename T> std::vector<RA_Time>
   addStream(const std::string& subKey, const TimeValList<T>& data, uint32_t trim = 1);
 
-  template<typename T> std::vector<uint64_t>
+  template<typename T> std::vector<RA_Time>
   addStreamList(const std::string& subKey, const TimeValList<std::vector<T>>& data, uint32_t trim = 1);
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -208,10 +232,10 @@ public:
   //    trim   : number of items to trim the stream to
   //    return : time of the added data item if successful, zero on failure
   //
-  template<typename T> uint64_t
+  template<typename T> RA_Time
   addStreamSingle(const std::string& subKey, const T& data, const RA_AddStreamArgs& args = {});
 
-  uint64_t addStreamSingleDouble(const std::string& subKey, double data, const RA_AddStreamArgs& args = {});
+  RA_Time addStreamSingleDouble(const std::string& subKey, double data, const RA_AddStreamArgs& args = {});
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  addStreamSingleList : add a container<T> item (T is trivial) at specified/current time
@@ -224,12 +248,12 @@ public:
   //    return : time of the added data item if successful, zero on failure
 
   //  overload for array and span
-  template<template<typename T, size_t S> class C, typename T, size_t S> uint64_t
+  template<template<typename T, size_t S> class C, typename T, size_t S> RA_Time
   addStreamSingleList(const std::string& subKey, const C<T, S>& data, const RA_AddStreamArgs& args = {})
     { return add_single_stream_list_helper(subKey, args.time, data.data(), data.size(), args.trim); }
 
   //  overload for vector
-  template<typename T> uint64_t
+  template<typename T> RA_Time
   addStreamSingleList(const std::string& subKey, const std::vector<T>& data, const RA_AddStreamArgs& args = {})
     { return add_single_stream_list_helper(subKey, args.time, data.data(), data.size(), args.trim); }
 
@@ -408,16 +432,6 @@ private:
 
   std::pair<std::string, std::string> split_key(const std::string& key) const;
 
-  uint64_t id_to_time(const std::string& id) const { try { return std::stoull(id); } catch(...) {} return 0; }
-
-  std::string time_to_id(uint64_t time = 0) const { return std::to_string(time ? time : get_host_time()) + "-0"; }
-
-  std::string min_time_to_id(uint64_t time) const { return time ? time_to_id(time) : "-"; }
-
-  std::string max_time_to_id(uint64_t time) const { return time ? time_to_id(time) : "+"; }
-
-  uint64_t get_host_time() const;
-
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Helper functions adding and removing stream readers
   //
@@ -444,25 +458,25 @@ private:
   //  Helper functions for getting and adding data
   //
   template<typename T> TimeValList<T>
-  get_forward_stream_helper(const std::string& baseKey, const std::string& subKey, uint64_t minTime, uint64_t maxTime, uint32_t count);
+  get_forward_stream_helper(const std::string& baseKey, const std::string& subKey, RA_Time minTime, RA_Time maxTime, uint32_t count);
 
   template<typename T> TimeValList<std::vector<T>>
-  get_forward_stream_list_helper(const std::string& baseKey, const std::string& subKey, uint64_t minTime, uint64_t maxTime, uint32_t count);
+  get_forward_stream_list_helper(const std::string& baseKey, const std::string& subKey, RA_Time minTime, RA_Time maxTime, uint32_t count);
 
   template<typename T> TimeValList<T>
-  get_reverse_stream_helper(const std::string& baseKey, const std::string& subKey, uint64_t maxTime, uint32_t count);
+  get_reverse_stream_helper(const std::string& baseKey, const std::string& subKey, RA_Time maxTime, uint32_t count);
 
   template<typename T> TimeValList<std::vector<T>>
-  get_reverse_stream_list_helper(const std::string& baseKey, const std::string& subKey, uint64_t maxTme, uint32_t count);
+  get_reverse_stream_list_helper(const std::string& baseKey, const std::string& subKey, RA_Time maxTme, uint32_t count);
 
-  template<typename T> uint64_t
-  get_single_stream_helper(const std::string& baseKey, const std::string& subKey, T& dest, uint64_t maxTime);
+  template<typename T> RA_Time
+  get_single_stream_helper(const std::string& baseKey, const std::string& subKey, T& dest, RA_Time maxTime);
 
-  template<typename T> uint64_t
-  get_single_stream_list_helper(const std::string& baseKey, const std::string& subKey, std::vector<T>& dest, uint64_t maxTime);
+  template<typename T> RA_Time
+  get_single_stream_list_helper(const std::string& baseKey, const std::string& subKey, std::vector<T>& dest, RA_Time maxTime);
 
-  template<typename T> uint64_t
-  add_single_stream_list_helper(const std::string& subKey, uint64_t time, const T* data, size_t size, uint32_t trim);
+  template<typename T> RA_Time
+  add_single_stream_list_helper(const std::string& subKey, RA_Time time, const T* data, size_t size, uint32_t trim);
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Redis stuff
