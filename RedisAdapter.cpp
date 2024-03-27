@@ -40,7 +40,10 @@ RA_Time::RA_Time(const string& id)
 //
 string RA_Time::id_or_now() const
 {
-  return ok() ? to_string(nanoseconds) + (sequence ? "-" + to_string(sequence) : "-*")
+  string seq_str = sequence ? "-" + to_string(sequence)
+                            : "-*";
+
+  return ok() ? to_string(nanoseconds) + seq_str
               : to_string(nanoseconds_since_epoch()) + "-*";
 }
 
@@ -54,7 +57,8 @@ string RA_Time::id_or_now() const
 //
 string RA_Time::id_or_min() const
 {
-  return ok() ? to_string(nanoseconds) + "-" + to_string(sequence) : "-";
+  return ok() ? to_string(nanoseconds) + "-" + to_string(sequence)
+              : "-";
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -67,7 +71,8 @@ string RA_Time::id_or_min() const
 //
 string RA_Time::id_or_max() const
 {
-  return ok() ? to_string(nanoseconds) + "-" + to_string(sequence) : "+";
+  return ok() ? to_string(nanoseconds) + "-" + to_string(sequence)
+              : "+";
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
