@@ -14,6 +14,12 @@ static uint64_t nanoseconds_since_epoch()
   return duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
 }
 
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  RA_Time : constructor
+//
+//    id     : Redis ID string e.g. "12345678-1234"
+//    return : RA_Time
+//
 RA_Time::RA_Time(const string& id)
 {
   try
@@ -24,17 +30,41 @@ RA_Time::RA_Time(const string& id)
   catch (...) { nanoseconds = sequence = 0; }
 }
 
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  RA_Time : id_or_now : return RA_Time or current time as Redis ID string
+//
+//  nanoseconds   sequence   return
+//      any         > 0      nanoseconds-sequence
+//      > 0           0      nanoseconds-*
+//        0           0      currenttime-*
+//
 string RA_Time::id_or_now() const
 {
   return ok() ? to_string(nanoseconds) + (sequence ? "-" + to_string(sequence) : "-*")
               : to_string(nanoseconds_since_epoch()) + "-*";
 }
 
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  RA_Time : id_or_min : return RA_Time or "-" as Redis ID string
+//
+//  nanoseconds   sequence   return
+//      any         > 0      nanoseconds-sequence
+//      > 0         any      nanoseconds-sequence
+//        0           0      "-"
+//
 string RA_Time::id_or_min() const
 {
   return ok() ? to_string(nanoseconds) + "-" + to_string(sequence) : "-";
 }
 
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  RA_Time : id_or_now : return RA_Time or "+"" as Redis ID string
+//
+//  nanoseconds   sequence   return
+//      any         > 0      nanoseconds-sequence
+//      > 0         any      nanoseconds-sequence
+//        0           0      "+"
+//
 string RA_Time::id_or_max() const
 {
   return ok() ? to_string(nanoseconds) + "-" + to_string(sequence) : "+";
