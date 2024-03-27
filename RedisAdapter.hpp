@@ -15,22 +15,23 @@
 //  Nanosecond time since epoch with an optional sequence number, provided as a result timestamp
 //  for 'get' methods, and specified as a new time for 'add' methods
 //
-//  RA_Times may have the same nanoseconds as long as sequence differs, and vice versa
+//  RA_Times may have the same nanos as long as seqnum differs, and vice versa
 //
-//  The RA_Time with nanoseconds = 0 and sequence = 0 is illegal (or indicates error)
+//  The RA_Time with nanos = 0 and seqnum = 0 is illegal (or indicates error)
 //
 struct RA_Time
 {
-  RA_Time(uint64_t nanos = 0, uint64_t seq = 0) : nanoseconds(nanos), sequence(seq) {}
+  RA_Time(uint64_t nanos_init = 0, uint32_t seqnum_init = 0) : nanos(nanos_init), seqnum(seqnum_init) {}
   RA_Time(const std::string& id);
 
-  bool ok() const { return nanoseconds || sequence; }
+  bool ok() const { return nanos || seqnum; }
 
   std::string id_or_now() const;
   std::string id_or_min() const;
   std::string id_or_max() const;
 
-  uint64_t nanoseconds, sequence;
+  uint64_t nanos;
+  uint32_t seqnum;
 };
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

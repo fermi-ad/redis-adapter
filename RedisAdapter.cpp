@@ -9,70 +9,64 @@ using namespace std;
 using namespace chrono;
 using namespace sw::redis;
 
+const uint32_t NANOS_PER_MILLI = 1'000'000;
+const uint64_t REMAINDER_SCALE = 10'000'000'000;
+
 static uint64_t nanoseconds_since_epoch()
 {
   return duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
 }
 
+static string time_to_id(const RA_Time& time)
+{
+  uint64_t mixed = (time.nanos % NANOS_PER_MILLI) * REMAINDER_SCALE + time.seqnum;
+  return to_string(time.nanos / NANOS_PER_MILLI) + "-" + to_string(mixed);
+
+}
+
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  RA_Time : constructor
+//  RA_Time : constructor that converts an id string to nanoseconds and sequence number
 //
-//    id     : Redis ID string e.g. "12345678-1234"
+//    id     : Redis ID string e.g. "12345-67089" where the first number is milliseconds since
+//             epoch and the second number has nanoseconds remainder scaled by 1E10 added to a
+//             sequence number, the scale factor is chosen as a power of ten to make the remainder
+//             and sequence number human readable in the id string
 //    return : RA_Time
 //
 RA_Time::RA_Time(const string& id)
 {
   try
   {
-    nanoseconds = stoull(id);
-    sequence = stoull(id.substr(id.find('-') + 1));
+    uint64_t mixed = stoull(id.substr(id.find('-') + 1));
+    nanos = stoull(id) * NANOS_PER_MILLI + mixed / REMAINDER_SCALE;
+    seqnum = mixed % REMAINDER_SCALE;
   }
-  catch (...) { nanoseconds = sequence = 0; }
+  catch (...) { nanos = seqnum = 0; }
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  RA_Time : id_or_now : return RA_Time or current time as Redis ID string
-//
-//  nanoseconds   sequence   return
-//      any         > 0      nanoseconds-sequence
-//      > 0           0      nanoseconds-*
-//        0           0      currenttime-*
+//  RA_Time::id_or_now : return RA_Time or current time as Redis ID string
 //
 string RA_Time::id_or_now() const
 {
-  string seq_str = sequence ? "-" + to_string(sequence)
-                            : "-*";
-
-  return ok() ? to_string(nanoseconds) + seq_str
-              : to_string(nanoseconds_since_epoch()) + "-*";
+  return ok() ? time_to_id(*this)
+              : time_to_id(RA_Time(nanoseconds_since_epoch()));
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  RA_Time : id_or_min : return RA_Time or "-" as Redis ID string
-//
-//  nanoseconds   sequence   return
-//      any         > 0      nanoseconds-sequence
-//      > 0         any      nanoseconds-sequence
-//        0           0      "-"
+//  RA_Time::id_or_min : return RA_Time or "-" as Redis ID string
 //
 string RA_Time::id_or_min() const
 {
-  return ok() ? to_string(nanoseconds) + "-" + to_string(sequence)
-              : "-";
+  return ok() ? time_to_id(*this) : "-";
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  RA_Time : id_or_now : return RA_Time or "+"" as Redis ID string
-//
-//  nanoseconds   sequence   return
-//      any         > 0      nanoseconds-sequence
-//      > 0         any      nanoseconds-sequence
-//        0           0      "+"
+//  RA_Time::id_or_now : return RA_Time or "+"" as Redis ID string
 //
 string RA_Time::id_or_max() const
 {
-  return ok() ? to_string(nanoseconds) + "-" + to_string(sequence)
-              : "+";
+  return ok() ? time_to_id(*this) : "+";
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
