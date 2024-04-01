@@ -22,7 +22,7 @@ private:
 
     int readIndex = 0;
     std::array<std::vector<Type>, 2> buffers;
-    uint64_t lastWrite = 0;
+    RA_Time lastWrite = 0;
     std::string _subkey;
 
     void writeBuffer(const RedisAdapter::TimeValList<std::vector<Type>>& entry)
@@ -55,12 +55,12 @@ public:
     //    destBuffer : Vector to copy the cached data to
     //    return     : time of the last data written to the redis stream, or 0 if there is data at that key
     //
-    uint64_t copyReadBuffer(std::vector<Type>& destBuffer) {
+    RA_Time copyReadBuffer(std::vector<Type>& destBuffer) {
         // Take a shared lock, so other readers can still read, but the writer cannot swap the buffers
         std::shared_lock<std::shared_mutex> swapLock(swapMutex);
 
         // If the cache has no data read in whatever's there to initilize the cache.
-        if (lastWrite == 0) 
+        if (!lastWrite.ok())
         {
             lastWrite = _ra->getStreamListSingle(_subkey, buffers.at(readIndex));
         }
@@ -80,18 +80,18 @@ public:
     //    pElementsCopied  : Pointer to buffer where the number of elements copied into destBuffer is written. 
     //                       This can be less than desired if the buffer is smaller than expected
     //    return           : time of the last data written to the redis stream, or 0 if there is data at that key
-    uint64_t copyReadBuffer(Type& destValue, int firstIndexToCopy = 0, int* pElementsCopied = nullptr)
+    RA_Time copyReadBuffer(Type& destValue, int firstIndexToCopy = 0, int* pElementsCopied = nullptr)
     {
         std::span<Type> destBuffer(&destValue, 1);
         return copyReadBuffer(destBuffer, firstIndexToCopy, pElementsCopied);
     } 
-    uint64_t copyReadBuffer(std::span<Type> destBuffer, int firstIndexToCopy = 0 , int* pElementsCopied = nullptr)
+    RA_Time copyReadBuffer(std::span<Type> destBuffer, int firstIndexToCopy = 0 , int* pElementsCopied = nullptr)
     {
         // Take a shared lock, so other readers can still read, but the writer cannot swap the buffers
         std::shared_lock<std::shared_mutex> swapLock(swapMutex);
 
         // If the cache has no data read in whatever's there to initilize the cache.
-        if (lastWrite == 0)
+        if (!lastWrite.ok())
         {
             lastWrite = _ra->getStreamListSingle(_subkey, buffers.at(readIndex));
         }
