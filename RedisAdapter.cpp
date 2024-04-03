@@ -17,13 +17,6 @@ static uint64_t nanoseconds_since_epoch()
   return duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
 }
 
-static string time_to_id(const RA_Time& time)
-{
-  uint64_t mixed = (time.nanos % NANOS_PER_MILLI) * REMAINDER_SCALE + time.seqnum;
-  return to_string(time.nanos / NANOS_PER_MILLI) + "-" + to_string(mixed);
-
-}
-
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  RA_Time : constructor that converts an id string to nanoseconds and sequence number
 //
@@ -37,6 +30,7 @@ RA_Time::RA_Time(const string& id)
 {
   try
   {
+    //  do the reverse of id() below
     uint64_t mixed = stoull(id.substr(id.find('-') + 1));
     nanos = stoull(id) * NANOS_PER_MILLI + mixed / REMAINDER_SCALE;
     seqnum = mixed % REMAINDER_SCALE;
@@ -45,28 +39,27 @@ RA_Time::RA_Time(const string& id)
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  RA_Time::id : return Redis ID string
+//
+string RA_Time::id() const
+{
+  //  find the remainder nanoseconds (i.e. remove all the whole milliseconds) and
+  //  place that at the REMAINDER_SCALE position in the base-ten representation
+  //  of the number, then place the seqnum at the ones position in the base-ten
+  //  representation of the number - this way the values will be human-readable
+  uint64_t mixed = (nanos % NANOS_PER_MILLI) * REMAINDER_SCALE + seqnum;
+
+  //  place the whole milliseconds on the left-hand side of the ID and the number
+  //  from above on the right-hand side of the ID
+  return to_string(nanos / NANOS_PER_MILLI) + "-" + to_string(mixed);
+}
+
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  RA_Time::id_or_now : return RA_Time or current time as Redis ID string
 //
 string RA_Time::id_or_now() const
 {
-  return ok() ? time_to_id(*this)
-              : time_to_id(RA_Time(nanoseconds_since_epoch()));
-}
-
-//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  RA_Time::id_or_min : return RA_Time or "-" as Redis ID string
-//
-string RA_Time::id_or_min() const
-{
-  return ok() ? time_to_id(*this) : "-";
-}
-
-//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  RA_Time::id_or_now : return RA_Time or "+"" as Redis ID string
-//
-string RA_Time::id_or_max() const
-{
-  return ok() ? time_to_id(*this) : "+";
+  return ok() ? id() : RA_Time(nanoseconds_since_epoch()).id();
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -90,137 +83,7 @@ RedisAdapter::~RedisAdapter()
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  getStatus : get status as string
-//
-//    subKey  : sub key to get status from
-//    baseKey : base key to get status from
-//    return  : string with status on success, empty string on failure
-//
-string RedisAdapter::getStatus(const RA_StatusArgs& args)
-{
-  ItemStream raw;
-  connect(_redis.xrevrange(build_key(STATUS_STUB, args.subKey, args.baseKey), "+", "-", 1, back_inserter(raw)));
-
-  if (raw.size()) { return default_field_value<string>(raw.front().second); }
-  return {};
-}
-
-//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  setStatus : set status for home device as string
-//
-//    subKey : sub key to set status on
-//    value  : status value to set
-//    return : true on success, false on failure
-//
-bool RedisAdapter::setStatus(const string& value, const string& subKey)
-{
-  Attrs attrs = default_field_attrs(value);
-
-  return connect(_redis.xaddTrim(build_key(STATUS_STUB, subKey), RA_Time().id_or_now(), attrs.begin(), attrs.end(), 1).size());
-}
-
-//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  getLog : get log for home device between specified times
-//
-//    subKey : sub key to get log from
-//    minID  : lowest time to get log for
-//    maxID  : highest time to get log for
-//    return : ItemStream of Item<string>
-//
-RedisAdapter::TimeValList<string> RedisAdapter::getLog(const RA_GetLogArgs& args)
-{
-  ItemStream raw;
-  connect(_redis.xrange(build_key(LOG_STUB, args.subKey), args.minTime.id_or_min(), args.maxTime.id_or_max(), back_inserter(raw)));
-
-  TimeValList<string> ret;
-  TimeVal<string> retItem;
-  for (const auto& rawItem : raw)
-  {
-    retItem.second = default_field_value<string>(rawItem.second);
-    if (retItem.second.size())
-    {
-      retItem.first = RA_Time(rawItem.first);
-      ret.push_back(retItem);
-    }
-  }
-  return ret;
-}
-
-//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  getLogAfter : get log for home device after specified time
-//
-//    subKey : sub key to get log from
-//    minID  : lowest time to get log for
-//    count  : greatest number of log items to get
-//    return : ItemStream of Item<string>
-//
-RedisAdapter::TimeValList<string> RedisAdapter::getLogAfter(const RA_GetLogArgs& args)
-{
-  ItemStream raw;
-  connect(_redis.xrange(build_key(LOG_STUB, args.subKey), args.minTime.id_or_min(), "+", args.count, back_inserter(raw)));
-
-  TimeValList<string> ret;
-  TimeVal<string> retItem;
-  for (const auto& rawItem : raw)
-  {
-    retItem.second = default_field_value<string>(rawItem.second);
-    if (retItem.second.size())
-    {
-      retItem.first = RA_Time(rawItem.first);
-      ret.push_back(retItem);
-    }
-  }
-  return ret;
-}
-
-//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  getLogBefore : get log for home device before specified time
-//
-//    subKey : sub key to get log from
-//    maxID  : highest time to get log for
-//    count  : greatest number of log items to get
-//    return : ItemStream of Item<string>
-//
-RedisAdapter::TimeValList<string> RedisAdapter::getLogBefore(const RA_GetLogArgs& args)
-{
-  ItemStream raw;
-  connect(_redis.xrevrange(build_key(LOG_STUB, args.subKey), args.maxTime.id_or_max(), "-", args.count, back_inserter(raw)));
-
-  TimeValList<string> ret;
-  TimeVal<string> retItem;
-  for (auto rawItem = raw.rbegin(); rawItem != raw.rend(); rawItem++)   //  reverse iterate
-  {
-    retItem.second = default_field_value<string>(rawItem->second);
-    if (retItem.second.size())
-    {
-      retItem.first = RA_Time(rawItem->first);
-      ret.push_back(retItem);
-    }
-  }
-  return ret;
-}
-
-//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  addLog : add a log message
-//
-//    message : log message to add
-//    subKey  : sub key to add log to
-//    trim    : number of items to trim log stream to
-//    return  : true for success, false for failure
-//
-bool RedisAdapter::addLog(const string& message, const RA_AddLogArgs& args)
-{
-  string key = build_key(LOG_STUB, args.subKey);
-  Attrs attrs = default_field_attrs(message);
-
-  string id = args.trim ? _redis.xaddTrim(key, RA_Time().id_or_now(), attrs.begin(), attrs.end(), args.trim)
-                        : _redis.xadd(key, RA_Time().id_or_now(), attrs.begin(), attrs.end());
-  connect(id.size());
-  return id.size();
-}
-
-//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  addStreamSingleDouble : add a single data item of type double
+//  addSingleDouble : add a single data item of type double
 //
 //    subKey : sub key to add data to
 //    time   : time to add the data at
@@ -228,39 +91,15 @@ bool RedisAdapter::addLog(const string& message, const RA_AddLogArgs& args)
 //    trim   : number of items to trim the stream to
 //    return : time of the added data item if successful, zero on failure
 //
-RA_Time RedisAdapter::addStreamSingleDouble(const string& subKey, double data, const RA_AddStreamArgs& args)
+RA_Time RedisAdapter::addSingleDouble(const string& subKey, double data, const RA_ArgsAdd& args)
 {
-  string key = build_key(STREAM_STUB, subKey);
+  string key = build_key(subKey);
   Attrs attrs = default_field_attrs(data);
 
   string id = args.trim ? _redis.xaddTrim(key, args.time.id_or_now(), attrs.begin(), attrs.end(), args.trim)
                         : _redis.xadd(key, args.time.id_or_now(), attrs.begin(), attrs.end());
   connect(id.size());
   return RA_Time(id);
-}
-
-//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  getServerTime : get Redis server time as nanoseconds
-//
-//    return  : zero on failure, nanoseconds on success
-//
-uint64_t RedisAdapter::getServerTime()
-{
-  uint64_t nanos = 0;
-  vector<string> time = _redis.time();
-  // The redis command time is returns an array with the first element being
-  // the time in seconds and the second being the microseconds within that second
-  if (time.size() == 2)
-  {
-    try
-    {
-      nanos = stoull(time[0]) * 1'000'000'000;  //  seconds to nanoseconds
-            + stoull(time[1]) * 1'000;          //  microseconds to nanoseconds
-    }
-    catch (...) {}
-  }
-  connect(nanos);
-  return nanos;
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -274,7 +113,7 @@ uint64_t RedisAdapter::getServerTime()
 bool RedisAdapter::subscribe(const string& subKey, ListenSubFn func, const string& baseKey)
 {
   stop_listener();
-  _command_subs[build_key(CHANNEL_STUB, subKey, baseKey)].push_back(func);
+  _command_subs[build_key(subKey, baseKey)].push_back(func);
   return start_listener();
 }
 
@@ -295,7 +134,7 @@ bool RedisAdapter::psubscribe(const string& subKey, ListenSubFn func, const stri
     { if (_base_key.find_first_of("*?[]") != string::npos) { return false; } }
 
   stop_listener();
-  _pattern_subs[build_key(CHANNEL_STUB, subKey, baseKey)].push_back(func);
+  _pattern_subs[build_key(subKey, baseKey)].push_back(func);
   return start_listener();
 }
 
@@ -310,7 +149,7 @@ bool RedisAdapter::psubscribe(const string& subKey, ListenSubFn func, const stri
 bool RedisAdapter::unsubscribe(const string& subKey, const string& baseKey)
 {
   stop_listener();
-  string key = build_key(CHANNEL_STUB, subKey, baseKey);
+  string key = build_key(subKey, baseKey);
   if (_pattern_subs.count(key)) _pattern_subs.erase(key);
   if (_command_subs.count(key)) _command_subs.erase(key);
   return (_pattern_subs.size() || _command_subs.size()) ? start_listener() : true;
@@ -325,7 +164,7 @@ bool RedisAdapter::unsubscribe(const string& subKey, const string& baseKey)
 //
 bool RedisAdapter::addGenericReader(const string& key, ReaderSubFn<Attrs> func)
 {
-  if (split_key(key).first.size()) return false;  //  reject if RedisAdapter key stub found
+  if (split_key(key).first.size()) return false;  //  reject if RedisAdapter key found
 
   int32_t slot = _redis.keyslot(key);
   if (slot < 0) return false;
@@ -351,7 +190,7 @@ bool RedisAdapter::addGenericReader(const string& key, ReaderSubFn<Attrs> func)
 //
 bool RedisAdapter::removeGenericReader(const string& key)
 {
-  if (split_key(key).first.size()) return false;  //  reject if RedisAdapter key stub found
+  if (split_key(key).first.size()) return false;  //  reject if RedisAdapter key found
 
   int32_t slot = _redis.keyslot(key);
   if (slot < 0 || _reader.count(slot) == 0) return false;
@@ -372,38 +211,30 @@ bool RedisAdapter::removeGenericReader(const string& key)
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  Private methods
 //
-string RedisAdapter::build_key(const string& keyStub, const string& subKey, const string& baseKey) const
+string RedisAdapter::build_key(const string& subKey, const string& baseKey) const
 {
   //  surround base key with {} to locate keys with same base key in same cluster slot
   //  this mitgates CROSSSLOT errors for copyKey and renameKey but also puts all keys
-  //  for a base key onto the same reader thread (this could be mitigate with an additional
+  //  for a base key onto the same reader thread (this could be mitigated with an additional
   //  load balancing strategy of mutiple threads per slot if necessary)
   //  NOTE - none of this has ANY effect for single instance (non-cluster) Redis servers
-  return "{" + (baseKey.size() ? baseKey : _base_key) + "}:" + keyStub + (subKey.size() ? ":" + subKey : "");
+  return "{" + (baseKey.size() ? baseKey : _base_key) + "}" + (subKey.size() ? ":" + subKey : "");
 }
 
 pair<string, string> RedisAdapter::split_key(const string& key) const
 {
-  size_t idx = key.find(CHANNEL_STUB), len = CHANNEL_STUB.size();
-
-  if (idx == string::npos) { idx = key.find(STREAM_STUB); len = STREAM_STUB.size(); }
-
-  if (idx == string::npos) { idx = key.find(STATUS_STUB); len = STATUS_STUB.size(); }
-
-  if (idx == string::npos) { idx = key.find(LOG_STUB);    len = LOG_STUB.size(); }
-
-  if (idx == string::npos) { idx = key.find(STOP_STUB);   len = STOP_STUB.size(); }
+  size_t idx = key.find(_base_key), len = _base_key.size();
 
   if (idx == string::npos) return {};
 
-  //  make sure to omit the {} from base key (see build_key) and correctly handle empty sub key
-  return make_pair(key.substr(1, idx - 3), key.size() > idx + len ? key.substr(idx + len + 1) : "");
+  return make_pair(key.substr(idx, len),  //  look past the {} and :
+                   key.size() > idx + len + 1 ? key.substr(idx + len + 2) : "");
 }
 
-bool RedisAdapter::copyStream(const string& srcSubKey, const string& dstSubKey, const string& baseKey)
+bool RedisAdapter::copy(const string& srcSubKey, const string& dstSubKey, const string& baseKey)
 {
-  string srcKey = build_key(STREAM_STUB, srcSubKey, baseKey);
-  string dstKey = build_key(STREAM_STUB, dstSubKey);
+  string srcKey = build_key(srcSubKey, baseKey);
+  string dstKey = build_key(dstSubKey);
 
   int32_t ret = _redis.copy(srcKey, dstKey);
 
@@ -507,9 +338,9 @@ bool RedisAdapter::stop_listener()
   return true;
 }
 
-bool RedisAdapter::add_reader_helper(const string& baseKey, const string& keyStub, const string& subKey, reader_sub_fn func)
+bool RedisAdapter::add_reader_helper(const string& baseKey, const string& subKey, reader_sub_fn func)
 {
-  string key = build_key(keyStub, subKey, baseKey);
+  string key = build_key(subKey, baseKey);
   int32_t slot = _redis.keyslot(key);
   if (slot < 0) return false;
 
@@ -518,7 +349,7 @@ bool RedisAdapter::add_reader_helper(const string& baseKey, const string& keyStu
 
   if (info.stop.empty())
   {
-    info.stop = build_key(STOP_STUB, "", baseKey);
+    info.stop = build_key(subKey + ":" + STOP_STUB, baseKey);
     info.keyids[info.stop] = "$";
   }
   info.subs[key].push_back(func);
@@ -526,9 +357,9 @@ bool RedisAdapter::add_reader_helper(const string& baseKey, const string& keyStu
   return start_reader(slot);
 }
 
-bool RedisAdapter::remove_reader_helper(const string& baseKey, const string& keyStub, const string& subKey)
+bool RedisAdapter::remove_reader_helper(const string& baseKey, const string& subKey)
 {
-  string key = build_key(keyStub, subKey, baseKey);
+  string key = build_key(subKey, baseKey);
   int32_t slot = _redis.keyslot(key);
   if (slot < 0 || _reader.count(slot) == 0) return false;
 
