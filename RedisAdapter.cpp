@@ -71,7 +71,7 @@ string RA_Time::id_or_now() const
 //    return  : RedisAdapter
 //
 RedisAdapter::RedisAdapter(const string& baseKey, const RedisConnection::Options& options)
-: _base_key(baseKey), _options(options), _redis(options) {}
+: _options(options), _redis(options), _base_key(baseKey), _connecting(false) {}
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  ~RedisAdapter : destructor
