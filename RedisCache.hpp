@@ -41,7 +41,7 @@ private:
     }
     void registerCacheReader() {
         //Setup redis setting readers
-        _ra->addListReader<Type>(_subkey, [this](const std::string& base, const std::string& sub, const RedisAdapter::TimeValList<std::vector<Type>>& entry) {
+        _ra->addListsReader<Type>(_subkey, [this](const std::string& base, const std::string& sub, const RedisAdapter::TimeValList<std::vector<Type>>& entry) {
             writeBuffer(entry);
         });
     }

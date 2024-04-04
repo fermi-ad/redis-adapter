@@ -24,6 +24,8 @@ struct RA_Time
   RA_Time(uint64_t nanos_init = 0, uint32_t seqnum_init = 0) : nanos(nanos_init), seqnum(seqnum_init) {}
   RA_Time(const std::string& id);
 
+  operator uint64_t() const { return nanos; }
+
   bool ok() const { return nanos || seqnum; }
 
   std::string id() const;
@@ -268,8 +270,8 @@ public:
   using ReaderSubFn = std::function<void(const std::string& baseKey, const std::string& subKey, const TimeValList<T>& data)>;
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  addValueReader  : add a stream reader for a data key (trivial type, string or Attr)
-  //  addListReader   : add a stream reader for a data key (vector of trivial type)
+  //  addValuesReader  : add a stream reader for a data key (trivial type, string or Attr)
+  //  addListsReader   : add a stream reader for a data key (vector of trivial type)
   //
   //    baseKey : the base key to read from
   //    subKey  : the sub key to read from
@@ -277,11 +279,11 @@ public:
   //    return  : true on success, false on failure
   //
   template<typename T>
-  bool addValueReader(const std::string& subKey, ReaderSubFn<T> func, const std::string& baseKey = "")
+  bool addValuesReader(const std::string& subKey, ReaderSubFn<T> func, const std::string& baseKey = "")
     { return add_reader_helper(baseKey, subKey, make_reader_callback(func)); }
 
   template<typename T>
-  bool addListReader(const std::string& subKey, ReaderSubFn<std::vector<T>> func, const std::string& baseKey = "")
+  bool addListsReader(const std::string& subKey, ReaderSubFn<std::vector<T>> func, const std::string& baseKey = "")
     { return add_reader_helper(baseKey, subKey, make_list_reader_callback(func)); }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

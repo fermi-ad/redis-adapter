@@ -188,7 +188,7 @@ TEST(RedisAdapter, DataListener)
 
   //  add reader
   bool waiting = true;
-  EXPECT_TRUE(redis.addListReader<float>("xyz", [&](const string& base, const string& sub, const RA::TimeValList<vector<float>>& ats)
+  EXPECT_TRUE(redis.addListsReader<float>("xyz", [&](const string& base, const string& sub, const RA::TimeValList<vector<float>>& ats)
     {
       waiting = false;
       EXPECT_STREQ(base.c_str(), "TEST");
