@@ -59,7 +59,6 @@ set_target_properties(redis++_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
 # Build RedisAdapter shared library
 add_library(RedisAdapter_shared SHARED ${REDIS_ADAPTER_SOURCES})
 target_link_libraries(RedisAdapter_shared ${REDIS_ADAPTER_LIBRARIES})
-set_target_properties(RedisAdapter_shared PROPERTIES PUBLIC_HEADER "${REDIS_ADAPTER_HEADERS}")
 set_target_properties(RedisAdapter_shared PROPERTIES LIBRARY_OUTPUT_NAME RedisAdapter)
 
 # Build RedisAdapter static library
@@ -71,6 +70,8 @@ set_target_properties(RedisAdapter_static PROPERTIES ARCHIVE_OUTPUT_NAME RedisAd
 # "make install" to project directory
 install(TARGETS RedisAdapter_shared PUBLIC_HEADER)
 install(TARGETS RedisAdapter_shared LIBRARY DESTINATION lib)
+# this line goes here to quiet a warning
+set_target_properties(RedisAdapter_shared PROPERTIES PUBLIC_HEADER "${REDIS_ADAPTER_HEADERS}")
 install(TARGETS ${REDIS_ADAPTER_LIBRARIES} ARCHIVE DESTINATION lib)
 install(TARGETS RedisAdapter_static ARCHIVE DESTINATION lib)
 

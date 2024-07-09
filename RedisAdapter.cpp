@@ -12,6 +12,8 @@ using namespace sw::redis;
 const uint32_t NANOS_PER_MILLI = 1'000'000;
 const uint64_t REMAINDER_SCALE = 10'000'000'000;
 
+const auto THREAD_START_CONFIRM = milliseconds(20);
+
 static uint64_t nanoseconds_since_epoch()
 {
   return duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
@@ -324,7 +326,7 @@ bool RedisAdapter::start_listener()
   );  //  end lambda  ////////////////////////////////////////////////
 
   //  wait until notified that thread is running (or timeout)
-  bool nto = cv.wait_for(lk, milliseconds(10)) == cv_status::no_timeout;
+  bool nto = cv.wait_for(lk, THREAD_START_CONFIRM) == cv_status::no_timeout;
   if ( ! nto) syslog(LOG_ERR, "start_listener timeout waiting for thread start");
   return nto && ret;
 }
@@ -424,7 +426,7 @@ bool RedisAdapter::start_reader(uint16_t slot)
   );  //  end lambda  ////////////////////////////////////////////////
 
   //  wait until notified that thread is running (or timeout)
-   bool nto = cv.wait_for(lk, milliseconds(10)) == cv_status::no_timeout;
+   bool nto = cv.wait_for(lk, THREAD_START_CONFIRM) == cv_status::no_timeout;
    if ( ! nto) syslog(LOG_ERR, "start_reader timeout waiting for thread start");
    return nto;
 }
