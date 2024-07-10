@@ -73,7 +73,8 @@ string RA_Time::id_or_now() const
 //    return  : RedisAdapter
 //
 RedisAdapter::RedisAdapter(const string& baseKey, const RedisConnection::Options& options)
-: _options(options), _redis(options), _base_key(baseKey), _connecting(false) {}
+: _options(options), _redis(options), _base_key(baseKey),
+  _connecting(false), _listener_run(false), _readers_defer(false) {}
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  ~RedisAdapter : destructor
@@ -155,6 +156,31 @@ bool RedisAdapter::unsubscribe(const string& subKey, const string& baseKey)
   if (_pattern_subs.count(key)) _pattern_subs.erase(key);
   if (_command_subs.count(key)) _command_subs.erase(key);
   return (_pattern_subs.size() || _command_subs.size()) ? start_listener() : true;
+}
+
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  setDeferReaders : defer or un-defer addition and removal of readers
+//                    - deferring cancels all reads and stops all reader threads until un-defer
+//                    - un-deferring starts all reader threads
+//                    this prevents redundant thread destruction/creation and is the
+//                    preferred way to add/remove multiple readers at one time
+//
+//    defer   : whether to defer or un-defer addition and removal of readers
+//    return  : true on success, false on failure
+//
+bool RedisAdapter::setDeferReaders(bool defer)
+{
+  if (defer && ! _readers_defer)
+  {
+    _readers_defer = true;
+    for (auto& item : _reader) { stop_reader(item.first); }
+  }
+  else if ( ! defer && _readers_defer)
+  {
+    _readers_defer = false;
+    for (auto& item : _reader) { start_reader(item.first); }
+  }
+  return true;
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -380,6 +406,8 @@ bool RedisAdapter::remove_reader_helper(const string& baseKey, const string& sub
 
 bool RedisAdapter::start_reader(uint16_t slot)
 {
+  if (_readers_defer) return true;
+
   if (_reader.count(slot) == 0) return false;
 
   reader_info& info = _reader.at(slot);

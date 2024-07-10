@@ -37,12 +37,12 @@ TEST(RedisAdapter, DataSingle)
   EXPECT_TRUE(redis.addSingleValue("abc", 1.23f).ok());  //  Note value MUST have 'f' suffix else it's a double
   float f = 0;
   EXPECT_TRUE(redis.getSingleValue("abc", f).ok());
-  EXPECT_FLOAT_EQ(f, 1.23);                         //  Here it doesn't matter, we are just comparing
+  EXPECT_FLOAT_EQ(f, 1.23f);
 
   //  set/get float single element
   EXPECT_TRUE(redis.addSingleValue<float>("abc", 1.23).ok());  //  Here it's OK we are calling specialization <float>
   EXPECT_TRUE(redis.getSingleValue("abc", f).ok());
-  EXPECT_FLOAT_EQ(f, 1.23);                               //  Here it doesn't matter, we are just comparing
+  EXPECT_FLOAT_EQ(f, 1.23f);
 
   //  set/get double single element
   EXPECT_TRUE(redis.addSingleDouble("abc", 1.23).ok());
@@ -177,7 +177,7 @@ TEST(RedisAdapter, DataList)
   EXPECT_FLOAT_EQ(is_vf.at(1).second[2], 2.3);
 }
 
-TEST(RedisAdapter, DataListener)
+TEST(RedisAdapter, DataReader)
 {
   RedisAdapter redis("TEST");
 
@@ -221,6 +221,110 @@ TEST(RedisAdapter, DataListener)
   vf[0] = 0; vf[1] = 0; vf[2] = 0;
   waiting = true;
   EXPECT_TRUE(redis.addSingleList("xyz", vf).ok());
+
+  for (int i = 0; i < 20 && waiting; i++)
+    this_thread::sleep_for(milliseconds(5));
+
+  //  should still be waiting
+  EXPECT_TRUE(waiting);
+}
+
+TEST(RedisAdapter, DeferReader)
+{
+  RedisAdapter redis("TEST");
+
+  bool waiting = false;
+  EXPECT_TRUE(redis.setDeferReaders(true));
+
+  //  add readers
+  EXPECT_TRUE(redis.addValuesReader<int>("rrr", [&](const string& base, const string& sub, const RA::TimeValList<int>& ats)
+    {
+      waiting = false;
+      EXPECT_STREQ(base.c_str(), "TEST");
+      EXPECT_STREQ(sub.c_str(), "rrr");
+      EXPECT_GT(ats.size(), 0);
+      EXPECT_TRUE(ats[0].first.ok());
+      EXPECT_EQ(ats[0].second, 3);
+    }
+  ));
+  EXPECT_TRUE(redis.addValuesReader<int>("sss", [&](const string& base, const string& sub, const RA::TimeValList<int>& ats)
+    {
+      waiting = false;
+      EXPECT_STREQ(base.c_str(), "TEST");
+      EXPECT_STREQ(sub.c_str(), "sss");
+      EXPECT_GT(ats.size(), 0);
+      EXPECT_TRUE(ats[0].first.ok());
+      EXPECT_EQ(ats[0].second, 4);
+    }
+  ));
+  EXPECT_TRUE(redis.addValuesReader<int>("ttt", [&](const string& base, const string& sub, const RA::TimeValList<int>& ats)
+    {
+      waiting = false;
+      EXPECT_STREQ(base.c_str(), "TEST");
+      EXPECT_STREQ(sub.c_str(), "ttt");
+      EXPECT_GT(ats.size(), 0);
+      EXPECT_TRUE(ats[0].first.ok());
+      EXPECT_EQ(ats[0].second, 5);
+    }
+  ));
+  this_thread::sleep_for(milliseconds(5));
+
+  //  this should not be seen
+  waiting = true;
+  EXPECT_TRUE(redis.addSingleValue("sss", 1).ok());
+
+  for (int i = 0; i < 20 && waiting; i++)
+    this_thread::sleep_for(milliseconds(5));
+
+  //  should still be waiting
+  EXPECT_TRUE(waiting);
+
+  EXPECT_TRUE(redis.setDeferReaders(false));
+  this_thread::sleep_for(milliseconds(5));
+
+  //  trigger reader
+  waiting = true;
+  EXPECT_TRUE(redis.addSingleValue("sss", 4).ok());
+
+  for (int i = 0; i < 20 && waiting; i++)
+    this_thread::sleep_for(milliseconds(5));
+
+  //  should not be waiting anymore
+  EXPECT_FALSE(waiting);
+
+  //  trigger reader
+  waiting = true;
+  EXPECT_TRUE(redis.addSingleValue("rrr", 3).ok());
+
+  for (int i = 0; i < 20 && waiting; i++)
+    this_thread::sleep_for(milliseconds(5));
+
+  //  should not be waiting anymore
+  EXPECT_FALSE(waiting);
+
+  //  trigger reader
+  waiting = true;
+  EXPECT_TRUE(redis.addSingleValue("ttt", 5).ok());
+
+  for (int i = 0; i < 20 && waiting; i++)
+    this_thread::sleep_for(milliseconds(5));
+
+  //  should not be waiting anymore
+  EXPECT_FALSE(waiting);
+
+  EXPECT_TRUE(redis.setDeferReaders(true));
+
+  //  remove readers
+  EXPECT_TRUE(redis.removeReader("rrr"));
+  EXPECT_TRUE(redis.removeReader("sss"));
+  EXPECT_TRUE(redis.removeReader("ttt"));
+
+  EXPECT_TRUE(redis.setDeferReaders(false));
+  this_thread::sleep_for(milliseconds(5));
+
+  //  this should not be seen
+  waiting = true;
+  EXPECT_TRUE(redis.addSingleValue("sss", 1).ok());
 
   for (int i = 0; i < 20 && waiting; i++)
     this_thread::sleep_for(milliseconds(5));
