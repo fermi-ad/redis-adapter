@@ -162,8 +162,8 @@ bool RedisAdapter::unsubscribe(const string& subKey, const string& baseKey)
 //  setDeferReaders : defer or un-defer addition and removal of readers
 //                    - deferring cancels all reads and stops all reader threads until un-defer
 //                    - un-deferring starts all reader threads
-//                    this prevents redundant thread destruction/creation and is the
-//                    preferred way to add/remove multiple readers at one time
+//                    this prevents redundant thread destruction/creation and is
+//                    the preferred way to add/remove multiple readers at one time
 //
 //    defer   : whether to defer or un-defer addition and removal of readers
 //    return  : true on success, false on failure
@@ -172,12 +172,12 @@ bool RedisAdapter::setDeferReaders(bool defer)
 {
   if (defer && ! _readers_defer)
   {
-    _readers_defer = true;
+    _readers_defer = defer;
     for (auto& item : _reader) { stop_reader(item.first); }
   }
   else if ( ! defer && _readers_defer)
   {
-    _readers_defer = false;
+    _readers_defer = defer;
     for (auto& item : _reader) { start_reader(item.first); }
   }
   return true;
