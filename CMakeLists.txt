@@ -66,14 +66,17 @@ set_target_properties(RedisAdapter_static PROPERTIES ARCHIVE_OUTPUT_NAME RedisAd
 
 # "make install" to project directory
 set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR}/install)
+
 # These 3 lines must occur here and in this order to quiet warnings and install the headers
 install(TARGETS RedisAdapter_shared LIBRARY DESTINATION lib)
 set_target_properties(RedisAdapter_shared PROPERTIES PUBLIC_HEADER "${REDIS_ADAPTER_HEADERS}")
 install(TARGETS RedisAdapter_shared PUBLIC_HEADER)
+
 # These 3 lines must occur here and in this order to quiet warnings and install the headers
 install(TARGETS RedisAdapter_static ARCHIVE DESTINATION lib)
 set_target_properties(RedisAdapter_static PROPERTIES PUBLIC_HEADER "${REDIS_ADAPTER_HEADERS}")
 install(TARGETS RedisAdapter_static PUBLIC_HEADER)
+
 # Install supporting libs (hiredis, redis++)
 install(TARGETS ${REDIS_ADAPTER_LIBRARIES} ARCHIVE DESTINATION lib)
 
