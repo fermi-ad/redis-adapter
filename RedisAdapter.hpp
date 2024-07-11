@@ -264,6 +264,18 @@ public:
   bool unsubscribe(const std::string& subKey, const std::string& baseKey = "");
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  setDeferReaders : defer or un-defer addition and removal of readers
+  //                    - deferring cancels all reads and stops all reader threads until un-defer
+  //                    - un-deferring starts all reader threads
+  //                    this prevents redundant thread destruction/creation and is the
+  //                    preferred way to add/remove multiple readers at one time
+  //
+  //    defer   : whether to defer or un-defer addition and removal of readers
+  //    return  : true on success, false on failure
+  //
+  bool setDeferReaders(bool defer);
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  ReaderSubFn : callback function type for stream reader notification
   //
   template<typename T>
@@ -392,15 +404,18 @@ private:
   //  Pub/Sub Listener and Stream Reader
   //
   bool start_listener();
+  bool stop_listener();
+
   std::thread _listener;
   bool _listener_run;
-  bool stop_listener();
 
   std::unordered_map<std::string, std::vector<ListenSubFn>> _pattern_subs;
   std::unordered_map<std::string, std::vector<ListenSubFn>> _command_subs;
 
   bool start_reader(uint16_t slot);
   bool stop_reader(uint16_t slot);
+
+  bool _readers_defer;
 
   struct reader_info
   {
