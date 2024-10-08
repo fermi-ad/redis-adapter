@@ -420,6 +420,8 @@ bool RedisAdapter::start_reader(uint16_t slot)
   //  begin lambda  //////////////////////////////////////////////////
   info.thread = thread([&]()
     {
+      bool check_for_dollars = true;
+
       info.run = true;
 
       cv.notify_all();  //  notify about to enter loop (NOT in loop)
@@ -431,7 +433,21 @@ bool RedisAdapter::start_reader(uint16_t slot)
           for (auto& item : out)
           {
             if (item.second.size())
-              { info.keyids[item.first] = item.second.back().first; }
+            {
+              info.keyids[item.first] = item.second.back().first;
+
+              //  when the first result with an id comes back set all '$' to that id
+              //  this prevents missing other results on '$' while processing this one
+              if (check_for_dollars)
+              {
+                const string& newid = item.second.back().first;
+                for (auto& ki : info.keyids)
+                {
+                  if (ki.second[0] == '$') { ki.second = newid; }
+                }
+                check_for_dollars = false;
+              }
+            }
 
             if (info.subs.count(item.first))
             {
