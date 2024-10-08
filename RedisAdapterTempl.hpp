@@ -14,7 +14,7 @@ template<typename T> auto RedisAdapter::default_field_value(const Attrs& attrs) 
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
-  std::optional<T> ret;
+  swr::Optional<T> ret;
   if (attrs.count(DEFAULT_FIELD)) ret = *(const T*)attrs.at(DEFAULT_FIELD).data();
   return ret;
 }
@@ -77,8 +77,8 @@ RedisAdapter::get_forward_stream_helper(const std::string& baseKey, const std::s
   TimeVal<T> retItem;
   for (const auto& rawItem : raw)
   {
-    std::optional<T> maybe = default_field_value<T>(rawItem.second);
-    if (maybe.has_value())
+    swr::Optional<T> maybe = default_field_value<T>(rawItem.second);
+    if (maybe)
     {
       retItem.first = RA_Time(rawItem.first);
       retItem.second = maybe.value();
@@ -178,8 +178,8 @@ RedisAdapter::get_reverse_stream_helper(const std::string& baseKey, const std::s
   TimeVal<T> retItem;
   for (auto rawItem = raw.rbegin(); rawItem != raw.rend(); rawItem++)   //  reverse iterate
   {
-    std::optional<T> maybe = default_field_value<T>(rawItem->second);
-    if (maybe.has_value())
+    swr::Optional<T> maybe = default_field_value<T>(rawItem->second);
+    if (maybe)
     {
       retItem.first = RA_Time(rawItem->first);
       retItem.second = maybe.value();
@@ -269,8 +269,8 @@ RedisAdapter::get_single_stream_helper(const std::string& baseKey, const std::st
 
   if (raw.size())
   {
-    std::optional<T> maybe = default_field_value<T>(raw.front().second);
-    if (maybe.has_value())
+    swr::Optional<T> maybe = default_field_value<T>(raw.front().second);
+    if (maybe)
     {
       dest = maybe.value();
       return RA_Time(raw.front().first);
@@ -478,8 +478,8 @@ RedisAdapter::make_reader_callback(ReaderSubFn<T> func) const
     TimeVal<T> retItem;
     for (const auto& rawItem : raw)
     {
-      std::optional<T> maybe = default_field_value<T>(rawItem.second);
-      if (maybe.has_value())
+      swr::Optional<T> maybe = default_field_value<T>(rawItem.second);
+      if (maybe)
       {
         retItem.first = RA_Time(rawItem.first);
         retItem.second = maybe.value();

@@ -433,18 +433,23 @@ public:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  subscriber : get a Subscriber object for pub/sub
   //
-  //    return : Optional with a Subscriber if successful
-  //             empty Optional if unsuccessful or not connected
+  //    return : pointer to a Subscriber if successful
+  //             0 if unsuccessful or not connected
   //
-  swr::Optional<swr::Subscriber> subscriber()
+  //    note - previously this function returned std::optional<swr::Subscriber> but
+  //           std::optional has been replaced with swr::Optional to support c++11
+  //           and unfortunately swr::Optional cannot create an empty optional with
+  //           swr::Subscriber - now client must delete new swr::Subscriber when done
+  //
+  swr::Subscriber* subscriber()
   {
     try
     {
-      if (_cluster) { return swr::Optional<swr::Subscriber>(_cluster->subscriber()); }
-      if (_singler) { return swr::Optional<swr::Subscriber>(_singler->subscriber()); }
+      if (_cluster) { return new swr::Subscriber(_cluster->subscriber()); }
+      if (_singler) { return new swr::Subscriber(_singler->subscriber()); }
     }
     catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
-    return {};
+    return 0;
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

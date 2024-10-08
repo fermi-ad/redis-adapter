@@ -53,32 +53,36 @@ add_subdirectory(redis-plus-plus)
 # Make redis++ PIC for RedisAdapter shared library
 set_target_properties(redis++_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# Build RedisAdapter shared library
-add_library(RedisAdapter_shared SHARED ${REDIS_ADAPTER_SOURCES})
-target_link_libraries(RedisAdapter_shared ${REDIS_ADAPTER_LIBRARIES})
-set_target_properties(RedisAdapter_shared PROPERTIES LIBRARY_OUTPUT_NAME RedisAdapter)
+# Build and install the static and dynamic libraries if REDIS_ADAPTER_INSTALL_LIBRARIES is true
+# Specify on command-line: "cmake -D REDIS_ADAPTER_INSTALL_LIBRARIES=1 .."
+if (REDIS_ADAPTER_INSTALL_LIBRARIES)
+  # Build RedisAdapter shared library
+  add_library(RedisAdapter_shared SHARED ${REDIS_ADAPTER_SOURCES})
+  target_link_libraries(RedisAdapter_shared ${REDIS_ADAPTER_LIBRARIES})
+  set_target_properties(RedisAdapter_shared PROPERTIES LIBRARY_OUTPUT_NAME RedisAdapter)
 
-# Build RedisAdapter static library
-add_library(RedisAdapter_static STATIC ${REDIS_ADAPTER_SOURCES})
-target_link_libraries(RedisAdapter_static ${REDIS_ADAPTER_LIBRARIES})
-set_target_properties(RedisAdapter_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
-set_target_properties(RedisAdapter_static PROPERTIES ARCHIVE_OUTPUT_NAME RedisAdapter)
+  # Build RedisAdapter static library
+  add_library(RedisAdapter_static STATIC ${REDIS_ADAPTER_SOURCES})
+  target_link_libraries(RedisAdapter_static ${REDIS_ADAPTER_LIBRARIES})
+  set_target_properties(RedisAdapter_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  set_target_properties(RedisAdapter_static PROPERTIES ARCHIVE_OUTPUT_NAME RedisAdapter)
 
-# "make install" to project directory
-set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR}/install)
+  # "make install" to project directory
+  set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR}/install)
 
-# These 3 lines must occur here and in this order to quiet warnings and install the headers
-install(TARGETS RedisAdapter_shared LIBRARY DESTINATION lib)
-set_target_properties(RedisAdapter_shared PROPERTIES PUBLIC_HEADER "${REDIS_ADAPTER_HEADERS}")
-install(TARGETS RedisAdapter_shared PUBLIC_HEADER)
+  # These 3 lines must occur here and in this order to quiet warnings and install the headers
+  install(TARGETS RedisAdapter_shared LIBRARY DESTINATION lib)
+  set_target_properties(RedisAdapter_shared PROPERTIES PUBLIC_HEADER "${REDIS_ADAPTER_HEADERS}")
+  install(TARGETS RedisAdapter_shared PUBLIC_HEADER)
 
-# These 3 lines must occur here and in this order to quiet warnings and install the headers
-install(TARGETS RedisAdapter_static ARCHIVE DESTINATION lib)
-set_target_properties(RedisAdapter_static PROPERTIES PUBLIC_HEADER "${REDIS_ADAPTER_HEADERS}")
-install(TARGETS RedisAdapter_static PUBLIC_HEADER)
+  # These 3 lines must occur here and in this order to quiet warnings and install the headers
+  install(TARGETS RedisAdapter_static ARCHIVE DESTINATION lib)
+  set_target_properties(RedisAdapter_static PROPERTIES PUBLIC_HEADER "${REDIS_ADAPTER_HEADERS}")
+  install(TARGETS RedisAdapter_static PUBLIC_HEADER)
 
-# Install supporting libs (hiredis, redis++)
-install(TARGETS ${REDIS_ADAPTER_LIBRARIES} ARCHIVE DESTINATION lib)
+  # Install supporting libs (hiredis, redis++)
+  install(TARGETS ${REDIS_ADAPTER_LIBRARIES} ARCHIVE DESTINATION lib)
+endif()
 
 # Build RedisAdapterTest and googletest if REDIS_ADAPTER_TEST is true
 # Specify on command-line: "cmake -D REDIS_ADAPTER_TEST=1 .."

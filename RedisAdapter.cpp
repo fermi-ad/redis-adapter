@@ -294,18 +294,17 @@ bool RedisAdapter::start_listener()
   //  begin lambda  //////////////////////////////////////////////////
   _listener = thread([&]()
     {
-      auto maybe = _redis.subscriber();
-      if ( ! maybe.has_value())
+      Subscriber* psub = _redis.subscriber();
+      if ( ! psub)
       {
         syslog(LOG_ERR, "failed to get subscriber");
         ret = false;      //  start_listener return false
         cv.notify_all();  //  notify cv
         return;           //  return from lambda
       }
-      Subscriber& sub = maybe.value();
 
       //  begin lambda in lambda ///////////////////////////
-      sub.on_pmessage([&](string pat, string key, string msg)
+      psub->on_pmessage([&](string pat, string key, string msg)
         {
           if (_pattern_subs.count(pat))
           {
@@ -317,7 +316,7 @@ bool RedisAdapter::start_listener()
       );  //  end lambda in lambda /////////////////////////
 
       //  begin lambda in lambda ///////////////////////////
-      sub.on_message([&](string key, string msg)
+      psub->on_message([&](string key, string msg)
         {
           if (_command_subs.count(key))
           {
@@ -328,11 +327,11 @@ bool RedisAdapter::start_listener()
         }
       );  //  end lambda in lambda /////////////////////////
 
-      for (const auto& cs : _command_subs) { sub.subscribe(cs.first); }
+      for (const auto& cs : _command_subs) { psub->subscribe(cs.first); }
 
-      for (const auto& ps : _pattern_subs) { sub.psubscribe(ps.first); }
+      for (const auto& ps : _pattern_subs) { psub->psubscribe(ps.first); }
 
-      sub.subscribe(build_key(STOP_STUB));
+      psub->subscribe(build_key(STOP_STUB));
 
       _listener_run = true;
 
@@ -340,7 +339,7 @@ bool RedisAdapter::start_listener()
 
       while (_listener_run)
       {
-        try { sub.consume(); }
+        try { psub->consume(); }
         catch (const TimeoutError&) {}
         catch (const Error& e)
         {
@@ -348,6 +347,7 @@ bool RedisAdapter::start_listener()
           _listener_run = false;
         }
       }
+      delete psub;
     }
   );  //  end lambda  ////////////////////////////////////////////////
 
