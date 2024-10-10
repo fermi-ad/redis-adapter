@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(RedisAdapter LANGUAGES CXX)
+project(redis-adapter LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -18,7 +18,7 @@ list(REMOVE_DUPLICATES REDIS_ADAPTER_INCLUDE_DIRS)
 list(APPEND REDIS_ADAPTER_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/hiredis)
 list(APPEND REDIS_ADAPTER_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/redis-plus-plus/src)
 
-# Link static hiredis and static redis++ to RedisAdapter
+# Link static hiredis and static redis++ to redis-adapter
 list(APPEND REDIS_ADAPTER_LIBRARIES hiredis)
 list(APPEND REDIS_ADAPTER_LIBRARIES redis++_static)
 
@@ -32,7 +32,7 @@ if(HAS_PARENT)
   set(REDIS_ADAPTER_COMPILER_FEATURES cxx_std_17 PARENT_SCOPE)
 endif()
 
-# Let redis++ see hiredis and RedisAdapter see redis++ and hiredis
+# Let redis++ see hiredis and redis-adapter see redis++ and hiredis
 include_directories(${REDIS_ADAPTER_INCLUDE_DIRS})
 
 # ADD HIREDIS
@@ -41,7 +41,7 @@ option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
 # We dont want hiredis tests built
 option(DISABLE_TESTS "If tests should be compiled or not" ON)
 add_subdirectory(hiredis)
-# Make hiredis PIC for RedisAdapter shared library
+# Make hiredis PIC for redis-adapter shared library
 set_target_properties(hiredis PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # ADD REDIS++
@@ -50,22 +50,22 @@ option(REDIS_PLUS_PLUS_BUILD_TEST "Build tests for redis++" OFF)
 # Turn off redis++ specific shared library generation
 option(REDIS_PLUS_PLUS_BUILD_SHARED "Build shared library" OFF)
 add_subdirectory(redis-plus-plus)
-# Make redis++ PIC for RedisAdapter shared library
+# Make redis++ PIC for redis-adapter shared library
 set_target_properties(redis++_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # Build and install the static and dynamic libraries if REDIS_ADAPTER_INSTALL_LIBRARIES is true
 # Specify on command-line: "cmake -D REDIS_ADAPTER_INSTALL_LIBRARIES=1 .."
-if (REDIS_ADAPTER_INSTALL_LIBRARIES)
-  # Build RedisAdapter shared library
+if(REDIS_ADAPTER_INSTALL_LIBRARIES)
+  # Build redis-adapter shared library
   add_library(RedisAdapter_shared SHARED ${REDIS_ADAPTER_SOURCES})
   target_link_libraries(RedisAdapter_shared ${REDIS_ADAPTER_LIBRARIES})
-  set_target_properties(RedisAdapter_shared PROPERTIES LIBRARY_OUTPUT_NAME RedisAdapter)
+  set_target_properties(RedisAdapter_shared PROPERTIES LIBRARY_OUTPUT_NAME redis-adapter)
 
-  # Build RedisAdapter static library
+  # Build redis-adapter static library
   add_library(RedisAdapter_static STATIC ${REDIS_ADAPTER_SOURCES})
   target_link_libraries(RedisAdapter_static ${REDIS_ADAPTER_LIBRARIES})
   set_target_properties(RedisAdapter_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
-  set_target_properties(RedisAdapter_static PROPERTIES ARCHIVE_OUTPUT_NAME RedisAdapter)
+  set_target_properties(RedisAdapter_static PROPERTIES ARCHIVE_OUTPUT_NAME redis-adapter)
 
   # "make install" to project directory
   set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR}/install)
