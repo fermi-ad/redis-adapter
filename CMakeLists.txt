@@ -57,34 +57,34 @@ set_target_properties(redis++_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
 # Specify on command-line: "cmake -D REDIS_ADAPTER_INSTALL_LIBRARIES=1 .."
 if(REDIS_ADAPTER_INSTALL_LIBRARIES)
   # Build redis-adapter shared library
-  add_library(RedisAdapter_shared SHARED ${REDIS_ADAPTER_SOURCES})
-  target_link_libraries(RedisAdapter_shared ${REDIS_ADAPTER_LIBRARIES})
-  set_target_properties(RedisAdapter_shared PROPERTIES LIBRARY_OUTPUT_NAME redis-adapter)
+  add_library(redis-adapter-shared SHARED ${REDIS_ADAPTER_SOURCES})
+  target_link_libraries(redis-adapter-shared ${REDIS_ADAPTER_LIBRARIES})
+  set_target_properties(redis-adapter-shared PROPERTIES LIBRARY_OUTPUT_NAME redis-adapter)
 
   # Build redis-adapter static library
-  add_library(RedisAdapter_static STATIC ${REDIS_ADAPTER_SOURCES})
-  target_link_libraries(RedisAdapter_static ${REDIS_ADAPTER_LIBRARIES})
-  set_target_properties(RedisAdapter_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
-  set_target_properties(RedisAdapter_static PROPERTIES ARCHIVE_OUTPUT_NAME redis-adapter)
+  add_library(redis-adapter-static STATIC ${REDIS_ADAPTER_SOURCES})
+  target_link_libraries(redis-adapter-static ${REDIS_ADAPTER_LIBRARIES})
+  set_target_properties(redis-adapter-static PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  set_target_properties(redis-adapter-static PROPERTIES ARCHIVE_OUTPUT_NAME redis-adapter)
 
   # "make install" to project directory
   set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR}/install)
 
   # These 3 lines must occur here and in this order to quiet warnings and install the headers
-  install(TARGETS RedisAdapter_shared LIBRARY DESTINATION lib)
-  set_target_properties(RedisAdapter_shared PROPERTIES PUBLIC_HEADER "${REDIS_ADAPTER_HEADERS}")
-  install(TARGETS RedisAdapter_shared PUBLIC_HEADER)
+  install(TARGETS redis-adapter-shared LIBRARY DESTINATION lib)
+  set_target_properties(redis-adapter-shared PROPERTIES PUBLIC_HEADER "${REDIS_ADAPTER_HEADERS}")
+  install(TARGETS redis-adapter-shared PUBLIC_HEADER)
 
   # These 3 lines must occur here and in this order to quiet warnings and install the headers
-  install(TARGETS RedisAdapter_static ARCHIVE DESTINATION lib)
-  set_target_properties(RedisAdapter_static PROPERTIES PUBLIC_HEADER "${REDIS_ADAPTER_HEADERS}")
-  install(TARGETS RedisAdapter_static PUBLIC_HEADER)
+  install(TARGETS redis-adapter-static ARCHIVE DESTINATION lib)
+  set_target_properties(redis-adapter-static PROPERTIES PUBLIC_HEADER "${REDIS_ADAPTER_HEADERS}")
+  install(TARGETS redis-adapter-static PUBLIC_HEADER)
 
   # Install supporting libs (hiredis, redis++)
   install(TARGETS ${REDIS_ADAPTER_LIBRARIES} ARCHIVE DESTINATION lib)
 endif()
 
-# Build RedisAdapterTest and googletest if REDIS_ADAPTER_TEST is true
+# Build redis-adapter-test and googletest if REDIS_ADAPTER_TEST is true
 # Specify on command-line: "cmake -D REDIS_ADAPTER_TEST=1 .."
 if(REDIS_ADAPTER_TEST)
   # We dont want googlemock built
@@ -92,7 +92,7 @@ if(REDIS_ADAPTER_TEST)
   enable_testing()
   add_subdirectory(googletest)
   include(GoogleTest)
-  add_executable(RedisAdapterTest ${REDIS_ADAPTER_SOURCES} test.cpp)
-  target_link_libraries(RedisAdapterTest ${REDIS_ADAPTER_LIBRARIES} GTest::gtest_main)
-  gtest_discover_tests(RedisAdapterTest)
+  add_executable(redis-adapter-test ${REDIS_ADAPTER_SOURCES} test.cpp)
+  target_link_libraries(redis-adapter-test ${REDIS_ADAPTER_LIBRARIES} GTest::gtest_main)
+  gtest_discover_tests(redis-adapter-test)
 endif()
