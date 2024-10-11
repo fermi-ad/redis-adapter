@@ -1,0 +1,35 @@
+name: C++ Style Check with Clang-Format (Google Style)
+
+on:
+  # Run on push and pull requests for all branches
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+
+jobs:
+  clang-format-check:
+    runs-on: ubuntu-latest  # Use Ubuntu runner
+
+    steps:
+      # Step 1: Checkout the repository code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2: Install clang-format
+      - name: Install clang-format
+        run: sudo apt-get install -y clang-format
+
+      # Step 3: Run clang-format to check Google style compliance
+      - name: Run Clang-Format
+        run: |
+          # Find all C++ source files and check formatting against Google style
+          find . -name "*.cpp" -o -name "*.hpp" -o -name "*.h" -o -name "*.cc" | xargs clang-format --style=google --dry-run --Werror
+
+      # Optional: Automatically format files and fail if they need changes
+      - name: Check for Uncommitted Changes (Format Required)
+        run: |
+          git diff --exit-code || (echo "::error ::Code formatting needed. Run clang-format to fix." && exit 1)
+
