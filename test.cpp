@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+
 #include "RedisAdapter.hpp"
 
 using namespace std;
@@ -7,41 +8,39 @@ using namespace std::chrono;
 
 using RA = RedisAdapter;
 
-TEST(RedisAdapter, Connected)
-{
+TEST(RedisAdapter, Connected) {
   RedisAdapter redis("TEST");
 
   //  provide a pass/fail indication if Redis server is available
   EXPECT_TRUE(redis.connected());
 }
 
-TEST(RedisAdapter, ExitNotConnected)
-{
+TEST(RedisAdapter, ExitNotConnected) {
   RedisAdapter redis("TEST");
 
   //  abort tests if Redis server is not available
-  if ( ! redis.connected()) exit(1);
+  if (!redis.connected()) exit(1);
 }
 
-TEST(RedisAdapter, UnixDomainSocket)
-{
-    //If trying to connect with a domain socket fails, for some unknown reason, this can cause a meemory corruption
-    //when the redis object is deleted. This causes the rest of the tests to fails.
-    //To work around this we should use a pointer to the RedisAdapter object and delete it explicitly. 
-    //Assumes the socket file is in the RedisAdapter/tmp directory and test is run from the build directory
-    
-    RedisAdapter* redis = nullptr;  // Initialize the RedisAdapter pointer
+TEST(RedisAdapter, UnixDomainSocket) {
+  // If trying to connect with a domain socket fails, for some unknown reason,
+  // this can cause a meemory corruption when the redis object is deleted. This
+  // causes the rest of the tests to fails. To work around this we should use a
+  // pointer to the RedisAdapter object and delete it explicitly. Assumes the
+  // socket file is in the RedisAdapter/tmp directory and test is run from the
+  // build directory
 
-    redis = new RedisAdapter("TEST", { .host = "../tmp/redis.sock" });
+  RedisAdapter* redis = nullptr;  // Initialize the RedisAdapter pointer
 
-    EXPECT_TRUE(redis->connected()) << "Failed to connect to the Redis server using Unix domain socket.";
-    
-    delete redis;  // Explicitly delete the RedisAdapter object
+  redis = new RedisAdapter("TEST", {.host = "../tmp/redis.sock"});
 
+  EXPECT_TRUE(redis->connected())
+      << "Failed to connect to the Redis server using Unix domain socket.";
+
+  delete redis;  // Explicitly delete the RedisAdapter object
 }
 
-TEST(RedisAdapter, DataSingle)
-{
+TEST(RedisAdapter, DataSingle) {
   RedisAdapter redis("TEST");
 
   //  set/get string single element
@@ -51,13 +50,17 @@ TEST(RedisAdapter, DataSingle)
   EXPECT_STREQ(s.c_str(), "xxx");
 
   //  set/get float single element
-  EXPECT_TRUE(redis.addSingleValue("abc", 1.23f).ok());  //  Note value MUST have 'f' suffix else it's a double
+  EXPECT_TRUE(
+      redis.addSingleValue("abc", 1.23f)
+          .ok());  //  Note value MUST have 'f' suffix else it's a double
   float f = 0;
   EXPECT_TRUE(redis.getSingleValue("abc", f).ok());
   EXPECT_FLOAT_EQ(f, 1.23f);
 
   //  set/get float single element
-  EXPECT_TRUE(redis.addSingleValue<float>("abc", 1.23).ok());  //  Here it's OK we are calling specialization <float>
+  EXPECT_TRUE(
+      redis.addSingleValue<float>("abc", 1.23)
+          .ok());  //  Here it's OK we are calling specialization <float>
   EXPECT_TRUE(redis.getSingleValue("abc", f).ok());
   EXPECT_FLOAT_EQ(f, 1.23f);
 
@@ -68,7 +71,7 @@ TEST(RedisAdapter, DataSingle)
   EXPECT_DOUBLE_EQ(d, 1.23);
 
   //  set/get float vector single element
-  vector<float> vf = { 1.23, 3.45, 5.67 };
+  vector<float> vf = {1.23, 3.45, 5.67};
   EXPECT_TRUE(redis.addSingleList("abc", vf).ok());
   vf.clear();
   EXPECT_TRUE(redis.getSingleList("abc", vf).ok());
@@ -78,7 +81,7 @@ TEST(RedisAdapter, DataSingle)
   EXPECT_FLOAT_EQ(vf[2], 5.67);
 
   //  set/get int array single element (also span if c++20)
-  array<int, 3> ai = { 1, 2, 3 };
+  array<int, 3> ai = {1, 2, 3};
   EXPECT_TRUE(redis.addSingleList("abc", ai).ok());
   //  note it comes back as a vector
   vector<int> vi;
@@ -89,8 +92,7 @@ TEST(RedisAdapter, DataSingle)
   EXPECT_EQ(vi[2], 3);
 }
 
-TEST(RedisAdapter, Data)
-{
+TEST(RedisAdapter, Data) {
   RedisAdapter redis("TEST");
 
   //  set/get data
@@ -98,7 +100,8 @@ TEST(RedisAdapter, Data)
   EXPECT_TRUE(idA.ok());
   RA_Time idB = redis.addSingleValue("abc", "yyy");
   EXPECT_TRUE(idB.ok());
-  auto is_str = redis.getValues<string>("abc", { .minTime=idA, .maxTime=idB });
+  auto is_str =
+      redis.getValues<string>("abc", {.minTime = idA, .maxTime = idB});
   EXPECT_EQ(is_str.size(), 2);
   EXPECT_TRUE(is_str.at(0).first.ok());
   EXPECT_STREQ(is_str.at(0).second.c_str(), "xxx");
@@ -106,7 +109,7 @@ TEST(RedisAdapter, Data)
   EXPECT_STREQ(is_str.at(1).second.c_str(), "yyy");
 
   //  add multiple data
-  RA::TimeValList<int> is_int = {{ 0, 1 }, { 0, 2 }, { 0, 3 }};
+  RA::TimeValList<int> is_int = {{0, 1}, {0, 2}, {0, 3}};
   auto ids = redis.addValues("abc", is_int);
   EXPECT_EQ(ids.size(), 3);
   EXPECT_TRUE(ids[0].ok());
@@ -114,7 +117,7 @@ TEST(RedisAdapter, Data)
   EXPECT_TRUE(ids[2].ok());
 
   //  get data after
-  is_int = redis.getValuesAfter<int>("abc", { .minTime = ids[0], .count = 3 });
+  is_int = redis.getValuesAfter<int>("abc", {.minTime = ids[0], .count = 3});
   EXPECT_EQ(is_int.size(), 3);
   EXPECT_TRUE(is_int.at(0).first.ok());
   EXPECT_EQ(is_int.at(0).second, 1);
@@ -124,7 +127,7 @@ TEST(RedisAdapter, Data)
   EXPECT_EQ(is_int.at(2).second, 3);
 
   //  get data before
-  is_int = redis.getValuesBefore<int>("abc", { .maxTime = ids[2], .count = 3 });
+  is_int = redis.getValuesBefore<int>("abc", {.maxTime = ids[2], .count = 3});
   EXPECT_EQ(is_int.size(), 3);
   EXPECT_TRUE(is_int.at(0).first.ok());
   EXPECT_EQ(is_int.at(0).second, 1);
@@ -134,11 +137,12 @@ TEST(RedisAdapter, Data)
   EXPECT_EQ(is_int.at(2).second, 3);
 
   //  add/get Attrs data
-  RA::TimeValList<RA::Attrs> is_at = {{ 0, {{ "a", "1" }, { "b", "2" }}}};
+  RA::TimeValList<RA::Attrs> is_at = {{0, {{"a", "1"}, {"b", "2"}}}};
   ids = redis.addValues("abc", is_at);
   EXPECT_EQ(ids.size(), 1);
   EXPECT_TRUE(ids[0].ok());
-  is_at = redis.getValues<RA::Attrs>("abc", { .minTime=ids[0], .maxTime=ids[0] });
+  is_at =
+      redis.getValues<RA::Attrs>("abc", {.minTime = ids[0], .maxTime = ids[0]});
   EXPECT_EQ(is_at.size(), 1);
   EXPECT_GT(is_at.at(0).second.count("a"), 0);
   EXPECT_STREQ(is_at.at(0).second.at("a").c_str(), "1");
@@ -146,19 +150,19 @@ TEST(RedisAdapter, Data)
   EXPECT_STREQ(is_at.at(0).second.at("b").c_str(), "2");
 }
 
-TEST(RedisAdapter, DataList)
-{
+TEST(RedisAdapter, DataList) {
   RedisAdapter redis("TEST");
 
   //  add float vectors
-  RA::TimeValList<vector<float>> is_vf = {{ 0, { 1.1, 1.2, 1.3 }}, { 0, { 2.1, 2.2, 2.3 }}};
+  RA::TimeValList<vector<float>> is_vf = {{0, {1.1, 1.2, 1.3}},
+                                          {0, {2.1, 2.2, 2.3}}};
   auto ids = redis.addLists("abc", is_vf);
   EXPECT_EQ(ids.size(), 2);
   EXPECT_TRUE(ids[0].ok());
   EXPECT_TRUE(ids[1].ok());
 
   //  get float vector data
-  is_vf = redis.getLists<float>("abc", { .minTime=ids[0], .maxTime=ids[1] });
+  is_vf = redis.getLists<float>("abc", {.minTime = ids[0], .maxTime = ids[1]});
   EXPECT_EQ(is_vf.size(), 2);
   EXPECT_EQ(is_vf.at(0).second.size(), 3);
   EXPECT_FLOAT_EQ(is_vf.at(0).second[0], 1.1);
@@ -170,7 +174,7 @@ TEST(RedisAdapter, DataList)
   EXPECT_FLOAT_EQ(is_vf.at(1).second[2], 2.3);
 
   //  get float vector data before
-  is_vf = redis.getListsBefore<float>("abc", { .maxTime = ids[1], .count = 2 });
+  is_vf = redis.getListsBefore<float>("abc", {.maxTime = ids[1], .count = 2});
   EXPECT_EQ(is_vf.size(), 2);
   EXPECT_EQ(is_vf.at(0).second.size(), 3);
   EXPECT_FLOAT_EQ(is_vf.at(0).second[0], 1.1);
@@ -182,7 +186,7 @@ TEST(RedisAdapter, DataList)
   EXPECT_FLOAT_EQ(is_vf.at(1).second[2], 2.3);
 
   //  get float vector data after
-  is_vf = redis.getListsAfter<float>("abc", { .minTime = ids[0], .count = 2 });
+  is_vf = redis.getListsAfter<float>("abc", {.minTime = ids[0], .count = 2});
   EXPECT_EQ(is_vf.size(), 2);
   EXPECT_EQ(is_vf.at(0).second.size(), 3);
   EXPECT_FLOAT_EQ(is_vf.at(0).second[0], 1.1);
@@ -194,34 +198,35 @@ TEST(RedisAdapter, DataList)
   EXPECT_FLOAT_EQ(is_vf.at(1).second[2], 2.3);
 }
 
-TEST(RedisAdapter, DataReader)
-{
+TEST(RedisAdapter, DataReader) {
   RedisAdapter redis("TEST");
 
-  vector<float> vf = { 1, 2, 3 };
+  vector<float> vf = {1, 2, 3};
 
   //  this should not be seen
   EXPECT_TRUE(redis.addSingleList("xyz", vf).ok());
 
   //  add reader
   bool waiting = true;
-  EXPECT_TRUE(redis.addListsReader<float>("xyz", [&](const string& base, const string& sub, const RA::TimeValList<vector<float>>& ats)
-    {
-      waiting = false;
-      EXPECT_STREQ(base.c_str(), "TEST");
-      EXPECT_STREQ(sub.c_str(), "xyz");
-      EXPECT_GT(ats.size(), 0);
-      EXPECT_TRUE(ats[0].first.ok());
-      EXPECT_EQ(ats[0].second.size(), 3);
-      EXPECT_FLOAT_EQ(ats[0].second[0], 1.23);
-      EXPECT_FLOAT_EQ(ats[0].second[1], 3.45);
-      EXPECT_FLOAT_EQ(ats[0].second[2], 5.67);
-    }
-  ));
+  EXPECT_TRUE(redis.addListsReader<float>(
+      "xyz", [&](const string& base, const string& sub,
+                 const RA::TimeValList<vector<float>>& ats) {
+        waiting = false;
+        EXPECT_STREQ(base.c_str(), "TEST");
+        EXPECT_STREQ(sub.c_str(), "xyz");
+        EXPECT_GT(ats.size(), 0);
+        EXPECT_TRUE(ats[0].first.ok());
+        EXPECT_EQ(ats[0].second.size(), 3);
+        EXPECT_FLOAT_EQ(ats[0].second[0], 1.23);
+        EXPECT_FLOAT_EQ(ats[0].second[1], 3.45);
+        EXPECT_FLOAT_EQ(ats[0].second[2], 5.67);
+      }));
   this_thread::sleep_for(milliseconds(5));
 
   //  trigger reader
-  vf[0] = 1.23; vf[1] = 3.45; vf[2] = 5.67;
+  vf[0] = 1.23;
+  vf[1] = 3.45;
+  vf[2] = 5.67;
   EXPECT_TRUE(redis.addSingleList("xyz", vf).ok());
 
   for (int i = 0; i < 20 && waiting; i++)
@@ -235,7 +240,9 @@ TEST(RedisAdapter, DataReader)
   this_thread::sleep_for(milliseconds(5));
 
   //  try to trigger reader
-  vf[0] = 0; vf[1] = 0; vf[2] = 0;
+  vf[0] = 0;
+  vf[1] = 0;
+  vf[2] = 0;
   waiting = true;
   EXPECT_TRUE(redis.addSingleList("xyz", vf).ok());
 
@@ -246,44 +253,43 @@ TEST(RedisAdapter, DataReader)
   EXPECT_TRUE(waiting);
 }
 
-TEST(RedisAdapter, DeferReader)
-{
+TEST(RedisAdapter, DeferReader) {
   RedisAdapter redis("TEST");
 
   bool waiting = false;
   EXPECT_TRUE(redis.setDeferReaders(true));
 
   //  add readers
-  EXPECT_TRUE(redis.addValuesReader<int>("rrr", [&](const string& base, const string& sub, const RA::TimeValList<int>& ats)
-    {
-      waiting = false;
-      EXPECT_STREQ(base.c_str(), "TEST");
-      EXPECT_STREQ(sub.c_str(), "rrr");
-      EXPECT_GT(ats.size(), 0);
-      EXPECT_TRUE(ats[0].first.ok());
-      EXPECT_EQ(ats[0].second, 3);
-    }
-  ));
-  EXPECT_TRUE(redis.addValuesReader<int>("sss", [&](const string& base, const string& sub, const RA::TimeValList<int>& ats)
-    {
-      waiting = false;
-      EXPECT_STREQ(base.c_str(), "TEST");
-      EXPECT_STREQ(sub.c_str(), "sss");
-      EXPECT_GT(ats.size(), 0);
-      EXPECT_TRUE(ats[0].first.ok());
-      EXPECT_EQ(ats[0].second, 4);
-    }
-  ));
-  EXPECT_TRUE(redis.addValuesReader<int>("ttt", [&](const string& base, const string& sub, const RA::TimeValList<int>& ats)
-    {
-      waiting = false;
-      EXPECT_STREQ(base.c_str(), "TEST");
-      EXPECT_STREQ(sub.c_str(), "ttt");
-      EXPECT_GT(ats.size(), 0);
-      EXPECT_TRUE(ats[0].first.ok());
-      EXPECT_EQ(ats[0].second, 5);
-    }
-  ));
+  EXPECT_TRUE(redis.addValuesReader<int>(
+      "rrr", [&](const string& base, const string& sub,
+                 const RA::TimeValList<int>& ats) {
+        waiting = false;
+        EXPECT_STREQ(base.c_str(), "TEST");
+        EXPECT_STREQ(sub.c_str(), "rrr");
+        EXPECT_GT(ats.size(), 0);
+        EXPECT_TRUE(ats[0].first.ok());
+        EXPECT_EQ(ats[0].second, 3);
+      }));
+  EXPECT_TRUE(redis.addValuesReader<int>(
+      "sss", [&](const string& base, const string& sub,
+                 const RA::TimeValList<int>& ats) {
+        waiting = false;
+        EXPECT_STREQ(base.c_str(), "TEST");
+        EXPECT_STREQ(sub.c_str(), "sss");
+        EXPECT_GT(ats.size(), 0);
+        EXPECT_TRUE(ats[0].first.ok());
+        EXPECT_EQ(ats[0].second, 4);
+      }));
+  EXPECT_TRUE(redis.addValuesReader<int>(
+      "ttt", [&](const string& base, const string& sub,
+                 const RA::TimeValList<int>& ats) {
+        waiting = false;
+        EXPECT_STREQ(base.c_str(), "TEST");
+        EXPECT_STREQ(sub.c_str(), "ttt");
+        EXPECT_GT(ats.size(), 0);
+        EXPECT_TRUE(ats[0].first.ok());
+        EXPECT_EQ(ats[0].second, 5);
+      }));
   this_thread::sleep_for(milliseconds(5));
 
   //  this should not be seen
@@ -350,8 +356,7 @@ TEST(RedisAdapter, DeferReader)
   EXPECT_TRUE(waiting);
 }
 
-TEST(RedisAdapter, PubSub)
-{
+TEST(RedisAdapter, PubSub) {
   RedisAdapter redis("TEST");
 
   //  this publish should not be seen
@@ -359,14 +364,13 @@ TEST(RedisAdapter, PubSub)
 
   //  subscribe
   bool waiting = true;
-  EXPECT_TRUE(redis.subscribe("xyz", [&](const string& base, const string& sub, const string& msg)
-    {
-      waiting = false;
-      EXPECT_STREQ(base.c_str(), "TEST");
-      EXPECT_STREQ(sub.c_str(), "xyz");
-      EXPECT_STREQ(msg.c_str(), "123");
-    }
-  ));
+  EXPECT_TRUE(redis.subscribe(
+      "xyz", [&](const string& base, const string& sub, const string& msg) {
+        waiting = false;
+        EXPECT_STREQ(base.c_str(), "TEST");
+        EXPECT_STREQ(sub.c_str(), "xyz");
+        EXPECT_STREQ(msg.c_str(), "123");
+      }));
   this_thread::sleep_for(milliseconds(5));
 
   //  trigger subscription
@@ -403,8 +407,7 @@ TEST(RedisAdapter, PubSub)
   EXPECT_TRUE(waiting);
 }
 
-TEST(RedisAdapter, PSubscribe)
-{
+TEST(RedisAdapter, PSubscribe) {
   RedisAdapter redis("TEST");
 
   //  this publish should not be seen
@@ -412,14 +415,13 @@ TEST(RedisAdapter, PSubscribe)
 
   //  subscribe
   bool waiting = true;
-  EXPECT_TRUE(redis.psubscribe("xyz*", [&](const string& base, const string& sub, const string& msg)
-    {
-      waiting = false;
-      EXPECT_STREQ(base.c_str(), "TEST");
-      EXPECT_STREQ(sub.substr(0, 3).c_str(), "xyz");
-      EXPECT_STREQ(msg.c_str(), "123");
-    }
-  ));
+  EXPECT_TRUE(redis.psubscribe(
+      "xyz*", [&](const string& base, const string& sub, const string& msg) {
+        waiting = false;
+        EXPECT_STREQ(base.c_str(), "TEST");
+        EXPECT_STREQ(sub.substr(0, 3).c_str(), "xyz");
+        EXPECT_STREQ(msg.c_str(), "123");
+      }));
   this_thread::sleep_for(milliseconds(5));
 
   //  trigger subscription
@@ -469,8 +471,7 @@ TEST(RedisAdapter, PSubscribe)
   EXPECT_TRUE(waiting);
 }
 
-TEST(RedisAdapter, Utility)
-{
+TEST(RedisAdapter, Utility) {
   RedisAdapter redis("TEST");
 
   EXPECT_TRUE(redis.del("dstdat"));
