@@ -74,14 +74,13 @@ public:
     swr::ConnectionOptions co;
     swr::ConnectionPoolOptions cpo;
 
-    // Check if the host is a Unix socket path
-    bool is_unix_socket = (opts.host.find(".sock") != std::string::npos);
-
-    if(is_unix_socket){
+    if((opts.host.find(".sock") != std::string::npos)) // Check if the host is a Unix socket path
+    {
       co.type = swr::ConnectionType::UNIX;  // Set the connection type to UNIX socket
       co.path = opts.host;  // Set the Unix socket path
     }
-    else{
+    else
+    {
       co.host = opts.host;
       if (opts.user.size()) co.user = opts.user;  //  dont overwrite redis++ default with ""
       co.password = opts.password;
