@@ -74,7 +74,8 @@ public:
     swr::ConnectionOptions co;
     swr::ConnectionPoolOptions cpo;
 
-    if((opts.host.find(".sock") != std::string::npos)) // Check if the host is a Unix socket path
+    bool is_unix_socket = (opts.host.find(".sock") != std::string::npos); // Check if the host is a Unix socket path
+    if(is_unix_socket)
     {
       co.type = swr::ConnectionType::UNIX;  // Set the connection type to UNIX socket
       co.path = opts.host;  // Set the Unix socket path
