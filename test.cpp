@@ -28,7 +28,7 @@ TEST(RedisAdapter, UnixDomainSocket)
     //If trying to connect with a domain socket fails, for some unknown reason, this can cause a meemory corruption
     //when the redis object is deleted. This causes the rest of the tests to fails.
     //To work around this we should use a pointer to the RedisAdapter object and delete it explicitly. 
-    //Assumes the socket file is in the RedisAdapter/tmp directory and test is run from the build directory
+    //Assumes the socket file is in the /tmp directory and test is run from the build directory
     
     RedisAdapter* redis = nullptr;  // Initialize the RedisAdapter pointer
 

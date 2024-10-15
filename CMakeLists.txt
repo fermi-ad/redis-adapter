@@ -96,3 +96,21 @@ if(REDIS_ADAPTER_TEST)
   target_link_libraries(redis-adapter-test ${REDIS_ADAPTER_LIBRARIES} GTest::gtest_main)
   gtest_discover_tests(redis-adapter-test)
 endif()
+
+# Build redis-adapter-benchmark and googlebenchmark if REDIS_ADAPTER_BENCHMARK is true
+# Specify on command-line: "cmake -D REDIS_ADAPTER_BENCHMARK=1 .."
+if(REDIS_ADAPTER_BENCHMARK)
+  # Disable Google Test dependency for benchmark
+  set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "Disable benchmark tests based on Google Test")
+  set(BENCHMARK_USE_BUNDLED_GTEST OFF CACHE BOOL "Disable bundled Google Test in benchmark")
+  
+  # Add Google Benchmark as a submodule
+  add_subdirectory(benchmark)
+  
+  # Create the benchmark target
+  add_executable(redis-adapter-benchmark ${REDIS_ADAPTER_SOURCES} benchmark.cpp)
+  
+  # Link the benchmark target with the necessary libraries, including Google Benchmark
+  target_link_libraries(redis-adapter-benchmark ${REDIS_ADAPTER_LIBRARIES} benchmark::benchmark)
+endif()
+

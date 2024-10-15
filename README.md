@@ -2,6 +2,23 @@
 C++ adapter which wraps redis++ to communicate to the instrumentation Redis database
 
 # Build Instructions CMake
+To build RedisAdapter as a standalone library, including tests and benchmarking (cmake required)
+1. From the root directory:
+
+    `cmake -S . -B build -D REDIS_ADAPTER_TEST=1 -D REDIS_ADAPTER_BENCHMARK=1 && cmake --build build`
+
+2. Start Redis using the redis-start.sh script
+
+    `./redis-start.sh`
+
+3. Run the test executable in the build directory
+
+    `./build/redis-adapter-test`
+
+4. Run the benchmark executable in the build directory.
+
+    `./build/redis-adapter-benchmark [host]`
+
 To integrate RedisAdapter into your CMake project:
 1. Add the RedisAdapter repository to your project's directory structure.
 2. Include the RedisAdapter project using:
