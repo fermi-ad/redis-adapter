@@ -17,7 +17,7 @@ To build RedisAdapter as a standalone library, including tests and benchmarking 
 
 4. Run the benchmark executable in the build directory.
 
-    `./build/redis-adapter-test [host]`
+    `./build/redis-adapter-benchmark [host]`
 
 To integrate RedisAdapter into your CMake project:
 1. Add the RedisAdapter repository to your project's directory structure.
