@@ -9,4 +9,4 @@
 	url = git@github.com:sewenew/redis-plus-plus.git
 [submodule "benchmark"]
 	path = benchmark
-	url = https://github.com/google/benchmark.git
+	url = git@github.com:google/benchmark.git
