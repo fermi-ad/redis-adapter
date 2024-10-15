@@ -74,14 +74,14 @@ public:
     swr::ConnectionOptions co;
     swr::ConnectionPoolOptions cpo;
 
-    // Check if the host is a Unix socket path
-    bool is_unix_socket = (opts.host.find(".sock") != std::string::npos);
-
-    if(is_unix_socket){
+    bool is_unix_socket = (opts.host.find(".sock") != std::string::npos); // Check if the host is a Unix socket path
+    if (is_unix_socket)
+    {
       co.type = swr::ConnectionType::UNIX;  // Set the connection type to UNIX socket
       co.path = opts.host;  // Set the Unix socket path
     }
-    else{
+    else
+    {
       co.host = opts.host;
       if (opts.user.size()) co.user = opts.user;  //  dont overwrite redis++ default with ""
       co.password = opts.password;
@@ -104,10 +104,11 @@ public:
     if (_cluster || _singler) return true;
 
     //  neither server type connected, log the failure and return false
-    if(is_unix_socket) 
+    if (is_unix_socket)
       syslog(LOG_ERR, "RedisConnection can't connnect to %s", co.path.c_str());
     else
       syslog(LOG_ERR, "RedisConnection can't connnect to %s:%i", co.host.c_str(), co.port);
+
     return false;
   }
 

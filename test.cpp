@@ -32,7 +32,7 @@ TEST(RedisAdapter, UnixDomainSocket)
     
     RedisAdapter* redis = nullptr;  // Initialize the RedisAdapter pointer
 
-    redis = new RedisAdapter("TEST", { .host = "../tmp/redis.sock" });
+    redis = new RedisAdapter("TEST", { .host = "/tmp/redis.sock" });
 
     EXPECT_TRUE(redis->connected()) << "Failed to connect to the Redis server using Unix domain socket.";
     

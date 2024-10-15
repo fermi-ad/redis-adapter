@@ -65,15 +65,15 @@ BENCHMARK(Benchmark_AddSingleValue);
 BENCHMARK(Benchmark_GetSingleValue);
 
 //Add List of different sizes
-BENCHMARK(Benchmark_AddList)->Arg(256)->Arg(512)->Arg(1024)->Arg(2048)->Arg(4096)
-                            ->Arg(8192)->Arg(16384)->Arg(32768)->Arg(65536)
-                            ->Arg(131072)->Arg(262144)->Arg(524288)->Arg(1048576)
-                            ->Arg(2097152)->Arg(4194304)->Arg(8388608);  // Up to 8MB
+BENCHMARK(Benchmark_AddList)->Arg(256)->Arg(512)->Arg(1024)->Arg(1536)->Arg(2048)->Arg(3072)->Arg(4096)
+                            ->Arg(6144)->Arg(8192)->Arg(12288)->Arg(16384)->Arg(24576)->Arg(32768)->Arg(49152)
+                            ->Arg(65536)->Arg(131072)->Arg(262144)->Arg(524288)->Arg(1048576)->Arg(2097152)
+                            ->Arg(4194304)->Arg(8388608);  // Up to 8MB
 //Get List of different sizes
-BENCHMARK(Benchmark_GetList)->Arg(256)->Arg(512)->Arg(1024)->Arg(2048)->Arg(4096)
-                            ->Arg(8192)->Arg(16384)->Arg(32768)->Arg(65536)
-                            ->Arg(131072)->Arg(262144)->Arg(524288)->Arg(1048576)
-                            ->Arg(2097152)->Arg(4194304)->Arg(8388608);  // Up to 8MB
+BENCHMARK(Benchmark_GetList)->Arg(256)->Arg(512)->Arg(1024)->Arg(1536)->Arg(2048)->Arg(3072)->Arg(4096)
+                            ->Arg(6144)->Arg(8192)->Arg(12288)->Arg(16384)->Arg(24576)->Arg(32768)->Arg(49152)
+                            ->Arg(65536)->Arg(131072)->Arg(262144)->Arg(524288)->Arg(1048576)->Arg(2097152)
+                            ->Arg(4194304)->Arg(8388608);  // Up to 8MB
 
 BENCHMARK_MAIN();
 
