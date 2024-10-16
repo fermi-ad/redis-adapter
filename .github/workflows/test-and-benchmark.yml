@@ -49,16 +49,14 @@ jobs:
       run: |
         ./build/redis-adapter-test
 
-    - name: Run Benchmarks and Post Results TCP
+    - name: Run Benchmarks (TCP)
       run: |
-        echo "## Benchmark Results (TCP)" 
         ./build/redis-adapter-benchmark
       env:
         REDIS_ADAPTER_BENCHMARK_HOST: "127.0.0.1" # You can customize this if needed
 
-    - name: Run Benchmarks and Post Results UNIX Domain Socket
+    - name: Run Benchmarks (UNIX Domain Socket)
       run: |
-        echo "## Benchmark Results (UNIX Domain Socket)" 
         ./build/redis-adapter-benchmark
       env:
         REDIS_ADAPTER_BENCHMARK_HOST: "/tmp/redis.sock" # You can customize this if needed
