@@ -1,0 +1,62 @@
+name: Build, Test, and Benchmark RedisAdapter
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  build-test-benchmark:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      with:
+        submodules: true  
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake g++ libhiredis-dev
+
+    - name: Install latest Redis
+      run: |
+        # Download and build the latest Redis
+        curl -O http://download.redis.io/redis-stable.tar.gz
+        tar xvzf redis-stable.tar.gz
+        cd redis-stable
+        make
+        sudo make install
+
+    - name: Start Redis server
+      run: |
+        chmod +x ./redis-start.sh
+        ./redis-start.sh
+
+    - name: Configure and Build RedisAdapter
+      run: |
+        cmake -S . -B build -DREDIS_ADAPTER_TEST=1 -DREDIS_ADAPTER_BENCHMARK=1
+        cmake --build build
+
+    - name: Run Tests
+      run: |
+        ./build/redis-adapter-test
+
+    - name: Run Benchmarks (TCP)
+      run: |
+        ./build/redis-adapter-benchmark
+      env:
+        REDIS_ADAPTER_BENCHMARK_HOST: "127.0.0.1" # You can customize this if needed
+
+    - name: Run Benchmarks (UNIX Domain Socket)
+      run: |
+        ./build/redis-adapter-benchmark
+      env:
+        REDIS_ADAPTER_BENCHMARK_HOST: "/tmp/redis.sock" # You can customize this if needed
