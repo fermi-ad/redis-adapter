@@ -1,0 +1,50 @@
+name: Build, Test, and Benchmark RedisAdapter
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-test-benchmark:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake g++ libhiredis-dev redis-server
+
+    - name: Start Redis server
+      run: |
+        chmod +x ./redis-start.sh
+        ./redis-start.sh
+
+    - name: Configure and Build RedisAdapter
+      run: |
+        cmake -S . -B build -DREDIS_ADAPTER_TEST=1 -DREDIS_ADAPTER_BENCHMARK=1
+        cmake --build build
+
+    - name: Run Tests
+      run: |
+        ./build/redis-adapter-test
+
+    - name: Run Benchmarks and Post Results TCP
+      run: |
+        echo "## Benchmark Results (TCP)" >> $GITHUB_STEP_SUMMARY
+        ./build/redis-adapter-benchmark ${{ env.REDIS_ADAPTER_BENCHMARK_HOST }} | tee -a $GITHUB_STEP_SUMMARY
+      env:
+        REDIS_ADAPTER_BENCHMARK_HOST: "127.0.0.1" # You can customize this if needed
+
+    - name: Run Benchmarks and Post Results UNIX Domain Socket
+      run: |
+        echo "## Benchmark Results (UNIX Domain Socket)" >> $GITHUB_STEP_SUMMARY
+        ./build/redis-adapter-benchmark ${{ env.REDIS_ADAPTER_BENCHMARK_HOST }} | tee -a $GITHUB_STEP_SUMMARY
+      env:
+        REDIS_ADAPTER_BENCHMARK_HOST: "/tmp/redis.sock" # You can customize this if needed
