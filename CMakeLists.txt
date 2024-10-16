@@ -17,6 +17,7 @@ get_directories_of_files("${REDIS_ADAPTER_HEADERS}" REDIS_ADAPTER_INCLUDE_DIRS)
 list(REMOVE_DUPLICATES REDIS_ADAPTER_INCLUDE_DIRS)
 list(APPEND REDIS_ADAPTER_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/hiredis)
 list(APPEND REDIS_ADAPTER_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/redis-plus-plus/src)
+list(APPEND REDIS_ADAPTER_INCLUDE_DIRS ${PROJECT_BINARY_DIR}/redis-plus-plus/src) # for hiredis_features.h
 
 # Link static hiredis and static redis++ to redis-adapter
 list(APPEND REDIS_ADAPTER_LIBRARIES hiredis)
@@ -53,37 +54,6 @@ add_subdirectory(redis-plus-plus)
 # Make redis++ PIC for redis-adapter shared library
 set_target_properties(redis++_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# Build and install the static and dynamic libraries if REDIS_ADAPTER_INSTALL_LIBRARIES is true
-# Specify on command-line: "cmake -D REDIS_ADAPTER_INSTALL_LIBRARIES=1 .."
-if(REDIS_ADAPTER_INSTALL_LIBRARIES)
-  # Build redis-adapter shared library
-  add_library(redis-adapter-shared SHARED ${REDIS_ADAPTER_SOURCES})
-  target_link_libraries(redis-adapter-shared ${REDIS_ADAPTER_LIBRARIES})
-  set_target_properties(redis-adapter-shared PROPERTIES LIBRARY_OUTPUT_NAME redis-adapter)
-
-  # Build redis-adapter static library
-  add_library(redis-adapter-static STATIC ${REDIS_ADAPTER_SOURCES})
-  target_link_libraries(redis-adapter-static ${REDIS_ADAPTER_LIBRARIES})
-  set_target_properties(redis-adapter-static PROPERTIES POSITION_INDEPENDENT_CODE ON)
-  set_target_properties(redis-adapter-static PROPERTIES ARCHIVE_OUTPUT_NAME redis-adapter)
-
-  # "make install" to project directory
-  set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR}/install)
-
-  # These 3 lines must occur here and in this order to quiet warnings and install the headers
-  install(TARGETS redis-adapter-shared LIBRARY DESTINATION lib)
-  set_target_properties(redis-adapter-shared PROPERTIES PUBLIC_HEADER "${REDIS_ADAPTER_HEADERS}")
-  install(TARGETS redis-adapter-shared PUBLIC_HEADER)
-
-  # These 3 lines must occur here and in this order to quiet warnings and install the headers
-  install(TARGETS redis-adapter-static ARCHIVE DESTINATION lib)
-  set_target_properties(redis-adapter-static PROPERTIES PUBLIC_HEADER "${REDIS_ADAPTER_HEADERS}")
-  install(TARGETS redis-adapter-static PUBLIC_HEADER)
-
-  # Install supporting libs (hiredis, redis++)
-  install(TARGETS ${REDIS_ADAPTER_LIBRARIES} ARCHIVE DESTINATION lib)
-endif()
-
 # Build redis-adapter-test and googletest if REDIS_ADAPTER_TEST is true
 # Specify on command-line: "cmake -D REDIS_ADAPTER_TEST=1 .."
 if(REDIS_ADAPTER_TEST)
@@ -103,14 +73,13 @@ if(REDIS_ADAPTER_BENCHMARK)
   # Disable Google Test dependency for benchmark
   set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "Disable benchmark tests based on Google Test")
   set(BENCHMARK_USE_BUNDLED_GTEST OFF CACHE BOOL "Disable bundled Google Test in benchmark")
-  
+
   # Add Google Benchmark as a submodule
   add_subdirectory(benchmark)
-  
+
   # Create the benchmark target
   add_executable(redis-adapter-benchmark ${REDIS_ADAPTER_SOURCES} benchmark.cpp)
-  
+
   # Link the benchmark target with the necessary libraries, including Google Benchmark
   target_link_libraries(redis-adapter-benchmark ${REDIS_ADAPTER_LIBRARIES} benchmark::benchmark)
 endif()
-
