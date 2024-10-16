@@ -21,7 +21,16 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y cmake g++ libhiredis-dev redis-server
+        sudo apt-get install -y cmake g++ libhiredis-dev
+
+    - name: Install latest Redis
+      run: |
+        # Download and build the latest Redis
+        curl -O http://download.redis.io/redis-stable.tar.gz
+        tar xvzf redis-stable.tar.gz
+        cd redis-stable
+        make
+        sudo make install
 
     - name: Start Redis server
       run: |
