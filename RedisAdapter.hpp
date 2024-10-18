@@ -428,7 +428,7 @@ private:
   };
   std::unordered_map<uint16_t, reader_info> _reader;
 
-  ThreadPool workerThreads;
+  ThreadPool::ThreadPool workerThreads;
 };
 
 #include "RedisAdapterTempl.hpp"
