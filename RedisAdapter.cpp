@@ -72,9 +72,9 @@ string RA_Time::id_or_now() const
 //              e.g. { .user = "adinst", .password = "adinst" }
 //    return  : RedisAdapter
 //
-RedisAdapter::RedisAdapter(const string& baseKey, const RedisConnection::Options& options)
+RedisAdapter::RedisAdapter(const string& baseKey, const RedisConnection::Options& options, const uint& workerThreadCount)
 : _options(options), _redis(options), _base_key(baseKey),
-  _connecting(false), _listener_run(false), _readers_defer(false) {}
+  _connecting(false), _listener_run(false), _readers_defer(false), workerThreads(workerThreadCount) {}
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  ~RedisAdapter : destructor
@@ -322,7 +322,7 @@ bool RedisAdapter::start_listener()
           {
             auto split = split_key(key);
             for (auto& func : _command_subs.at(key))
-              { func(split.first, split.second, msg); }
+              { workerThreads.doJob(func(split.first, split.second, msg)); }
           }
         }
       );  //  end lambda in lambda /////////////////////////
@@ -454,8 +454,8 @@ bool RedisAdapter::start_reader(uint16_t slot)
               auto split = split_key(item.first);
               for (auto& func : info.subs.at(item.first))
               {
-                if (split.first.size()) { func(split.first, split.second, item.second); }
-                else { func(item.first, item.first, item.second); }
+                if (split.first.size()) { workerThreads.doJob(func(split.first, split.second, item.second)); }
+                else { workerThreads.doJob(func(item.first, item.first, item.second)); }
               }
             }
           }

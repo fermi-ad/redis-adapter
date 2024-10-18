@@ -82,7 +82,7 @@ public:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Construction / Destruction
   //
-  RedisAdapter(const std::string& baseKey, const RedisConnection::Options& options = {});
+  RedisAdapter(const std::string& baseKey, const RedisConnection::Options& options = {}, const uint& workerThreadCount = 10);
 
   RedisAdapter(const RedisAdapter& ra) = delete;       //  copy construction not allowed
   RedisAdapter& operator=(const RedisAdapter& ra) = delete;   //  assignment not allowed
@@ -426,6 +426,8 @@ private:
     bool run = false;
   };
   std::unordered_map<uint16_t, reader_info> _reader;
+
+  ThreadPool workerThreads;
 };
 
 #include "RedisAdapterTempl.hpp"
