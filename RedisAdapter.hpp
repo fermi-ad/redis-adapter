@@ -6,6 +6,7 @@
 #pragma once
 
 #include "RedisConnection.hpp"
+#include "ThreadPool.hpp"
 #include <thread>
 #include <atomic>
 
