@@ -72,7 +72,7 @@ string RA_Time::id_or_now() const
 //              e.g. { .user = "adinst", .password = "adinst" }
 //    return  : RedisAdapter
 //
-RedisAdapter::RedisAdapter(const string& baseKey, const RedisConnection::Options& options, const uint& workerThreadCount)
+RedisAdapter::RedisAdapter(const string& baseKey, const RedisConnection::Options& options, const uint workerThreadCount)
 : _options(options), _redis(options), _base_key(baseKey),
   _connecting(false), _listener_run(false), _readers_defer(false), workerThreads(workerThreadCount) {}
 
