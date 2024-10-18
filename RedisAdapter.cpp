@@ -72,9 +72,9 @@ string RA_Time::id_or_now() const
 //              e.g. { .user = "adinst", .password = "adinst" }
 //    return  : RedisAdapter
 //
-RedisAdapter::RedisAdapter(const string& baseKey, const RedisConnection::Options& options)
+RedisAdapter::RedisAdapter(const string& baseKey, const RedisConnection::Options& options, const uint workerThreadCount)
 : _options(options), _redis(options), _base_key(baseKey),
-  _connecting(false), _listener_run(false), _readers_defer(false) {}
+  _connecting(false), _listener_run(false), _readers_defer(false), workerThreads(workerThreadCount) {}
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  ~RedisAdapter : destructor
@@ -310,7 +310,10 @@ bool RedisAdapter::start_listener()
           {
             auto split = split_key(key);
             for (auto& func : _pattern_subs.at(pat))
-              { func(split.first, split.second, msg); }
+              { 
+	        workerThreads.doJob([func, splitFirst = std::move(split.first), splitSecond = std::move(split.second), msg = std::move(msg)]() {
+			         func(splitFirst, splitSecond, msg);}); 
+	      }
           }
         }
       );  //  end lambda in lambda /////////////////////////
@@ -322,7 +325,10 @@ bool RedisAdapter::start_listener()
           {
             auto split = split_key(key);
             for (auto& func : _command_subs.at(key))
-              { func(split.first, split.second, msg); }
+              { 
+	        workerThreads.doJob([func, splitFirst = std::move(split.first), splitSecond = std::move(split.second), msg = std::move(msg)]() {
+			         func(splitFirst, splitSecond, msg);}); 
+	      }
           }
         }
       );  //  end lambda in lambda /////////////////////////
@@ -454,9 +460,17 @@ bool RedisAdapter::start_reader(uint16_t slot)
               auto split = split_key(item.first);
               for (auto& func : info.subs.at(item.first))
               {
-                if (split.first.size()) { func(split.first, split.second, item.second); }
-                else { func(item.first, item.first, item.second); }
-              }
+                if (split.first.size()) 
+		{ 
+		  workerThreads.doJob([func, splitFirst = std::move(split.first), splitSecond = std::move(split.second), itemSecond = std::move(item.second)]() 
+				  {func(splitFirst, splitSecond, itemSecond);});
+	        }
+		else 
+		{  
+		  workerThreads.doJob([func, itemFirst = std::move(item.first), itemSecond = std::move(item.second)]() 
+				  {func(itemFirst, itemFirst, itemSecond);});
+                }
+	      }
             }
           }
         }
