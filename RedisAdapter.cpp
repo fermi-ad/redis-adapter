@@ -310,7 +310,10 @@ bool RedisAdapter::start_listener()
           {
             auto split = split_key(key);
             for (auto& func : _pattern_subs.at(pat))
-              { func(split.first, split.second, msg); }
+              { 
+	        workerThreads.doJob([func, splitFirst = std::move(split.first), splitSecond = std::move(split.second), msg = std::move(msg)]() {
+			         func(splitFirst, splitSecond, msg);}); 
+	      }
           }
         }
       );  //  end lambda in lambda /////////////////////////
@@ -322,7 +325,10 @@ bool RedisAdapter::start_listener()
           {
             auto split = split_key(key);
             for (auto& func : _command_subs.at(key))
-              { workerThreads.doJob(func(split.first, split.second, msg)); }
+              { 
+	        workerThreads.doJob([func, splitFirst = std::move(split.first), splitSecond = std::move(split.second), msg = std::move(msg)]() {
+			         func(splitFirst, splitSecond, msg);}); 
+	      }
           }
         }
       );  //  end lambda in lambda /////////////////////////
@@ -454,9 +460,17 @@ bool RedisAdapter::start_reader(uint16_t slot)
               auto split = split_key(item.first);
               for (auto& func : info.subs.at(item.first))
               {
-                if (split.first.size()) { workerThreads.doJob(func(split.first, split.second, item.second)); }
-                else { workerThreads.doJob(func(item.first, item.first, item.second)); }
-              }
+                if (split.first.size()) 
+		{ 
+		  workerThreads.doJob([func, splitFirst = std::move(split.first), splitSecond = std::move(split.second), itemSecond = std::move(item.second)]() 
+				  {func(splitFirst, splitSecond, itemSecond);});
+	        }
+		else 
+		{  
+		  workerThreads.doJob([func, itemFirst = std::move(item.first), itemSecond = std::move(item.second)]() 
+				  {func(itemFirst, itemFirst, itemSecond);});
+                }
+	      }
             }
           }
         }
