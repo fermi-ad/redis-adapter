@@ -8,10 +8,13 @@
 #include <vector>
 #include <array>
 #include <span>
+#include <semaphore>
 #include "RedisAdapter.hpp"
 
 template<typename Type>
 class RedisCache {
+public:
+    std::binary_semaphore newValueWritten{0};
 private:
     std::shared_ptr<RedisAdapter> _ra;
     // The implementation of this cache has a potential flaw where if we have multiple readers contantly reading, then we could potentally stop new data from ever being
@@ -38,6 +41,9 @@ private:
             readIndex = (readIndex + 1 ) % 2;
             lastWrite = entry.front().first;
         }
+        // Release the semiphore to tell threads waiting for a new value to run.
+        // Effectivly does nothing if the code using this class doesn't use the semaphore.
+        newValueWritten.release();
     }
     void registerCacheReader() {
         //Setup redis setting readers
