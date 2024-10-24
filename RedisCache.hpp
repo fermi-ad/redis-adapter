@@ -7,15 +7,15 @@
 #include <string>
 #include <vector>
 #include <array>
-#include <span>
+#include <chrono>
+#include "spanCpp14.hpp"
 #include <semaphore>
 #include "RedisAdapter.hpp"
 
 template<typename Type>
 class RedisCache {
-public:
-    std::binary_semaphore newValueWritten{0};
 private:
+    std::atomic<bool> newValueAvailable{false}; // Atomic flag for signaling new values
     std::shared_ptr<RedisAdapter> _ra;
     // The implementation of this cache has a potential flaw where if we have multiple readers contantly reading, then we could potentally stop new data from ever being
     // written and as a side effect lock up the stream reader. If we ever actually use that we should think through implementing that sanely. Boost has an implementaion of queued
@@ -41,9 +41,9 @@ private:
             readIndex = (readIndex + 1 ) % 2;
             lastWrite = entry.front().first;
         }
-        // Release the semiphore to tell threads waiting for a new value to run.
-        // Effectivly does nothing if the code using this class doesn't use the semaphore.
-        newValueWritten.release();
+        // Effectivly does nothing if the code using this class doesn't ever try to read this.
+        // Set the atomic flag to indicate that new data is available
+        newValueAvailable.store(true);
     }
     void registerCacheReader() {
         //Setup redis setting readers
@@ -110,11 +110,39 @@ public:
         if (copySourceEnd > sourceBuffer.end())
             { copySourceEnd = sourceBuffer.end(); }
 
+        if (copySourceStart >= sourceBuffer.end()) {
+           *pElementsCopied = 0;
+           return RA_Time(0, 0); // Return an invalid time, and don't copy anything
+        }
+
         auto elementAfterLastCopied = std::copy(copySourceStart, copySourceEnd, destBuffer.begin());
         if (pElementsCopied != nullptr)
             { *pElementsCopied = elementAfterLastCopied - destBuffer.begin(); }
 
         return lastWrite;
+    }
+    void waitForNewValueMilis(int millisecondsBeweenChecks) {
+        waitForNewValue(std::chrono::milliseconds(millisecondsBeweenChecks));
+    }
+    
+    // Take care of the template for the default case
+    void waitForNewValue() {
+        waitForNewValue(std::chrono::milliseconds(1)); // Call template with default argument
+    }
+    template <typename Rep, typename Period>
+    void waitForNewValue(std::chrono::duration<Rep, Period> timeBetweenChecks) {
+        // Sleep until the newValueAvailable flag is raised
+        while (!newValueAvailable.load()) {
+            std::this_thread::sleep_for(timeBetweenChecks); // Sleep for a short duration
+        }
+        // After waking up, lower the flag
+        newValueAvailable.store(false);
+    }
+    bool newValueAvaliable() {
+        return newValueAvailable.load();
+    }
+    void clearNewValueAvaliable() {
+        newValueAvailable.store(false);
     }
 
     RedisCache(std::shared_ptr<RedisAdapter> ra, std::string subkey) { _ra = ra; _subkey = subkey; registerCacheReader(); }
