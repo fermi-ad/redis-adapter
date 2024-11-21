@@ -1,9 +1,15 @@
 #pragma once
 
+//  if there is a span header to include
 #if __has_include(<span>)
+//  include that span header
 #include <span>
+//  the span header should define __cpp_lib_span
+//  if it provides an implementation of std::span
 #endif
 
+//  if the above did not define __cpp_lib_span
+//  provide our own implmentation of std::span
 #ifndef __cpp_lib_span
 //  a very simple std::span
 namespace std

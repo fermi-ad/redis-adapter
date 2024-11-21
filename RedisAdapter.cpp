@@ -10,7 +10,6 @@ using namespace chrono;
 using namespace sw::redis;
 
 const uint32_t NANOS_PER_MILLI = 1'000'000;
-const uint64_t REMAINDER_SCALE = 10'000'000'000;
 
 const auto THREAD_START_CONFIRM = milliseconds(20);
 
@@ -23,21 +22,18 @@ static uint64_t nanoseconds_since_epoch()
 //  RA_Time : constructor that converts an id string to nanoseconds and sequence number
 //
 //    id     : Redis ID string e.g. "12345-67089" where the first number is milliseconds since
-//             epoch and the second number has nanoseconds remainder scaled by 1E10 added to a
-//             sequence number, the scale factor is chosen as a power of ten to make the remainder
-//             and sequence number human readable in the id string
+//             epoch and the second number is the nanoseconds remainder
 //    return : RA_Time
 //
 RA_Time::RA_Time(const string& id)
 {
   try
   {
-    //  do the reverse of id() below
-    uint64_t mixed = stoull(id.substr(id.find('-') + 1));
-    nanos = stoull(id) * NANOS_PER_MILLI + mixed / REMAINDER_SCALE;
-    seqnum = mixed % REMAINDER_SCALE;
+    nanos = stoull(id) * NANOS_PER_MILLI;
+    size_t pos = id.find('-');
+    if (pos != string::npos) { nanos += stoull(id.substr(pos + 1)); }
   }
-  catch (...) { nanos = seqnum = 0; }
+  catch (...) { nanos = 0; }
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -45,15 +41,9 @@ RA_Time::RA_Time(const string& id)
 //
 string RA_Time::id() const
 {
-  //  find the remainder nanoseconds (i.e. remove all the whole milliseconds) and
-  //  place that at the REMAINDER_SCALE position in the base-ten representation
-  //  of the number, then place the seqnum at the ones position in the base-ten
-  //  representation of the number - this way the values will be human-readable
-  uint64_t mixed = (nanos % NANOS_PER_MILLI) * REMAINDER_SCALE + seqnum;
-
-  //  place the whole milliseconds on the left-hand side of the ID and the number
-  //  from above on the right-hand side of the ID
-  return to_string(nanos / NANOS_PER_MILLI) + "-" + to_string(mixed);
+  //  place the whole milliseconds on the left-hand side of the ID
+  //  and the remainder nanoseconds on the right-hand side of the ID
+  return to_string(nanos / NANOS_PER_MILLI) + "-" + to_string(nanos % NANOS_PER_MILLI);
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -310,9 +300,9 @@ bool RedisAdapter::start_listener()
           {
             auto split = split_key(key);
             for (auto& func : _pattern_subs.at(pat))
-              { 
+              {
 	        workerThreads.doJob([func, splitFirst = std::move(split.first), splitSecond = std::move(split.second), msg = std::move(msg)]() {
-			         func(splitFirst, splitSecond, msg);}); 
+			         func(splitFirst, splitSecond, msg);});
 	      }
           }
         }
@@ -325,9 +315,9 @@ bool RedisAdapter::start_listener()
           {
             auto split = split_key(key);
             for (auto& func : _command_subs.at(key))
-              { 
+              {
 	        workerThreads.doJob([func, splitFirst = std::move(split.first), splitSecond = std::move(split.second), msg = std::move(msg)]() {
-			         func(splitFirst, splitSecond, msg);}); 
+			         func(splitFirst, splitSecond, msg);});
 	      }
           }
         }
@@ -460,14 +450,14 @@ bool RedisAdapter::start_reader(uint16_t slot)
               auto split = split_key(item.first);
               for (auto& func : info.subs.at(item.first))
               {
-                if (split.first.size()) 
-		{ 
-		  workerThreads.doJob([func, splitFirst = std::move(split.first), splitSecond = std::move(split.second), itemSecond = std::move(item.second)]() 
+                if (split.first.size())
+		{
+		  workerThreads.doJob([func, splitFirst = std::move(split.first), splitSecond = std::move(split.second), itemSecond = std::move(item.second)]()
 				  {func(splitFirst, splitSecond, itemSecond);});
 	        }
-		else 
-		{  
-		  workerThreads.doJob([func, itemFirst = std::move(item.first), itemSecond = std::move(item.second)]() 
+		else
+		{
+		  workerThreads.doJob([func, itemFirst = std::move(item.first), itemSecond = std::move(item.second)]()
 				  {func(itemFirst, itemFirst, itemSecond);});
                 }
 	      }

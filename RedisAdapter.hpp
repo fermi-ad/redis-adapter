@@ -13,21 +13,19 @@
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  struct RA_Time
 //
-//  Nanosecond time since epoch with an optional sequence number, provided as a result timestamp
+//  Nanosecond time since epoch, provided as a result timestamp
 //  for 'get' methods, and specified as a new time for 'add' methods
 //
-//  RA_Times may have the same nanos as long as seqnum differs, and vice versa
-//
-//  The RA_Time with nanos = 0 and seqnum = 0 is illegal (or indicates error)
+//  The RA_Time with nanos = 0 is illegal (or indicates error)
 //
 struct RA_Time
 {
-  RA_Time(uint64_t nanos_init = 0, uint32_t seqnum_init = 0) : nanos(nanos_init), seqnum(seqnum_init) {}
+  RA_Time(uint64_t nanos_init = 0) : nanos(nanos_init) {}
   RA_Time(const std::string& id);
 
   operator uint64_t() const { return nanos; }
 
-  bool ok() const { return nanos || seqnum; }
+  bool ok() const { return nanos; }
 
   std::string id() const;
   std::string id_or_now() const;
@@ -36,7 +34,6 @@ struct RA_Time
   std::string id_or_max() const { return ok() ? id() : "+"; }
 
   uint64_t nanos;
-  uint32_t seqnum;
 };
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
