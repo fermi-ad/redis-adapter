@@ -2,7 +2,9 @@
 
 #if __has_include(<span>)
 #include <span>
-#else
+#endif
+
+#ifndef __cpp_lib_span
 //  a very simple std::span
 namespace std
 {
