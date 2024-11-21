@@ -5,7 +5,8 @@ BIND_ADDRESS="127.0.0.1"
 APPENDONLY="no"
 SAVE=""
 DAEMONIZE="yes"
-UNIXSOCKET="/tmp/redis.sock"
+HOSTNAME=$(hostname -s)
+UNIXSOCKET="/tmp/redis${HOSTNAME}.sock"
 UNIXSOCKETPERM="700"
 
 # Define the path to the Redis configuration file
