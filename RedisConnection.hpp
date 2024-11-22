@@ -20,6 +20,7 @@ public:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  class RedisConnection::Options
   //
+  //    path     : path to unix domain socket file
   //    host     : IP address of server "w.x.y.z"
   //    user     : username for connection
   //    password : password for connection
@@ -29,6 +30,7 @@ public:
   //
   struct Options
   {
+    std::string path;
     std::string host = "127.0.0.1";
     std::string user;
     std::string password;
@@ -74,20 +76,22 @@ public:
     swr::ConnectionOptions co;
     swr::ConnectionPoolOptions cpo;
 
-    bool is_unix_socket = (opts.host.find(".sock") != std::string::npos); // Check if the host is a Unix socket path
+    bool is_unix_socket = opts.path.size();   // Check if the host is a Unix socket path
+
     if (is_unix_socket)
     {
       co.type = swr::ConnectionType::UNIX;  // Set the connection type to UNIX socket
-      co.path = opts.host;  // Set the Unix socket path
+      co.path = opts.path;                  // Set the Unix socket path
     }
     else
     {
       co.host = opts.host;
-      if (opts.user.size()) co.user = opts.user;  //  dont overwrite redis++ default with ""
-      co.password = opts.password;
-      co.socket_timeout = chr::milliseconds(opts.timeout);
-      if (opts.port) co.port = opts.port;         //  dont overwrite redis++ default with 0
+      if (opts.port) co.port = opts.port;   //  dont overwrite redis++ default with 0
     }
+    if (opts.user.size()) co.user = opts.user;  //  dont overwrite redis++ default with ""
+    co.password = opts.password;
+    co.socket_timeout = chr::milliseconds(opts.timeout);
+
     cpo.size = opts.size;
 
     try { _cluster = std::make_unique<swr::RedisCluster>(co, cpo); }  //  this one throws
@@ -96,7 +100,7 @@ public:
       try
       {
         _singler = std::make_unique<swr::Redis>(co, cpo);   //  this one does not
-        _singler->ping();                                     //  but this one does
+        _singler->ping();                                   //  but this one does
       }
       catch (...) { _singler.reset(); }   //  reset _singler to null since not really connected
     }

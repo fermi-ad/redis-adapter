@@ -16,16 +16,20 @@
 //  Nanosecond time since epoch, provided as a result timestamp
 //  for 'get' methods, and specified as a new time for 'add' methods
 //
-//  The RA_Time with nanos = 0 is illegal (or indicates error)
+//  An RA_Time with value = 0 is illegal (uninitialized)
+//  An RA_Time with value < 0 is illegal (error code)
 //
 struct RA_Time
 {
-  RA_Time(uint64_t nanos_init = 0) : nanos(nanos_init) {}
+  RA_Time(int64_t nanos = 0) : value(nanos) {}
   RA_Time(const std::string& id);
 
-  operator uint64_t() const { return nanos; }
+  bool ok() const { return value > 0; }
 
-  bool ok() const { return nanos; }
+  operator int64_t()  const { return ok() ? value : 0; }
+  operator uint64_t() const { return ok() ? value : 0; }
+
+  uint32_t err() const { return ok() ? 0 : -value; }
 
   std::string id() const;
   std::string id_or_now() const;
@@ -33,8 +37,10 @@ struct RA_Time
   std::string id_or_min() const { return ok() ? id() : "-"; }
   std::string id_or_max() const { return ok() ? id() : "+"; }
 
-  uint64_t nanos;
+  int64_t value;
 };
+
+const RA_Time RA_NOT_CONNECTED(-1);
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  struct RA_ArgsGet, struct RA_ArgsAdd
@@ -80,7 +86,7 @@ public:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Construction / Destruction
   //
-  RedisAdapter(const std::string& baseKey, const RedisConnection::Options& options = {}, const uint workerThreadCount = 1);
+  RedisAdapter(const std::string& baseKey, const RedisConnection::Options& options = {}, uint16_t workerCount = 1);
 
   RedisAdapter(const RedisAdapter& ra) = delete;       //  copy construction not allowed
   RedisAdapter& operator=(const RedisAdapter& ra) = delete;   //  assignment not allowed
@@ -425,7 +431,7 @@ private:
   };
   std::unordered_map<uint16_t, reader_info> _reader;
 
-  ThreadPool workerThreads;
+  ThreadPool _workers;
 };
 
 #include "RedisAdapterTempl.hpp"
