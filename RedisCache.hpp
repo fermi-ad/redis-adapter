@@ -112,7 +112,7 @@ public:
 
         if (copySourceStart >= sourceBuffer.end()) {
            *pElementsCopied = 0;
-           return RA_Time(0, 0); // Return an invalid time, and don't copy anything
+           return RA_Time(); // Return an invalid time, and don't copy anything
         }
 
         auto elementAfterLastCopied = std::copy(copySourceStart, copySourceEnd, destBuffer.begin());
@@ -124,7 +124,7 @@ public:
     void waitForNewValueMilis(int millisecondsBeweenChecks) {
         waitForNewValue(std::chrono::milliseconds(millisecondsBeweenChecks));
     }
-    
+
     // Take care of the template for the default case
     void waitForNewValue() {
         waitForNewValue(std::chrono::milliseconds(1)); // Call template with default argument
