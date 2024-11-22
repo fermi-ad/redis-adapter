@@ -1,50 +1,59 @@
 #include <benchmark/benchmark.h>
 #include "RedisAdapter.hpp"
 #include "RedisCache.hpp"
-#include <cstdlib>  
-#include <vector>   
+#include <cstdlib>
+#include <vector>
 
 using namespace std;
 using namespace sw::redis;
 
 // Helper function to retrieve the host from the environment variable
-std::string get_redis_host() 
+std::string get_redis_path()
 {
-   const char* env_host = std::getenv("REDIS_ADAPTER_BENCHMARK_HOST");
-   return env_host ? std::string(env_host) : "localhost";  // Default to "localhost" if not set
+    const char* env_host = std::getenv("REDIS_ADAPTER_BENCHMARK_HOST");
+    if (env_host && std::string(env_host).find(".sock") != std::string::npos) { return env_host; }
+    return "";
+}
+
+// Helper function to retrieve the host from the environment variable
+std::string get_redis_host()
+{
+    const char* env_host = std::getenv("REDIS_ADAPTER_BENCHMARK_HOST");
+    if (env_host && std::string(env_host).find(".sock") == std::string::npos) { return env_host; }
+    return "localhost";
 }
 
 // Helper function to generate a vector of floats of a given size
-std::vector<float> generate_list(size_t size, float value = 1.0f) 
+std::vector<float> generate_list(size_t size, float value = 1.0f)
 {
    return std::vector<float>(size, value);  // Fill the list with the given value
 }
 
-static void Benchmark_Baseline(benchmark::State& state) 
+static void Benchmark_Baseline(benchmark::State& state)
 {
     // Do to as close to nothing as possible to measure the overhead of google benchmark
     for (auto _ : state) { benchmark::DoNotOptimize(_); }
 }
 
 // Single value add benchmark
-static void Benchmark_AddSingleValue(benchmark::State& state) 
+static void Benchmark_AddSingleValue(benchmark::State& state)
 {
-   RedisAdapter redis("TEST", { .host = get_redis_host() });
+   RedisAdapter redis("TEST", { .path = get_redis_path(), .host = get_redis_host() });
    for (auto _ : state) { redis.addSingleValue("benchmark_key", "benchmark_value");}
 }
 
 // Single value get benchmark
-static void Benchmark_GetSingleValue(benchmark::State& state) 
+static void Benchmark_GetSingleValue(benchmark::State& state)
 {
-    RedisAdapter redis("TEST", { .host = get_redis_host() });
+   RedisAdapter redis("TEST", { .path = get_redis_path(), .host = get_redis_host() });
     redis.addSingleValue("benchmark_key", "benchmark_value");
     for (auto _ : state) { std::string value; redis.getSingleValue("benchmark_key", value);}
 }
 
 // Add list to Redis benchmark with dynamic size
-static void Benchmark_AddList(benchmark::State& state) 
+static void Benchmark_AddList(benchmark::State& state)
 {
-    RedisAdapter redis("TEST", { .host = get_redis_host() });
+   RedisAdapter redis("TEST", { .path = get_redis_path(), .host = get_redis_host() });
     size_t size = state.range(0);  // Use the range to define the size of the list
     std::vector<float> values = generate_list(size);
 
@@ -52,9 +61,9 @@ static void Benchmark_AddList(benchmark::State& state)
 }
 
 // Get list from Redis benchmark with dynamic size
-static void Benchmark_GetList(benchmark::State& state) 
+static void Benchmark_GetList(benchmark::State& state)
 {
-    RedisAdapter redis("TEST", { .host = get_redis_host() });
+   RedisAdapter redis("TEST", { .path = get_redis_path(), .host = get_redis_host() });
     size_t size = state.range(0);
     std::vector<float> values = generate_list(size);
     redis.addSingleList("benchmark_list_key", values, {.trim = 100});
@@ -62,9 +71,10 @@ static void Benchmark_GetList(benchmark::State& state)
     for (auto _ : state) { std::vector<float> result; redis.getSingleList("benchmark_list_key", result);}
 }
 
-static void Benchmark_copyReadBuffer_Full(benchmark::State& state) 
+static void Benchmark_copyReadBuffer_Full(benchmark::State& state)
 {
-    std::shared_ptr<RedisAdapter> redis = std::make_shared<RedisAdapter>("TEST", RedisConnection::Options{.host = get_redis_host()});
+    std::shared_ptr<RedisAdapter> redis = std::make_shared<RedisAdapter>("TEST",
+        RedisConnection::Options{ .path = get_redis_path(), .host = get_redis_host() });
     size_t size = state.range(0);
     std::vector<float> values = generate_list(size);
     redis->addSingleList("benchmark_list_key", values, {.trim = 100});
@@ -77,9 +87,10 @@ static void Benchmark_copyReadBuffer_Full(benchmark::State& state)
     for (auto _ : state) { std::vector<float> result; cache.copyReadBuffer(result);}
 }
 
-static void Benchmark_copyReadBuffer_SingleValue(benchmark::State& state) 
+static void Benchmark_copyReadBuffer_SingleValue(benchmark::State& state)
 {
-    std::shared_ptr<RedisAdapter> redis = std::make_shared<RedisAdapter>("TEST", RedisConnection::Options{.host = get_redis_host()});
+    std::shared_ptr<RedisAdapter> redis = std::make_shared<RedisAdapter>("TEST",
+        RedisConnection::Options{ .path = get_redis_path(), .host = get_redis_host() });
     size_t size = state.range(0);
     std::vector<float> values = generate_list(size);
     redis->addSingleList("benchmark_list_key", values, {.trim = 100});
@@ -94,9 +105,10 @@ static void Benchmark_copyReadBuffer_SingleValue(benchmark::State& state)
     for (auto _ : state) { cache.copyReadBuffer(resultSpan, arbitraryStartIndex);}
 }
 
-static void Benchmark_copyReadBuffer_FiftyValues(benchmark::State& state) 
+static void Benchmark_copyReadBuffer_FiftyValues(benchmark::State& state)
 {
-    std::shared_ptr<RedisAdapter> redis = std::make_shared<RedisAdapter>("TEST", RedisConnection::Options{.host = get_redis_host()});
+    std::shared_ptr<RedisAdapter> redis = std::make_shared<RedisAdapter>("TEST",
+        RedisConnection::Options{ .path = get_redis_path(), .host = get_redis_host() });
     size_t size = state.range(0);
     std::vector<float> values = generate_list(size);
     redis->addSingleList("benchmark_list_key", values, {.trim = 100});
