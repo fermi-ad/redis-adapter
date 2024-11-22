@@ -23,10 +23,9 @@ namespace std
     const size_t size() const { return _sz; }
     T* begin() const { return _buf; }
     T* end() const { return _buf + _sz; }
-
   private:
     T* const _buf;
     const size_t _sz;
   };
-};
+}
 #endif

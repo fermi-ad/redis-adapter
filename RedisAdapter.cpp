@@ -29,11 +29,11 @@ RA_Time::RA_Time(const string& id)
 {
   try
   {
-    nanos = stoull(id) * NANOS_PER_MILLI;
+    value = stoll(id) * NANOS_PER_MILLI;
     size_t pos = id.find('-');
-    if (pos != string::npos) { nanos += stoull(id.substr(pos + 1)); }
+    if (pos != string::npos) { value += stoll(id.substr(pos + 1)); }
   }
-  catch (...) { nanos = 0; }
+  catch (...) { value = 0; }
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -43,7 +43,7 @@ string RA_Time::id() const
 {
   //  place the whole milliseconds on the left-hand side of the ID
   //  and the remainder nanoseconds on the right-hand side of the ID
-  return to_string(nanos / NANOS_PER_MILLI) + "-" + to_string(nanos % NANOS_PER_MILLI);
+  return ok() ? to_string(value / NANOS_PER_MILLI) + "-" + to_string(value % NANOS_PER_MILLI) : "0-0";
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -62,9 +62,9 @@ string RA_Time::id_or_now() const
 //              e.g. { .user = "adinst", .password = "adinst" }
 //    return  : RedisAdapter
 //
-RedisAdapter::RedisAdapter(const string& baseKey, const RedisConnection::Options& options, const uint workerThreadCount)
-: _options(options), _redis(options), _base_key(baseKey),
-  _connecting(false), _listener_run(false), _readers_defer(false), workerThreads(workerThreadCount) {}
+RedisAdapter::RedisAdapter(const string& baseKey, const RedisConnection::Options& options, uint16_t workerCount)
+: _options(options), _redis(options), _base_key(baseKey), _connecting(false),
+  _listener_run(false), _readers_defer(false), _workers(workerCount) {}
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  ~RedisAdapter : destructor
@@ -91,7 +91,9 @@ RA_Time RedisAdapter::addSingleDouble(const string& subKey, double data, const R
 
   string id = args.trim ? _redis.xaddTrim(key, args.time.id_or_now(), attrs.begin(), attrs.end(), args.trim)
                         : _redis.xadd(key, args.time.id_or_now(), attrs.begin(), attrs.end());
-  connect(id.size());
+
+  if ( ! connect(id.size())) { return RA_NOT_CONNECTED; }
+
   return RA_Time(id);
 }
 
@@ -301,7 +303,7 @@ bool RedisAdapter::start_listener()
             auto split = split_key(key);
             for (auto& func : _pattern_subs.at(pat))
               {
-	        workerThreads.doJob([func, splitFirst = std::move(split.first), splitSecond = std::move(split.second), msg = std::move(msg)]() {
+	        _workers.doJob([func, splitFirst = std::move(split.first), splitSecond = std::move(split.second), msg = std::move(msg)]() {
 			         func(splitFirst, splitSecond, msg);});
 	      }
           }
@@ -316,7 +318,7 @@ bool RedisAdapter::start_listener()
             auto split = split_key(key);
             for (auto& func : _command_subs.at(key))
               {
-	        workerThreads.doJob([func, splitFirst = std::move(split.first), splitSecond = std::move(split.second), msg = std::move(msg)]() {
+	        _workers.doJob([func, splitFirst = std::move(split.first), splitSecond = std::move(split.second), msg = std::move(msg)]() {
 			         func(splitFirst, splitSecond, msg);});
 	      }
           }
@@ -452,12 +454,12 @@ bool RedisAdapter::start_reader(uint16_t slot)
               {
                 if (split.first.size())
 		{
-		  workerThreads.doJob([func, splitFirst = std::move(split.first), splitSecond = std::move(split.second), itemSecond = std::move(item.second)]()
+		  _workers.doJob([func, splitFirst = std::move(split.first), splitSecond = std::move(split.second), itemSecond = std::move(item.second)]()
 				  {func(splitFirst, splitSecond, itemSecond);});
 	        }
 		else
 		{
-		  workerThreads.doJob([func, itemFirst = std::move(item.first), itemSecond = std::move(item.second)]()
+		  _workers.doJob([func, itemFirst = std::move(item.first), itemSecond = std::move(item.second)]()
 				  {func(itemFirst, itemFirst, itemSecond);});
                 }
 	      }

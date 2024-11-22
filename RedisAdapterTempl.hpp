@@ -265,7 +265,10 @@ RedisAdapter::get_single_stream_helper(const std::string& baseKey, const std::st
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
   ItemStream raw;
-  connect(_redis.xrevrange(build_key(subKey, baseKey), maxTime.id_or_max(), "-", 1, std::back_inserter(raw)));
+  if ( ! connect(_redis.xrevrange(build_key(subKey, baseKey),
+                                  maxTime.id_or_max(), "-", 1,
+                                  std::back_inserter(raw))))
+    { return RA_NOT_CONNECTED; }
 
   if (raw.size())
   {
@@ -284,7 +287,10 @@ RedisAdapter::get_single_stream_helper(const std::string& baseKey, const std::st
                                        Attrs& dest, RA_Time maxTime)
 {
   ItemStream raw;
-  connect(_redis.xrevrange(build_key(subKey, baseKey), maxTime.id_or_max(), "-", 1, std::back_inserter(raw)));
+  if ( ! connect(_redis.xrevrange(build_key(subKey, baseKey),
+                                  maxTime.id_or_max(), "-", 1,
+                                  std::back_inserter(raw))))
+    { return RA_NOT_CONNECTED; }
 
   if (raw.size())
   {
@@ -310,7 +316,10 @@ RedisAdapter::get_single_stream_list_helper(const std::string& baseKey, const st
   static_assert(std::is_trivial<T>(), "wrong type T");
 
   ItemStream raw;
-  connect(_redis.xrevrange(build_key(subKey, baseKey), maxTime.id_or_max(), "-", 1, std::back_inserter(raw)));
+  if ( ! connect(_redis.xrevrange(build_key(subKey, baseKey),
+                                  maxTime.id_or_max(), "-", 1,
+                                  std::back_inserter(raw))))
+    { return RA_NOT_CONNECTED; }
 
   if (raw.size())
   {
@@ -419,7 +428,9 @@ RedisAdapter::addSingleValue(const std::string& subKey, const T& data, const RA_
 
   std::string id = args.trim ? _redis.xaddTrim(key, args.time.id_or_now(), attrs.begin(), attrs.end(), args.trim)
                              : _redis.xadd(key, args.time.id_or_now(), attrs.begin(), attrs.end());
-  connect(id.size());
+
+  if ( ! connect(id.size())) { return RA_NOT_CONNECTED; }
+
   return RA_Time(id);
 }
 //  Attrs specialization
@@ -430,7 +441,9 @@ RedisAdapter::addSingleValue(const std::string& subKey, const Attrs& data, const
 
   std::string id = args.trim ? _redis.xaddTrim(key, args.time.id_or_now(), data.begin(), data.end(), args.trim)
                              : _redis.xadd(key, args.time.id_or_now(), data.begin(), data.end());
-  connect(id.size());
+
+  if ( ! connect(id.size())) { return RA_NOT_CONNECTED; }
+
   return RA_Time(id);
 }
 
@@ -454,7 +467,9 @@ RedisAdapter::add_single_stream_list_helper(const std::string& subKey, RA_Time t
 
   std::string id = trim ? _redis.xaddTrim(key, time.id_or_now(), attrs.begin(), attrs.end(), trim)
                         : _redis.xadd(key, time.id_or_now(), attrs.begin(), attrs.end());
-  connect(id.size());
+
+  if ( ! connect(id.size())) { return RA_NOT_CONNECTED; }
+
   return RA_Time(id);
 }
 

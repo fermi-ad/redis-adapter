@@ -27,17 +27,16 @@ TEST(RedisAdapter, UnixDomainSocket)
 {
     //If trying to connect with a domain socket fails, for some unknown reason, this can cause a meemory corruption
     //when the redis object is deleted. This causes the rest of the tests to fails.
-    //To work around this we should use a pointer to the RedisAdapter object and delete it explicitly. 
+    //To work around this we should use a pointer to the RedisAdapter object and delete it explicitly.
     //Assumes the socket file is in the /tmp directory and test is run from the build directory
-    
+
     RedisAdapter* redis = nullptr;  // Initialize the RedisAdapter pointer
 
-    redis = new RedisAdapter("TEST", { .host = "/tmp/redis.sock" });
+    redis = new RedisAdapter("TEST", { .path = "/tmp/redis.sock" });
 
     EXPECT_TRUE(redis->connected()) << "Failed to connect to the Redis server using Unix domain socket.";
-    
-    delete redis;  // Explicitly delete the RedisAdapter object
 
+    delete redis;  // Explicitly delete the RedisAdapter object
 }
 
 TEST(RedisAdapter, DataSingle)
