@@ -9,7 +9,7 @@
 #endif
 
 //  if the above did not define __cpp_lib_span
-//  provide our own implmentation of std::span
+//  provide our own implementation of std::span
 #ifndef __cpp_lib_span
 //  a very simple std::span
 namespace std
@@ -27,5 +27,23 @@ namespace std
     T* const _buf;
     const size_t _sz;
   };
+}
+#endif
+
+//  if there is a string_view header to include
+#if __has_include(<string_view>)
+//  include that string_view header
+#include <string_view>
+//  the string_view header should define __cpp_lib_string_view
+//  if it provides an implementation of std::string_view
+#endif
+
+//  if the above did not define __cpp_lib_string_view
+//  provide our own implementation of std::string_view
+#ifndef __cpp_lib_string_view
+//  alias string_view to string
+namespace std
+{
+  using string_view = string;
 }
 #endif
