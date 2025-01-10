@@ -32,10 +32,10 @@ public:
   {
     std::string path;
     std::string host = "127.0.0.1";
-    std::string user;
+    std::string user = "default";
     std::string password;
     uint32_t timeout = 500;   //  milliseconds
-    uint16_t port = 0;
+    uint16_t port = 6379;
     uint16_t size = 5;
   };
 
@@ -86,9 +86,9 @@ public:
     else
     {
       co.host = opts.host;
-      if (opts.port) co.port = opts.port;   //  dont overwrite redis++ default with 0
+      co.port = opts.port;
     }
-    if (opts.user.size()) co.user = opts.user;  //  dont overwrite redis++ default with ""
+    co.user = opts.user;
     co.password = opts.password;
     co.socket_timeout = chr::milliseconds(opts.timeout);
 
