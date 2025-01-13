@@ -62,6 +62,15 @@ struct RA_ArgsGet
 struct RA_ArgsAdd
 { RA_Time time; uint32_t trim = 1; };
 
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  struct RA_Options
+//
+struct RA_Options : public RedisConnection::Options
+{
+  std::string dogname;
+  uint16_t workers = 1;
+};
+
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  class RedisAdapter
 //
@@ -86,7 +95,7 @@ public:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Construction / Destruction
   //
-  RedisAdapter(const std::string& baseKey, const RedisConnection::Options& options = {}, uint16_t workerCount = 1);
+  RedisAdapter(const std::string& baseKey, const RA_Options& options = {});
 
   RedisAdapter(const RedisAdapter& ra) = delete;       //  copy construction not allowed
   RedisAdapter& operator=(const RedisAdapter& ra) = delete;   //  assignment not allowed
@@ -397,12 +406,15 @@ private:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Redis stuff
   //
-  RedisConnection::Options _options;
+  RA_Options _options;
   RedisConnection _redis;
   std::string _base_key;
 
   int32_t connect(int32_t result);
   std::atomic_bool _connecting;
+
+  std::thread _watchdog;
+  bool _watchdog_run;
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Pub/Sub Listener and Stream Reader

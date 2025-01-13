@@ -62,17 +62,41 @@ string RA_Time::id_or_now() const
 //              e.g. { .user = "adinst", .password = "adinst" }
 //    return  : RedisAdapter
 //
-RedisAdapter::RedisAdapter(const string& baseKey, const RedisConnection::Options& options, uint16_t workerCount)
-: _options(options), _redis(options), _base_key(baseKey), _connecting(false),
-  _listener_run(false), _readers_defer(false), _workers(workerCount) {}
+RedisAdapter::RedisAdapter(const string& baseKey, const RA_Options& options)
+: _options(options), _redis(options), _base_key(baseKey), _workers(options.workers),
+  _connecting(false), _listener_run(false), _readers_defer(false), _watchdog_run(false)
+{
+  if (_options.dogname.size())
+  {
+    const string dogkey = build_key("watchdog");
+    if (_redis.hexists(dogkey, _options.dogname))
+    {
+      syslog(LOG_ERR, "watchdog %s for %s already exists", _options.dogname.c_str(), _base_key.c_str());
+    }
+    else
+    {
+      _watchdog = thread([&, dogkey]()
+        {
+          _redis.hset(dogkey, _options.dogname, _options.dogname);
+          for (_watchdog_run = true; _watchdog_run; this_thread::sleep_for(milliseconds(200)))
+          {
+            _redis.hexpire(dogkey, _options.dogname, 1);
+          }
+        }
+      );
+    }
+  }
+}
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  ~RedisAdapter : destructor
 //
 RedisAdapter::~RedisAdapter()
 {
+  _watchdog_run = false;
   stop_listener();
   for (auto& item : _reader) { stop_reader(item.first); }
+  if (_watchdog.joinable()) _watchdog.join();
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
