@@ -512,6 +512,24 @@ public:
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  hkeys : get all the field names in a hash
+  //
+  //    key    : the hash key
+  //    return : list of field names for the hash
+  //
+   std::vector<std::string> hkeys(const std::string& key)
+  {
+    std::vector<std::string> ret;
+    try
+    {
+      if (_cluster) _cluster->hkeys(key, std::back_inserter(ret));
+      if (_singler) _singler->hkeys(key, std::back_inserter(ret));
+    }
+    catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
+    return ret;
+  }
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  subscriber : get a Subscriber object for pub/sub
   //
   //    return : pointer to a Subscriber if successful

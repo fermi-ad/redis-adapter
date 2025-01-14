@@ -26,8 +26,8 @@ std::string get_redis_host()
 RA_Options get_redis_options()
 {
     RA_Options opts;
-    opts.path = get_redis_path();
-    opts.host = get_redis_host();
+    opts.cxn.path = get_redis_path();
+    opts.cxn.host = get_redis_host();
     return opts;
 }
 

@@ -63,24 +63,32 @@ string RA_Time::id_or_now() const
 //    return  : RedisAdapter
 //
 RedisAdapter::RedisAdapter(const string& baseKey, const RA_Options& options)
-: _options(options), _redis(options), _base_key(baseKey), _workers(options.workers),
+: _options(options), _redis(options.cxn), _base_key(baseKey), _workers(options.workers),
   _connecting(false), _listener_run(false), _readers_defer(false), _watchdog_run(false)
 {
+  _watchdog_key = build_key("watchdog");
+
   if (_options.dogname.size())
   {
-    const string dogkey = build_key("watchdog");
-    if (_redis.hexists(dogkey, _options.dogname))
+    if (_redis.hexists(_watchdog_key, _options.dogname) == 1)
     {
-      syslog(LOG_ERR, "watchdog %s for %s already exists", _options.dogname.c_str(), _base_key.c_str());
+      syslog(LOG_ERR, "watchdog %s for %s already exists", _options.dogname.c_str(), _watchdog_key.c_str());
     }
     else
     {
-      _watchdog = thread([&, dogkey]()
+      _watchdog = thread([&]()
         {
-          _redis.hset(dogkey, _options.dogname, _options.dogname);
-          for (_watchdog_run = true; _watchdog_run; this_thread::sleep_for(milliseconds(200)))
+          _redis.hset(_watchdog_key, _options.dogname, _options.dogname);
+          _watchdog_run = true;
+          for (uint32_t i = 0; _watchdog_run; i++)
           {
-            _redis.hexpire(dogkey, _options.dogname, 1);
+            //  every 800ms set expire for 1000ms
+            if ((i % 8) == 0)
+            { //  if hexpire returns -1, pass 0 to reconnect
+              reconnect(_redis.hexpire(_watchdog_key, _options.dogname, 1) != -1);
+            }
+            //  tick every 100ms to keep destruction responsive(ish)
+            this_thread::sleep_for(milliseconds(100));
           }
         }
       );
@@ -116,7 +124,7 @@ RA_Time RedisAdapter::addSingleDouble(const string& subKey, double data, const R
   string id = args.trim ? _redis.xaddTrim(key, args.time.id_or_now(), attrs.begin(), attrs.end(), args.trim)
                         : _redis.xadd(key, args.time.id_or_now(), attrs.begin(), attrs.end());
 
-  if ( ! connect(id.size())) { return RA_NOT_CONNECTED; }
+  if (reconnect(id.size()) == 0) { return RA_NOT_CONNECTED; }
 
   return RA_Time(id);
 }
@@ -294,7 +302,7 @@ bool RedisAdapter::copy(const string& srcSubKey, const string& dstSubKey, const 
       ret = id.size();
     }
   }
-  connect(ret != -1);
+  reconnect(ret != -1);   //  if ret == -1, pass 0 to reconnect
   return ret > 0;
 }
 
@@ -383,7 +391,8 @@ bool RedisAdapter::stop_listener()
 {
   if ( ! _listener.joinable()) return false;
   _listener_run = false;
-  connect(_redis.publish(build_key(STOP_STUB), "") != -1);
+  //  if publish returns -1, pass 0 to reconnect
+  reconnect(_redis.publish(build_key(STOP_STUB), "") != -1);
   _listener.join();
   return true;
 }
@@ -450,7 +459,7 @@ bool RedisAdapter::start_reader(uint16_t slot)
 
       for (Streams out; info.run; out.clear())
       {
-        if (_redis.xreadMultiBlock(info.keyids.begin(), info.keyids.end(), _options.timeout, inserter(out, out.end())))
+        if (_redis.xreadMultiBlock(info.keyids.begin(), info.keyids.end(), _options.cxn.timeout, inserter(out, out.end())))
         {
           for (auto& item : out)
           {
@@ -514,20 +523,20 @@ bool RedisAdapter::stop_reader(uint16_t slot)
 
   info.run = false;
   Attrs attrs = default_field_attrs("");
-  connect(_redis.xaddTrim(info.stop, "*", attrs.begin(), attrs.end(), 1).size());
+  reconnect(_redis.xaddTrim(info.stop, "*", attrs.begin(), attrs.end(), 1).size());
   info.thread.join();
   return true;
 }
 
 //  lazy reconnect - any _redis operation that passes zero into this function
 //    triggers a reconnect thread to launch (unless thread is already active)
-int32_t RedisAdapter::connect(int32_t result)
+int32_t RedisAdapter::reconnect(int32_t result)
 {
   if (result == 0 && _connecting.exchange(true) == false)
   {
     thread([&]()
       {
-        if (_redis.connect(_options))
+        if (_redis.connect(_options.cxn))
         {
           //  restart all the readers
           for (auto& rdr : _reader)

@@ -30,7 +30,7 @@ TEST(RedisAdapter, UnixDomainSocket)
     //To work around this we should use a pointer to the RedisAdapter object and delete it explicitly.
     //Assumes the socket file is in the /tmp directory and test is run from the build directory
 
-    RA_Options opts; opts.path = "/tmp/redis.sock";
+    RA_Options opts; opts.cxn.path = "/tmp/redis.sock";
     auto redis = make_unique<RedisAdapter>("TEST", opts);
 
     EXPECT_TRUE(redis->connected()) << "Failed to connect to the Redis server using Unix domain socket.";
@@ -488,7 +488,6 @@ TEST(RedisAdapter, Utility)
 
 TEST(RedisAdapter, Watchdog)
 {
-  RA_Options opts; opts.dogname = "TEST";
-  RedisAdapter redis("TEST", opts);
+  RedisAdapter redis("TEST", { .dogname = "TEST" });
   this_thread::sleep_for(seconds(1));
 }

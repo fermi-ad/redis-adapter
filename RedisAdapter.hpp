@@ -65,8 +65,9 @@ struct RA_ArgsAdd
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  struct RA_Options
 //
-struct RA_Options : public RedisConnection::Options
+struct RA_Options
 {
+  RedisConnection::Options cxn;
   std::string dogname;
   uint16_t workers = 1;
 };
@@ -214,7 +215,14 @@ public:
   //
   //    return : true if connected, false if not connected
   //
-  bool connected() { return connect(_redis.ping()); }
+  bool connected() { return reconnect(_redis.ping()); }
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  watchdogs : get the list of watchdogs
+  //
+  //    return : true if connected, false if not connected
+  //
+  std::vector<std::string> watchdogs() { return _redis.hkeys(_watchdog_key); }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  copy : copy any RA stream key to a home stream key (dest key must not exist)
@@ -234,7 +242,7 @@ public:
   //    return    : true if successful, false if unsuccessful
   //
   bool rename(const std::string& subKeySrc, const std::string& subKeyDst)
-    { return connect(_redis.rename(build_key(subKeySrc), build_key(subKeyDst))); }
+    { return reconnect(_redis.rename(build_key(subKeySrc), build_key(subKeyDst))); }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  del : delete a home stream key
@@ -242,7 +250,7 @@ public:
   //    subKey : sub key to delete
   //    return : true if successful, false if unsuccessful
   //
-  bool del(const std::string& subKey) { return connect(_redis.del(build_key(subKey)) >= 0); }
+  bool del(const std::string& subKey) { return reconnect(_redis.del(build_key(subKey)) >= 0); }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  ListenSubFn : callback function type for pub/sub notification
@@ -258,7 +266,7 @@ public:
   //    return  : true on success, false on failure
   //
   bool publish(const std::string& subKey, const std::string& message, const std::string& baseKey = "")
-    { return connect(_redis.publish(build_key(subKey, baseKey), message) >= 0); }
+    { return reconnect(_redis.publish(build_key(subKey, baseKey), message) != -1); }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  subscribe   : subscribe for messages on a single channel
@@ -410,11 +418,12 @@ private:
   RedisConnection _redis;
   std::string _base_key;
 
-  int32_t connect(int32_t result);
+  int32_t reconnect(int32_t result);
   std::atomic_bool _connecting;
 
   std::thread _watchdog;
   bool _watchdog_run;
+  std::string _watchdog_key;
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Pub/Sub Listener and Stream Reader
