@@ -70,29 +70,22 @@ RedisAdapter::RedisAdapter(const string& baseKey, const RA_Options& options)
 
   if (_options.dogname.size())
   {
-    if (_redis.hexists(_watchdog_key, _options.dogname) == 1)
-    {
-      syslog(LOG_ERR, "watchdog %s for %s already exists", _options.dogname.c_str(), _watchdog_key.c_str());
-    }
-    else
-    {
-      _watchdog = thread([&]()
+    _watchdog = thread([&]()
+      {
+        _redis.hset(_watchdog_key, _options.dogname, _options.dogname);
+        _watchdog_run = true;
+
+        for (uint32_t i = 0; _watchdog_run; i++)
         {
-          _redis.hset(_watchdog_key, _options.dogname, _options.dogname);
-          _watchdog_run = true;
-          for (uint32_t i = 0; _watchdog_run; i++)
+          if ((i % 8) == 0) //  every 800ms set expire for 1000ms
           {
-            //  every 800ms set expire for 1000ms
-            if ((i % 8) == 0)
-            { //  if hexpire returns -1, pass 0 to reconnect
-              reconnect(_redis.hexpire(_watchdog_key, _options.dogname, 1) != -1);
-            }
-            //  tick every 100ms to keep destruction responsive(ish)
-            this_thread::sleep_for(milliseconds(100));
+            reconnect(_redis.hexpire(_watchdog_key, _options.dogname, 1) != -1);
           }
+          //  tick every 100ms to keep destruction responsive(ish)
+          this_thread::sleep_for(milliseconds(100));
         }
-      );
-    }
+      }
+    );
   }
 }
 
