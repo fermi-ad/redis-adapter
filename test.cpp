@@ -489,5 +489,5 @@ TEST(RedisAdapter, Utility)
 TEST(RedisAdapter, Watchdog)
 {
   RedisAdapter redis("TEST", { .dogname = "TEST" });
-  this_thread::sleep_for(seconds(1));
+  this_thread::sleep_for(milliseconds(200));
 }
