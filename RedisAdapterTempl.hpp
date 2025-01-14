@@ -70,8 +70,8 @@ RedisAdapter::get_forward_stream_helper(const std::string& baseKey, const std::s
   std::string maxID = maxTime.id_or_max();
   ItemStream raw;
 
-  if (count) { connect(_redis.xrange(key, minID, maxID, count, std::back_inserter(raw))); }
-  else       { connect(_redis.xrange(key, minID, maxID, std::back_inserter(raw))); }
+  if (count) { reconnect(_redis.xrange(key, minID, maxID, count, std::back_inserter(raw))); }
+  else       { reconnect(_redis.xrange(key, minID, maxID, std::back_inserter(raw))); }
 
   TimeValList<T> ret;
   TimeVal<T> retItem;
@@ -97,8 +97,8 @@ RedisAdapter::get_forward_stream_helper(const std::string& baseKey, const std::s
   std::string maxID = maxTime.id_or_max();
   ItemStream raw;
 
-  if (count) { connect(_redis.xrange(key, minID, maxID, count, std::back_inserter(raw))); }
-  else       { connect(_redis.xrange(key, minID, maxID, std::back_inserter(raw))); }
+  if (count) { reconnect(_redis.xrange(key, minID, maxID, count, std::back_inserter(raw))); }
+  else       { reconnect(_redis.xrange(key, minID, maxID, std::back_inserter(raw))); }
 
   TimeValList<Attrs> ret;
   TimeVal<Attrs> retItem;
@@ -133,8 +133,8 @@ RedisAdapter::get_forward_stream_list_helper(const std::string& baseKey, const s
   std::string maxID = maxTime.id_or_max();
   ItemStream raw;
 
-  if (count) { connect(_redis.xrange(key, minID, maxID, count, std::back_inserter(raw))); }
-  else       { connect(_redis.xrange(key, minID, maxID, std::back_inserter(raw))); }
+  if (count) { reconnect(_redis.xrange(key, minID, maxID, count, std::back_inserter(raw))); }
+  else       { reconnect(_redis.xrange(key, minID, maxID, std::back_inserter(raw))); }
 
   TimeValList<std::vector<T>> ret;
   TimeVal<std::vector<T>> retItem;
@@ -171,8 +171,8 @@ RedisAdapter::get_reverse_stream_helper(const std::string& baseKey, const std::s
   std::string maxID = maxTime.id_or_max();
   ItemStream raw;
 
-  if (count) { connect(_redis.xrevrange(key, maxID, "-", count, std::back_inserter(raw))); }
-  else       { connect(_redis.xrevrange(key, maxID, "-", std::back_inserter(raw))); }
+  if (count) { reconnect(_redis.xrevrange(key, maxID, "-", count, std::back_inserter(raw))); }
+  else       { reconnect(_redis.xrevrange(key, maxID, "-", std::back_inserter(raw))); }
 
   TimeValList<T> ret;
   TimeVal<T> retItem;
@@ -197,8 +197,8 @@ RedisAdapter::get_reverse_stream_helper(const std::string& baseKey, const std::s
   std::string maxID = maxTime.id_or_max();
   ItemStream raw;
 
-  if (count) { connect(_redis.xrevrange(key, maxID, "-", count, std::back_inserter(raw))); }
-  else       { connect(_redis.xrevrange(key, maxID, "-", std::back_inserter(raw))); }
+  if (count) { reconnect(_redis.xrevrange(key, maxID, "-", count, std::back_inserter(raw))); }
+  else       { reconnect(_redis.xrevrange(key, maxID, "-", std::back_inserter(raw))); }
 
   TimeValList<Attrs> ret;
   TimeVal<Attrs> retItem;
@@ -231,8 +231,8 @@ RedisAdapter::get_reverse_stream_list_helper(const std::string& baseKey, const s
   std::string maxID = maxTime.id_or_max();
   ItemStream raw;
 
-  if (count) { connect(_redis.xrevrange(key, maxID, "-", count, std::back_inserter(raw))); }
-  else       { connect(_redis.xrevrange(key, maxID, "-", std::back_inserter(raw))); }
+  if (count) { reconnect(_redis.xrevrange(key, maxID, "-", count, std::back_inserter(raw))); }
+  else       { reconnect(_redis.xrevrange(key, maxID, "-", std::back_inserter(raw))); }
 
   TimeValList<std::vector<T>> ret;
   TimeVal<std::vector<T>> retItem;
@@ -265,7 +265,7 @@ RedisAdapter::get_single_stream_helper(const std::string& baseKey, const std::st
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
   ItemStream raw;
-  if ( ! connect(_redis.xrevrange(build_key(subKey, baseKey),
+  if ( ! reconnect(_redis.xrevrange(build_key(subKey, baseKey),
                                   maxTime.id_or_max(), "-", 1,
                                   std::back_inserter(raw))))
     { return RA_NOT_CONNECTED; }
@@ -287,7 +287,7 @@ RedisAdapter::get_single_stream_helper(const std::string& baseKey, const std::st
                                        Attrs& dest, RA_Time maxTime)
 {
   ItemStream raw;
-  if ( ! connect(_redis.xrevrange(build_key(subKey, baseKey),
+  if ( ! reconnect(_redis.xrevrange(build_key(subKey, baseKey),
                                   maxTime.id_or_max(), "-", 1,
                                   std::back_inserter(raw))))
     { return RA_NOT_CONNECTED; }
@@ -316,7 +316,7 @@ RedisAdapter::get_single_stream_list_helper(const std::string& baseKey, const st
   static_assert(std::is_trivial<T>(), "wrong type T");
 
   ItemStream raw;
-  if ( ! connect(_redis.xrevrange(build_key(subKey, baseKey),
+  if ( ! reconnect(_redis.xrevrange(build_key(subKey, baseKey),
                                   maxTime.id_or_max(), "-", 1,
                                   std::back_inserter(raw))))
     { return RA_NOT_CONNECTED; }
@@ -358,7 +358,7 @@ RedisAdapter::addValues(const std::string& subKey, const TimeValList<T>& data, u
   }
   if (trim && ret.size()) { _redis.xtrim(key, std::max(trim, (uint32_t)ret.size())); }
 
-  connect(ret.size());
+  reconnect(ret.size());
   return ret;
 }
 //  Attrs specialization
@@ -375,7 +375,7 @@ RedisAdapter::addValues(const std::string& subKey, const TimeValList<Attrs>& dat
   }
   if (trim && ret.size()) { _redis.xtrim(key, std::max(trim, (uint32_t)ret.size())); }
 
-  connect(ret.size());
+  reconnect(ret.size());
   return ret;
 }
 
@@ -404,7 +404,7 @@ RedisAdapter::addLists(const std::string& subKey, const TimeValList<std::vector<
   }
   if (trim && ret.size()) { _redis.xtrim(key, std::max(trim, (uint32_t)ret.size())); }
 
-  connect(ret.size());
+  reconnect(ret.size());
   return ret;
 }
 
@@ -429,7 +429,7 @@ RedisAdapter::addSingleValue(const std::string& subKey, const T& data, const RA_
   std::string id = args.trim ? _redis.xaddTrim(key, args.time.id_or_now(), attrs.begin(), attrs.end(), args.trim)
                              : _redis.xadd(key, args.time.id_or_now(), attrs.begin(), attrs.end());
 
-  if ( ! connect(id.size())) { return RA_NOT_CONNECTED; }
+  if ( ! reconnect(id.size())) { return RA_NOT_CONNECTED; }
 
   return RA_Time(id);
 }
@@ -442,7 +442,7 @@ RedisAdapter::addSingleValue(const std::string& subKey, const Attrs& data, const
   std::string id = args.trim ? _redis.xaddTrim(key, args.time.id_or_now(), data.begin(), data.end(), args.trim)
                              : _redis.xadd(key, args.time.id_or_now(), data.begin(), data.end());
 
-  if ( ! connect(id.size())) { return RA_NOT_CONNECTED; }
+  if ( ! reconnect(id.size())) { return RA_NOT_CONNECTED; }
 
   return RA_Time(id);
 }
@@ -468,7 +468,7 @@ RedisAdapter::add_single_stream_list_helper(const std::string& subKey, RA_Time t
   std::string id = trim ? _redis.xaddTrim(key, time.id_or_now(), attrs.begin(), attrs.end(), trim)
                         : _redis.xadd(key, time.id_or_now(), attrs.begin(), attrs.end());
 
-  if ( ! connect(id.size())) { return RA_NOT_CONNECTED; }
+  if ( ! reconnect(id.size())) { return RA_NOT_CONNECTED; }
 
   return RA_Time(id);
 }

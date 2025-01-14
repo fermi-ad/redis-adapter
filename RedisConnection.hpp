@@ -18,7 +18,7 @@ class RedisConnection
 {
 public:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  class RedisConnection::Options
+  //  struct RedisConnection::Options
   //
   //    path     : path to unix domain socket file
   //    host     : IP address of server "w.x.y.z"
@@ -117,7 +117,7 @@ public:
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  ping() - test whether or not a live server is connected
+  //  ping : test whether or not a live server is connected
   //
   //    return : true if live server connected
   //             false if not connected
@@ -134,7 +134,7 @@ public:
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  del() - delete the specified key
+  //  del : delete the specified key
   //
   //    key    : key (any type) to delete
   //    return : 1 if key deleted
@@ -431,7 +431,7 @@ public:
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  time() - gets current server time
+  //  time : gets current server time
   //
   //    return : vector<string> = { seconds, microseconds }
   //
@@ -448,13 +448,95 @@ public:
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  hexists : test if a hash field exists
+  //
+  //    key    : the hash to look in
+  //    fld    : the field to look for
+  //    return : 1 if field exists
+  //             0 if field does not exist
+  //            -1 if unsuccsessful or not connected
+  //
+  int32_t hexists(const std::string& key, const std::string& fld)
+  {
+    try
+    {
+      if (_cluster) return _cluster->hexists(key, fld);
+      if (_singler) return _singler->hexists(key, fld);
+    }
+    catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
+    return -1;
+  }
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  hset : sets a field,value pair in the hash
+  //
+  //    key    : the hash to add a field,value pair to
+  //    fld    : the field for the pair to be added
+  //    val    : the value for the pair to be added
+  //    return : true if field added
+  //             false if unsuccsessful or not connected
+  //
+  bool hset(const std::string& key, const std::string& fld, const std::string& val)
+  {
+    try
+    {
+      if (_cluster) return _cluster->hset(key, fld, val) >= 0;
+      if (_singler) return _singler->hset(key, fld, val) >= 0;
+    }
+    catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
+    return false;
+  }
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  hexpire : set the expiration of a field in a hash
+  //
+  //    key    : the hash to set field expiration in
+  //    fld    : the field to set expiration on
+  //    sec    : the expiration interval in seconds
+  //    return : 2 if expiration time set (expired)
+  //             1 if expiration time set (unexpired)
+  //             0 if option not met (N/A)
+  //            -1 if unsuccsessful or not connected
+  //            -2 if key or field does not exist
+  //
+  int32_t hexpire(const std::string& key, const std::string& fld, uint32_t sec)
+  {
+    std::vector<long long> ret;
+    try
+    {
+      if (_cluster) _cluster->command("hexpire", key, std::to_string(sec), "fields", "1", fld, std::back_inserter(ret));
+      if (_singler) _singler->command("hexpire", key, std::to_string(sec), "fields", "1", fld, std::back_inserter(ret));
+    }
+    catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
+    return ret.size() ? ret.front() : -1;
+  }
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  hkeys : get all the field names in a hash
+  //
+  //    key    : the hash key
+  //    return : list of field names for the hash
+  //
+   std::vector<std::string> hkeys(const std::string& key)
+  {
+    std::vector<std::string> ret;
+    try
+    {
+      if (_cluster) _cluster->hkeys(key, std::back_inserter(ret));
+      if (_singler) _singler->hkeys(key, std::back_inserter(ret));
+    }
+    catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
+    return ret;
+  }
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  subscriber : get a Subscriber object for pub/sub
   //
   //    return : pointer to a Subscriber if successful
   //             0 if unsuccessful or not connected
   //
   //    note - previously this function returned std::optional<swr::Subscriber> but
-  //           std::optional has been replaced with swr::Optional to support c++11
+  //           std::optional has been replaced with swr::Optional to support c++14
   //           and unfortunately swr::Optional cannot create an empty optional with
   //           swr::Subscriber - now client must delete new swr::Subscriber when done
   //

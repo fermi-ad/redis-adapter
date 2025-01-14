@@ -30,13 +30,10 @@ TEST(RedisAdapter, UnixDomainSocket)
     //To work around this we should use a pointer to the RedisAdapter object and delete it explicitly.
     //Assumes the socket file is in the /tmp directory and test is run from the build directory
 
-    RedisAdapter* redis = nullptr;  // Initialize the RedisAdapter pointer
-
-    redis = new RedisAdapter("TEST", { .path = "/tmp/redis.sock" });
+    RA_Options opts; opts.cxn.path = "/tmp/redis.sock";
+    auto redis = make_unique<RedisAdapter>("TEST", opts);
 
     EXPECT_TRUE(redis->connected()) << "Failed to connect to the Redis server using Unix domain socket.";
-
-    delete redis;  // Explicitly delete the RedisAdapter object
 }
 
 TEST(RedisAdapter, DataSingle)
@@ -487,4 +484,10 @@ TEST(RedisAdapter, Utility)
   EXPECT_TRUE(redis.rename("srcdat", "dstdat"));
   EXPECT_TRUE(redis.getSingleValue("dstdat", val).ok());
   EXPECT_EQ(val, 1);
+}
+
+TEST(RedisAdapter, Watchdog)
+{
+  RedisAdapter redis("TEST", { .dogname = "TEST" });
+  this_thread::sleep_for(milliseconds(200));
 }
