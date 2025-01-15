@@ -218,11 +218,31 @@ public:
   bool connected() { return reconnect(_redis.ping()); }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  watchdogs : get the list of watchdogs
+  //  addWatchdog : add a watchdog to the set of watchdogs
   //
-  //    return : true if connected, false if not connected
+  //    dogname    : the name of the watchdog
+  //    expiration : the number of seconds to expire the watchdog
+  //    return     : true if successful, false if not successful
   //
-  std::vector<std::string> watchdogs() { return _redis.hkeys(_watchdog_key); }
+  bool addWatchdog(const std::string& dogname, uint32_t expiration)
+    { return _redis.hset(_watchdog_key, dogname, dogname) && petWatchdog(dogname, expiration); }
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  petWatchdog : refresh the expiration of a watchdog
+  //
+  //    dogname    : the name of the watchdog
+  //    expiration : the number of seconds to expire the watchdog
+  //    return     : true if successful, false if not successful
+  //
+  bool petWatchdog(const std::string& dogname, uint32_t expiration)
+    { return reconnect(_redis.hexpire(_watchdog_key, dogname, expiration) != -1); }
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  getWatchdogs : get the list of watchdogs
+  //
+  //    return : list of watchdogs
+  //
+  std::vector<std::string> getWatchdogs() { return _redis.hkeys(_watchdog_key); }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  copy : copy any RA stream key to a home stream key (dest key must not exist)

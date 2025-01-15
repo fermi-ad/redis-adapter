@@ -489,5 +489,24 @@ TEST(RedisAdapter, Utility)
 TEST(RedisAdapter, Watchdog)
 {
   RedisAdapter redis("TEST", { .dogname = "TEST" });
-  this_thread::sleep_for(milliseconds(200));
+
+  //  wait a bit and check auto-watchdog is there
+  this_thread::sleep_for(milliseconds(100));
+  EXPECT_EQ(redis.getWatchdogs().size(), 1);
+
+  //  add manual watchdog
+  EXPECT_TRUE(redis.addWatchdog("SPOT", 1));
+
+  //  wait a bit and check both are there
+  this_thread::sleep_for(milliseconds(600));
+  EXPECT_EQ(redis.getWatchdogs().size(), 2);
+
+  //  pet manual dog, wait past initial expire time, and check again
+  EXPECT_TRUE(redis.petWatchdog("SPOT", 1));
+  this_thread::sleep_for(milliseconds(600));
+  EXPECT_EQ(redis.getWatchdogs().size(), 2);
+
+  //  wait past expire time and check manual dog gone
+  this_thread::sleep_for(milliseconds(600));
+  EXPECT_EQ(redis.getWatchdogs().size(), 1);
 }

@@ -72,17 +72,16 @@ RedisAdapter::RedisAdapter(const string& baseKey, const RA_Options& options)
   {
     _watchdog = thread([&]()
       {
-        _redis.hset(_watchdog_key, _options.dogname, _options.dogname);
+        addWatchdog(_options.dogname, 1);
         _watchdog_run = true;
 
-        for (uint32_t i = 0; _watchdog_run; i++)
+        for (uint32_t i = 1; _watchdog_run; i++)
         {
-          if ((i % 8) == 0) //  every 800ms set expire for 1000ms
-          {
-            reconnect(_redis.hexpire(_watchdog_key, _options.dogname, 1) != -1);
-          }
           //  tick every 100ms to keep destruction responsive(ish)
           this_thread::sleep_for(milliseconds(100));
+
+          //  every 800ms set expire for 1000ms
+          if ((i % 8) == 0) petWatchdog(_options.dogname, 1);
         }
       }
     );
