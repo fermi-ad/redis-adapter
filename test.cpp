@@ -32,8 +32,6 @@ TEST(RedisAdapter, UnixDomainSocket)
 
     RA_Options opts; opts.cxn.path = "/tmp/redis.sock";
     auto redis = make_unique<RedisAdapter>("TEST", opts);
-    RA_Options opts; opts.cxn.path = "/tmp/redis.sock";
-    auto redis = make_unique<RedisAdapter>("TEST", opts);
 
     EXPECT_TRUE(redis->connected()) << "Failed to connect to the Redis server using Unix domain socket.";
 }
