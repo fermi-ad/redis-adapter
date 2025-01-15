@@ -432,7 +432,6 @@ public:
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  time : gets current server time
-  //  time : gets current server time
   //
   //    return : vector<string> = { seconds, microseconds }
   //
