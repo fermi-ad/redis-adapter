@@ -448,9 +448,9 @@ public:
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  hexists : test if a hash field exists
+  //  hexists : test if a hashmap field exists
   //
-  //    key    : the hash to look in
+  //    key    : the hashmap to look in
   //    fld    : the field to look for
   //    return : 1 if field exists
   //             0 if field does not exist
@@ -468,9 +468,9 @@ public:
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  hset : sets a field,value pair in the hash
+  //  hset : sets a field,value pair in the hashmap
   //
-  //    key    : the hash to add a field,value pair to
+  //    key    : the hashmap to add a field,value pair to
   //    fld    : the field for the pair to be added
   //    val    : the value for the pair to be added
   //    return : true if field added
@@ -488,9 +488,9 @@ public:
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  hexpire : set the expiration of a field in a hash
+  //  hexpire : set the expiration of a field in a hashmap
   //
-  //    key    : the hash to set field expiration in
+  //    key    : the hashmap to set field expiration in
   //    fld    : the field to set expiration on
   //    sec    : the expiration interval in seconds
   //    return : 2 if expiration time set (expired)
@@ -512,10 +512,10 @@ public:
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  hkeys : get all the field names in a hash
+  //  hkeys : get all the field names in a hashmap
   //
-  //    key    : the hash key
-  //    return : list of field names for the hash
+  //    key    : the hashmap key
+  //    return : list of field names for the hashmap
   //
    std::vector<std::string> hkeys(const std::string& key)
   {
