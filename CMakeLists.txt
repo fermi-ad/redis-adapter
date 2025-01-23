@@ -23,6 +23,15 @@ list(APPEND REDIS_ADAPTER_INCLUDE_DIRS ${PROJECT_BINARY_DIR}/redis-plus-plus/src
 list(APPEND REDIS_ADAPTER_LIBRARIES hiredis)
 list(APPEND REDIS_ADAPTER_LIBRARIES redis++_static)
 
+# Try to get the git commit hash
+set(REDIS_ADAPTER_GIT_COMMIT unknown)
+execute_process(COMMAND git rev-parse HEAD WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+  OUTPUT_VARIABLE REDIS_ADAPTER_GIT_COMMIT OUTPUT_STRIP_TRAILING_WHITESPACE)
+message(STATUS "redis-adapter git commit: ${REDIS_ADAPTER_GIT_COMMIT}")
+
+# Add git commit hash to compiler definitions globally
+add_compile_definitions(REDIS_ADAPTER_GIT_COMMIT="${REDIS_ADAPTER_GIT_COMMIT}")
+
 # Send the lists to the project that wants to include them
 get_directory_property(HAS_PARENT PARENT_DIRECTORY)
 if(HAS_PARENT)
@@ -57,6 +66,7 @@ set_target_properties(redis++_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
 # Build redis-adapter-test and googletest if REDIS_ADAPTER_TEST is true
 # Specify on command-line: "cmake -D REDIS_ADAPTER_TEST=1 .."
 if(REDIS_ADAPTER_TEST)
+  message(STATUS "REDIS_ADAPTER_TEST")
   # We dont want googlemock built
   option(BUILD_GMOCK "Builds the googlemock subproject" OFF)
   enable_testing()
@@ -70,6 +80,7 @@ endif()
 # Build redis-adapter-benchmark and googlebenchmark if REDIS_ADAPTER_BENCHMARK is true
 # Specify on command-line: "cmake -D REDIS_ADAPTER_BENCHMARK=1 .."
 if(REDIS_ADAPTER_BENCHMARK)
+  message(STATUS "REDIS_ADAPTER_BENCHMARK")
   # Disable Google Test dependency for benchmark
   set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "Disable benchmark tests based on Google Test")
   set(BENCHMARK_USE_BUNDLED_GTEST OFF CACHE BOOL "Disable bundled Google Test in benchmark")
