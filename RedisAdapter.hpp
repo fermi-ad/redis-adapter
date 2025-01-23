@@ -11,6 +11,19 @@
 #include <atomic>
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  define RA_VERSION
+//
+//  The version of this RedisAdapter (the stringified git commit hash)
+//  Get git commit hash during build and pass to compile using -D as REDIS_ADAPTER_GIT_COMMIT
+//
+#ifndef REDIS_ADAPTER_GIT_COMMIT
+#define REDIS_ADAPTER_GIT_COMMIT unknown
+#endif
+#define STRINGIFY(s) #s
+#define STRINGIFY_DEFINE(s) STRINGIFY(s)
+#define RA_VERSION STRINGIFY_DEFINE(REDIS_ADAPTER_GIT_COMMIT)
+
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  struct RA_Time
 //
 //  Nanosecond time since epoch, provided as a result timestamp
@@ -225,7 +238,7 @@ public:
   //    return     : true if successful, false if not successful
   //
   bool addWatchdog(const std::string& dogname, uint32_t expiration)
-    { return _redis.hset(_watchdog_key, dogname, dogname) && petWatchdog(dogname, expiration); }
+    { return _redis.hset(_watchdog_key, dogname, RA_VERSION) && petWatchdog(dogname, expiration); }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  petWatchdog : refresh the expiration of a watchdog
