@@ -28,7 +28,7 @@ if [ "$1" == "start" ]
 then
     while [ $((PORT < ENDPORT)) != "0" ]; do
         echo "Starting $PORT"
-	# Echo the command for starting the Redis server
+        # Echo the command for starting the Redis server
         echo "$REDIS_SERVER --port $PORT --protected-mode yes --cluster-enabled yes --cluster-config-file nodes-${PORT}.conf --cluster-node-timeout $TIMEOUT --appendonly no --dbfilename dump-${PORT}.rdb --logfile ${PORT}.log --daemonize yes --bind ${CLUSTER_HOST} ${ADDITIONAL_SETTINGS}"
         $REDIS_SERVER --port $PORT --protected-mode yes --cluster-enabled yes --cluster-config-file nodes-${PORT}.conf --cluster-node-timeout $TIMEOUT --appendonly no --dbfilename dump-${PORT}.rdb --logfile ${PORT}.log --daemonize yes --bind ${CLUSTER_HOST} ${ADDITIONAL_SETTINGS}
         PORT=$((PORT+1))
