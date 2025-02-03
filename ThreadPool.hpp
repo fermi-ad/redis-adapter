@@ -11,7 +11,10 @@ public:
   {
     _workers.reserve(num);
     while (num--)
-      { _workers.emplace_back(Worker()); }
+    {
+      Worker& w = _workers.emplace_back(Worker());
+      w.thd = std::thread(std::bind(&Worker::work, &w));
+    }
   }
   ~ThreadPool()
   {
@@ -43,7 +46,7 @@ public:
 private:
   struct Worker
   {
-    Worker() : go(true), thd(std::bind(&Worker::work, this)) {}
+    Worker() : go(true) {}
     Worker(const Worker&) = delete;
     Worker(Worker&& w) {}
 
