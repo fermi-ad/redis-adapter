@@ -326,10 +326,11 @@ bool RedisAdapter::start_listener()
           {
             auto split = split_key(key);
             for (auto& func : _pattern_subs.at(pat))
-              {
-	        _workers.doJob([func, splitFirst = std::move(split.first), splitSecond = std::move(split.second), msg = std::move(msg)]() {
-			         func(splitFirst, splitSecond, msg);});
-	      }
+            {
+              _workers.doJob([func, split = std::move(split), msg = std::move(msg)]()
+                { func(split.first, split.second, msg); }
+              );
+            }
           }
         }
       );  //  end lambda in lambda /////////////////////////
@@ -341,10 +342,11 @@ bool RedisAdapter::start_listener()
           {
             auto split = split_key(key);
             for (auto& func : _command_subs.at(key))
-              {
-	        _workers.doJob([func, splitFirst = std::move(split.first), splitSecond = std::move(split.second), msg = std::move(msg)]() {
-			         func(splitFirst, splitSecond, msg);});
-	      }
+            {
+              _workers.doJob([func, split = std::move(split), msg = std::move(msg)]()
+                { func(split.first, split.second, msg); }
+              );
+            }
           }
         }
       );  //  end lambda in lambda /////////////////////////
@@ -478,16 +480,18 @@ bool RedisAdapter::start_reader(uint16_t slot)
               for (auto& func : info.subs.at(item.first))
               {
                 if (split.first.size())
-		{
-		  _workers.doJob([func, splitFirst = std::move(split.first), splitSecond = std::move(split.second), itemSecond = std::move(item.second)]()
-				  {func(splitFirst, splitSecond, itemSecond);});
-	        }
-		else
-		{
-		  _workers.doJob([func, itemFirst = std::move(item.first), itemSecond = std::move(item.second)]()
-				  {func(itemFirst, itemFirst, itemSecond);});
+                {
+                  _workers.doJob([func, split = std::move(split), item = std::move(item)]()
+                    { func(split.first, split.second, item.second); }
+                  );
                 }
-	      }
+                else
+                {
+                  _workers.doJob([func, item = std::move(item)]()
+                    { func(item.first, item.first, item.second); }
+                  );
+                }
+              }
             }
           }
         }
