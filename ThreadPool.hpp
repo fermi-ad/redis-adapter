@@ -1,80 +1,78 @@
-#include <iostream>
 #include <thread>
 #include <mutex>
 #include <condition_variable>
 #include <queue>
 #include <functional>
-#include <chrono>
 
 class ThreadPool
 {
 public:
-    ThreadPool(int threads) : shutdown_(false)
+  ThreadPool(int num)
+  {
+    _workers.reserve(num);
+    while (num--)
+      { _workers.emplace_back(Worker()); }
+  }
+  ~ThreadPool()
+  {
+    for (auto& w : _workers)
     {
-        // Create the specified number of threads
-        threads_.reserve(threads);
-        for (int i = 0; i < threads; ++i)
-            threads_.emplace_back(std::bind(&ThreadPool::threadEntry, this, i));
+      do
+      {
+        std::unique_lock<std::mutex> lk(w.lock);
+        w.go = false;
+        w.cv.notify_all();
+      }
+      while (false);
     }
-
-    ~ThreadPool()
+    for (auto& w : _workers)
+      { if (w.thd.joinable()) w.thd.join(); }
+  }
+  void job(const std::string& name, std::function<void(void)> func)
+  {
+    Worker& w = _workers[_hasher(name) % _workers.size()];
+    do
     {
-        // Unblock any threads and tell them to stop
+      std::unique_lock<std::mutex> lk(w.lock);
+      w.jobs.emplace(std::move(func));
+    }
+    while (false);
+    w.cv.notify_one();
+  }
+
+private:
+  struct Worker
+  {
+    Worker() : go(true), thd(std::bind(&Worker::work, this)) {}
+    Worker(const Worker&) = delete;
+    Worker(Worker&& w) {}
+
+    bool go;
+    std::mutex lock;
+    std::condition_variable cv;
+    std::queue<std::function<void(void)>> jobs;
+    std::thread thd;
+
+    void work()
+    {
+      for (std::function<void(void)> job; go; /**/)
+      {
+        do
         {
-            std::unique_lock<std::mutex> l(lock_);
-            shutdown_ = true;
-            condVar_.notify_all();
+          std::unique_lock<std::mutex> lk(lock);
+          while (go && jobs.empty())
+            { cv.wait(lk); }
+
+          if (jobs.empty()) return;
+
+          job = std::move(jobs.front());
+          jobs.pop();
         }
-
-        // Wait for all threads to stop
-        //std::cerr << "Joining threads" << std::endl;
-        for (auto &thread : threads_)
-            thread.join();
+        while (false);
+        job();
+      }
     }
-
-    void doJob(std::function<void(void)> func)
-    {
-        // Place a job on the queue and unblock a thread
-        {
-            std::unique_lock<std::mutex> l(lock_);
-            jobs_.emplace(std::move(func));
-        }
-        condVar_.notify_one();
-    }
-
-protected:
-    void threadEntry(int i)
-    {
-        std::function<void(void)> job;
-
-        while (1)
-        {
-            {
-                std::unique_lock<std::mutex> l(lock_);
-
-                while (!shutdown_ && jobs_.empty())
-                    condVar_.wait(l);
-
-                if (jobs_.empty())
-                {
-                    // No jobs to do and we are shutting down
-                    //std::cerr << "Thread " << i << " terminates" << std::endl;
-                    return;
-                }
-
-                job = std::move(jobs_.front());
-                jobs_.pop();
-            }
-
-            // Do the job without holding any locks
-            job();
-
-        }
-    }
-
-    std::mutex lock_;
-    std::condition_variable condVar_;
-    bool shutdown_;
-    std::queue<std::function<void(void)>> jobs_;
-    std::vector<std::thread> threads_;
+  };
+  std::vector<Worker> _workers;
+  std::hash<std::string> _hasher;
 };
