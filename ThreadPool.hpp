@@ -12,70 +12,74 @@ public:
     _workers.reserve(num);
     while (num--)
     {
+      //  thread cant be moved once it is running
+      //  so create and move Worker into vector here
       Worker& w = _workers.emplace_back(Worker());
-      w.thd = std::thread(std::bind(&Worker::work, &w));
+
+      //  now create and start thread for Worker
+      w._thd = std::thread(std::bind(&Worker::work, &w));
     }
   }
+
   ~ThreadPool()
   {
     for (auto& w : _workers)
     {
-      do
-      {
-        std::unique_lock<std::mutex> lk(w.lock);
-        w.go = false;
-        w.cv.notify_all();
-      }
-      while (false);
+      //  no need to lock here
+      w._go = false;
+      w._cv.notify_all();
     }
     for (auto& w : _workers)
-      { if (w.thd.joinable()) w.thd.join(); }
+      { if (w._thd.joinable()) w._thd.join(); }
   }
+
   void job(const std::string& name, std::function<void(void)> func)
   {
+    //  assign job to thread deterministically by name hash
     Worker& w = _workers[_hasher(name) % _workers.size()];
-    do
-    {
-      std::unique_lock<std::mutex> lk(w.lock);
-      w.jobs.emplace(std::move(func));
-    }
-    while (false);
-    w.cv.notify_one();
+    std::unique_lock<std::mutex> lk(w._lock);
+    w._jobs.emplace(std::move(func));
+    lk.unlock();
+    w._cv.notify_one();
   }
 
 private:
   struct Worker
   {
-    Worker() : go(true) {}
+    Worker() : _go(true) {}
     Worker(const Worker&) = delete;
     Worker(Worker&& w) {}
 
-    bool go;
-    std::mutex lock;
-    std::condition_variable cv;
-    std::queue<std::function<void(void)>> jobs;
-    std::thread thd;
+    bool _go;
+    std::mutex _lock;
+    std::thread _thd;
+    std::condition_variable _cv;
+    std::queue<std::function<void(void)>> _jobs;
 
     void work()
     {
-      for (std::function<void(void)> job; go; /**/)
+      while (_go)
       {
-        do
-        {
-          std::unique_lock<std::mutex> lk(lock);
-          while (go && jobs.empty())
-            { cv.wait(lk); }
+        do {
+          std::unique_lock<std::mutex> lk(_lock);
 
-          if (jobs.empty()) return;
+          //  note cv unlocks mutex while waiting, relocks when done
+          while (_go && _jobs.empty()) { _cv.wait(lk); }
 
-          job = std::move(jobs.front());
-          jobs.pop();
-        }
-        while (false);
-        job();
+          if (_jobs.size())
+          {
+            //  pop a job from the queue and unlock mutex
+            auto job = std::move(_jobs.front());
+            _jobs.pop();
+            lk.unlock();
+
+            job();  //  do the job
+          }
+        } while (false);
       }
     }
   };
+
   std::vector<Worker> _workers;
   std::hash<std::string> _hasher;
 };
