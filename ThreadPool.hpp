@@ -17,7 +17,7 @@ public:
       Worker& w = _workers.emplace_back(Worker());
 
       //  now create and start thread for Worker
-      w._thd = std::thread(std::bind(&Worker::work, &w));
+      w._thd = std::thread(std::bind(&Worker::work, &w, num));
     }
   }
 
@@ -40,7 +40,7 @@ public:
     std::unique_lock<std::mutex> lk(w._lock);
     w._jobs.emplace(std::move(func));
     lk.unlock();
-    w._cv.notify_one();
+    w._cv.notify_all();
   }
 
 private:
@@ -48,7 +48,7 @@ private:
   {
     Worker() : _go(true) {}
     Worker(const Worker&) = delete;
-    Worker(Worker&& w) {}
+    Worker(Worker&& w) : _go(w._go) {}
 
     bool _go;
     std::mutex _lock;
@@ -56,7 +56,7 @@ private:
     std::condition_variable _cv;
     std::queue<std::function<void(void)>> _jobs;
 
-    void work()
+    void work(int num)
     {
       while (_go)
       {
@@ -73,6 +73,7 @@ private:
             _jobs.pop();
             lk.unlock();
 
+            // syslog(LOG_INFO, "worker %d has job", num);
             job();  //  do the job
           }
         } while (false);
