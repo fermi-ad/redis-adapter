@@ -7,17 +7,11 @@
 class ThreadPool
 {
 public:
-  ThreadPool(int num)
+  ThreadPool(unsigned short num) : _workers(num)
   {
-    _workers.reserve(num);
-    while (num--)
+    for (auto& w : _workers)
     {
-      //  thread cant be moved once it is running
-      //  so create and move Worker into vector here
-      Worker& w = _workers.emplace_back(Worker());
-
-      //  now create and start thread for Worker
-      w._thd = std::thread(std::bind(&Worker::work, &w, num));
+      w._thd = std::thread(std::bind(&Worker::work, &w, --num));
     }
   }
 
@@ -46,17 +40,13 @@ public:
 private:
   struct Worker
   {
-    Worker() : _go(true) {}
-    Worker(const Worker&) = delete;
-    Worker(Worker&& w) : _go(w._go) {}
-
-    bool _go;
+    bool _go = true;
     std::mutex _lock;
     std::thread _thd;
     std::condition_variable _cv;
     std::queue<std::function<void(void)>> _jobs;
 
-    void work(int num)
+    void work(unsigned short num)
     {
       while (_go)
       {
@@ -73,7 +63,7 @@ private:
             _jobs.pop();
             lk.unlock();
 
-            // syslog(LOG_INFO, "worker %d has job", num);
+            // syslog(LOG_INFO, "worker %u has job", num);
             job();  //  do the job
           }
         } while (false);
