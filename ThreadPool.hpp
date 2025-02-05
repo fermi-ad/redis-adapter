@@ -27,11 +27,23 @@ public:
 
   void job(const std::string& name, std::function<void(void)> func)
   {
-    //  assign job to thread deterministically by name hash
-    Worker& w = _workers[_hasher(name) % _workers.size()];
+    static std::hash<std::string> hasher;
+
+    int idx = 0;
+    size_t num = _workers.size();
+
+    switch (num)
+    {
+      case 0: return;
+      case 1: break;
+      default: idx = hasher(name) % num; break;
+    }
+    Worker& w = _workers[idx];
+
     std::unique_lock<std::mutex> lk(w._mtx);
     w._jobs.emplace(std::move(func));
     lk.unlock();
+
     w._cv.notify_all();
   }
 
@@ -68,5 +80,4 @@ private:
   };
 
   std::vector<Worker> _workers;
-  std::hash<std::string> _hasher;
 };

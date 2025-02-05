@@ -210,11 +210,11 @@ bool RedisAdapter::addGenericReader(const string& key, ReaderSubFn<Attrs> func)
 {
   if (split_key(key).first.size()) return false;  //  reject if RedisAdapter key found
 
-  int32_t slot = _redis.keyslot(key);
-  if (slot < 0) return false;
+  uint32_t token = reader_token(key);
+  if (token == -1) return false;
 
-  stop_reader(slot);
-  reader_info& info = _reader[slot];
+  stop_reader(token);
+  reader_info& info = _reader[token];
 
   if (info.stop.empty())
   {
@@ -223,7 +223,7 @@ bool RedisAdapter::addGenericReader(const string& key, ReaderSubFn<Attrs> func)
   }
   info.subs[key].push_back(make_reader_callback(func));
   info.keyids[key] = "$";
-  return start_reader(slot);
+  return start_reader(token);
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -236,20 +236,20 @@ bool RedisAdapter::removeGenericReader(const string& key)
 {
   if (split_key(key).first.size()) return false;  //  reject if RedisAdapter key found
 
-  int32_t slot = _redis.keyslot(key);
-  if (slot < 0 || _reader.count(slot) == 0) return false;
+  uint32_t token = reader_token(key);
+  if (token == -1 || _reader.count(token) == 0) return false;
 
-  stop_reader(slot);
-  reader_info& info = _reader.at(slot);
+  stop_reader(token);
+  reader_info& info = _reader.at(token);
   info.subs.erase(key);
   info.keyids.erase(key);
 
   if (info.subs.empty())
   {
-    _reader.erase(slot);
+    _reader.erase(token);
     return true;
   }
-  return start_reader(slot);
+  return start_reader(token);
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -390,15 +390,30 @@ bool RedisAdapter::stop_listener()
   _listener.join();
   return true;
 }
+#include <iostream>
+uint32_t RedisAdapter::reader_token(const std::string& key)
+{
+  static hash<string> hasher;
+
+  int32_t slot = _redis.keyslot(key);
+  if (slot < 0) return -1;
+
+  uint32_t token = slot << 16;
+  if (_options.readers > 1)
+    { token += (hasher(key) % _options.readers); }
+
+  return token;
+}
 
 bool RedisAdapter::add_reader_helper(const string& baseKey, const string& subKey, reader_sub_fn func)
 {
   string key = build_key(subKey, baseKey);
-  int32_t slot = _redis.keyslot(key);
-  if (slot < 0) return false;
 
-  stop_reader(slot);
-  reader_info& info = _reader[slot];
+  uint32_t token = reader_token(key);
+  if (token == -1) return false;
+
+  stop_reader(token);
+  reader_info& info = _reader[token];
 
   if (info.stop.empty())
   {
@@ -407,35 +422,36 @@ bool RedisAdapter::add_reader_helper(const string& baseKey, const string& subKey
   }
   info.subs[key].push_back(func);
   info.keyids[key] = "$";
-  return start_reader(slot);
+  return start_reader(token);
 }
 
 bool RedisAdapter::remove_reader_helper(const string& baseKey, const string& subKey)
 {
   string key = build_key(subKey, baseKey);
-  int32_t slot = _redis.keyslot(key);
-  if (slot < 0 || _reader.count(slot) == 0) return false;
 
-  stop_reader(slot);
-  reader_info& info = _reader.at(slot);
+  uint32_t token = reader_token(key);
+  if (token == -1 || _reader.count(token) == 0) return false;
+
+  stop_reader(token);
+  reader_info& info = _reader.at(token);
   info.subs.erase(key);
   info.keyids.erase(key);
 
   if (info.subs.empty())
   {
-    _reader.erase(slot);
+    _reader.erase(token);
     return true;
   }
-  return start_reader(slot);
+  return start_reader(token);
 }
 
-bool RedisAdapter::start_reader(uint16_t slot)
+bool RedisAdapter::start_reader(uint32_t token)
 {
   if (_readers_defer) return true;
 
-  if (_reader.count(slot) == 0) return false;
+  if (_reader.count(token) == 0) return false;
 
-  reader_info& info = _reader.at(slot);
+  reader_info& info = _reader.at(token);
 
   if (info.thread.joinable()) return false;
 
@@ -510,11 +526,11 @@ bool RedisAdapter::start_reader(uint16_t slot)
    return nto;
 }
 
-bool RedisAdapter::stop_reader(uint16_t slot)
+bool RedisAdapter::stop_reader(uint32_t token)
 {
-  if (_reader.count(slot) == 0) return false;
+  if (_reader.count(token) == 0) return false;
 
-  reader_info& info = _reader.at(slot);
+  reader_info& info = _reader.at(token);
   if ( ! info.thread.joinable()) return false;
 
   info.run = false;

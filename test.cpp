@@ -417,6 +417,77 @@ TEST(RedisAdapter, MultiWorker)
   EXPECT_FALSE(waiting);
 }
 
+TEST(RedisAdapter, MultiReader)
+{
+  RA_Options opts; opts.readers = 16;
+  RedisAdapter redis("TEST", opts);
+
+  bool waiting = false;
+
+  //  add readers
+  EXPECT_TRUE(redis.addValuesReader<int>("rrr", [&](const string& base, const string& sub, const RA::TimeValList<int>& ats)
+    {
+      waiting = false;
+      EXPECT_STREQ(base.c_str(), "TEST");
+      EXPECT_STREQ(sub.c_str(), "rrr");
+      EXPECT_GT(ats.size(), 0);
+      EXPECT_TRUE(ats[0].first.ok());
+      EXPECT_EQ(ats[0].second, 3);
+    }
+  ));
+  EXPECT_TRUE(redis.addValuesReader<int>("sss", [&](const string& base, const string& sub, const RA::TimeValList<int>& ats)
+    {
+      waiting = false;
+      EXPECT_STREQ(base.c_str(), "TEST");
+      EXPECT_STREQ(sub.c_str(), "sss");
+      EXPECT_GT(ats.size(), 0);
+      EXPECT_TRUE(ats[0].first.ok());
+      EXPECT_EQ(ats[0].second, 4);
+    }
+  ));
+  EXPECT_TRUE(redis.addValuesReader<int>("ttt", [&](const string& base, const string& sub, const RA::TimeValList<int>& ats)
+    {
+      waiting = false;
+      EXPECT_STREQ(base.c_str(), "TEST");
+      EXPECT_STREQ(sub.c_str(), "ttt");
+      EXPECT_GT(ats.size(), 0);
+      EXPECT_TRUE(ats[0].first.ok());
+      EXPECT_EQ(ats[0].second, 5);
+    }
+  ));
+  this_thread::sleep_for(milliseconds(5));
+
+  //  trigger reader
+  waiting = true;
+  EXPECT_TRUE(redis.addSingleValue("sss", 4).ok());
+
+  for (int i = 0; i < 20 && waiting; i++)
+    this_thread::sleep_for(milliseconds(5));
+
+  //  should not be waiting
+  EXPECT_FALSE(waiting);
+
+  //  trigger reader
+  waiting = true;
+  EXPECT_TRUE(redis.addSingleValue("rrr", 3).ok());
+
+  for (int i = 0; i < 20 && waiting; i++)
+    this_thread::sleep_for(milliseconds(5));
+
+  //  should not be waiting anymore
+  EXPECT_FALSE(waiting);
+
+  //  trigger reader
+  waiting = true;
+  EXPECT_TRUE(redis.addSingleValue("ttt", 5).ok());
+
+  for (int i = 0; i < 20 && waiting; i++)
+    this_thread::sleep_for(milliseconds(5));
+
+  //  should not be waiting anymore
+  EXPECT_FALSE(waiting);
+}
+
 TEST(RedisAdapter, PubSub)
 {
   RedisAdapter redis("TEST");
