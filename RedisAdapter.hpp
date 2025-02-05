@@ -83,6 +83,7 @@ struct RA_Options
   RedisConnection::Options cxn;
   std::string dogname;
   uint16_t workers = 1;
+  uint16_t readers = 1;
 };
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -403,6 +404,8 @@ private:
   //
   using reader_sub_fn = std::function<void(const std::string& baseKey, const std::string& subKey, const ItemStream& data)>;
 
+  uint32_t reader_token(const std::string& key);
+
   bool add_reader_helper(const std::string& baseKey, const std::string& subKey, reader_sub_fn func);
 
   template<typename T> reader_sub_fn make_reader_callback(ReaderSubFn<T> func) const;
@@ -470,8 +473,8 @@ private:
   std::unordered_map<std::string, std::vector<ListenSubFn>> _pattern_subs;
   std::unordered_map<std::string, std::vector<ListenSubFn>> _command_subs;
 
-  bool start_reader(uint16_t slot);
-  bool stop_reader(uint16_t slot);
+  bool start_reader(uint32_t token);
+  bool stop_reader(uint32_t token);
 
   bool _readers_defer;
 
@@ -483,7 +486,7 @@ private:
     std::string stop;
     bool run = false;
   };
-  std::unordered_map<uint16_t, reader_info> _reader;
+  std::unordered_map<uint32_t, reader_info> _reader;
 
   ThreadPool _pool;
 };
