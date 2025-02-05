@@ -63,7 +63,7 @@ string RA_Time::id_or_now() const
 //    return  : RedisAdapter
 //
 RedisAdapter::RedisAdapter(const string& baseKey, const RA_Options& options)
-: _options(options), _redis(options.cxn), _base_key(baseKey), _workers(options.workers),
+: _options(options), _redis(options.cxn), _base_key(baseKey), _pool(options.workers),
   _connecting(false), _listener_run(false), _readers_defer(false), _watchdog_run(false)
 {
   _watchdog_key = build_key("watchdog");
@@ -327,7 +327,7 @@ bool RedisAdapter::start_listener()
             auto split = split_key(key);
             for (auto& func : _pattern_subs.at(pat))
             {
-              _workers.job(key, [func, split = std::move(split), msg = std::move(msg)]()
+              _pool.job(key, [func, split = std::move(split), msg = std::move(msg)]()
                 { func(split.first, split.second, msg); }
               );
             }
@@ -343,7 +343,7 @@ bool RedisAdapter::start_listener()
             auto split = split_key(key);
             for (auto& func : _command_subs.at(key))
             {
-              _workers.job(key, [func, split = std::move(split), msg = std::move(msg)]()
+              _pool.job(key, [func, split = std::move(split), msg = std::move(msg)]()
                 { func(split.first, split.second, msg); }
               );
             }
@@ -481,13 +481,13 @@ bool RedisAdapter::start_reader(uint16_t slot)
               {
                 if (split.first.size())
                 {
-                  _workers.job(item.first, [func, split = std::move(split), item = std::move(item)]()
+                  _pool.job(item.first, [func, split = std::move(split), item = std::move(item)]()
                     { func(split.first, split.second, item.second); }
                   );
                 }
                 else
                 {
-                  _workers.job(item.first, [func, item = std::move(item)]()
+                  _pool.job(item.first, [func, item = std::move(item)]()
                     { func(item.first, item.first, item.second); }
                   );
                 }
