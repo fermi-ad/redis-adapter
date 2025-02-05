@@ -34,8 +34,11 @@ public:
 
     switch (num)
     {
+      //  no workers
       case 0: return;
+      //  one worker - no need to hash
       case 1: break;
+      //  assign job to thread deterministically by name hash
       default: idx = hasher(name) % num; break;
     }
     Worker& w = _workers[idx];
