@@ -400,7 +400,7 @@ uint32_t RedisAdapter::reader_token(const std::string& key)
 
   uint32_t token = slot << 16;
   if (_options.readers > 1)
-    { token += (hasher(key) % _options.readers); }
+    { token += hasher(key) % _options.readers; }
 
   return token;
 }
