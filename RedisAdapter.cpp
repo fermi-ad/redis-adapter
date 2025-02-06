@@ -390,7 +390,7 @@ bool RedisAdapter::stop_listener()
   _listener.join();
   return true;
 }
-#include <iostream>
+
 uint32_t RedisAdapter::reader_token(const std::string& key)
 {
   static hash<string> hasher;
