@@ -457,9 +457,10 @@ private:
   int32_t reconnect(int32_t result);
   std::atomic_bool _connecting;
 
-  std::thread _watchdog;
-  bool _watchdog_run;
   std::string _watchdog_key;
+  std::thread _watchdog_thd;
+  std::condition_variable _watchdog_cv;
+  bool _watchdog_run;
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Pub/Sub Listener and Stream Reader
