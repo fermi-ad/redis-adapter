@@ -72,13 +72,13 @@ RedisAdapter::RedisAdapter(const string& baseKey, const RA_Options& options)
   {
     _watchdog_thd = thread([&]()
       {
-        addWatchdog(_options.dogname, 1);
-
         mutex mx; unique_lock lk(mx);   //  dummies for _watchdog_cv
 
-        _watchdog_run = true;
-        while (_watchdog_run && _watchdog_cv.wait_for(lk, milliseconds(900)) == cv_status::timeout)
-          { petWatchdog(_options.dogname, 1); }   //  1000 millisecond expiration
+        addWatchdog(_options.dogname, 1);
+
+        for (_watchdog_run = true;      //  every 900ms set expire for 1000ms
+             _watchdog_run && _watchdog_cv.wait_for(lk, milliseconds(900)) == cv_status::timeout;
+             petWatchdog(_options.dogname, 1)) {}
       }
     );
   }
