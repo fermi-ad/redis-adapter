@@ -70,19 +70,15 @@ RedisAdapter::RedisAdapter(const string& baseKey, const RA_Options& options)
 
   if (_options.dogname.size())
   {
-    _watchdog = thread([&]()
+    _watchdog_thd = thread([&]()
       {
         addWatchdog(_options.dogname, 1);
+
+        mutex mx; unique_lock lk(mx);   //  dummies for _watchdog_cv
+
         _watchdog_run = true;
-
-        for (uint32_t i = 1; _watchdog_run; i++)
-        {
-          //  tick every 100ms to keep destruction responsive(ish)
-          this_thread::sleep_for(milliseconds(100));
-
-          //  every 800ms set expire for 1000ms
-          if ((i % 8) == 0) petWatchdog(_options.dogname, 1);
-        }
+        while (_watchdog_run && _watchdog_cv.wait_for(lk, milliseconds(900)) == cv_status::timeout)
+          { petWatchdog(_options.dogname, 1); }   //  1000 millisecond expiration
       }
     );
   }
@@ -94,9 +90,10 @@ RedisAdapter::RedisAdapter(const string& baseKey, const RA_Options& options)
 RedisAdapter::~RedisAdapter()
 {
   _watchdog_run = false;
+  _watchdog_cv.notify_all();
   stop_listener();
   for (auto& item : _reader) { stop_reader(item.first); }
-  if (_watchdog.joinable()) _watchdog.join();
+  if (_watchdog_thd.joinable()) _watchdog_thd.join();
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

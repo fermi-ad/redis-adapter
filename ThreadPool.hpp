@@ -10,7 +10,7 @@ public:
   ThreadPool(unsigned short num) : _workers(num)
   {
     for (auto& w : _workers)
-      { w._thd = std::thread(std::bind(&Worker::work, &w, --num)); }
+      { w._thd = std::thread(&Worker::work, &w, --num); }
   }
 
   ~ThreadPool()
