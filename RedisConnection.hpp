@@ -507,7 +507,16 @@ public:
       if (_cluster) _cluster->command("hexpire", key, std::to_string(sec), "fields", "1", fld, std::back_inserter(ret));
       if (_singler) _singler->command("hexpire", key, std::to_string(sec), "fields", "1", fld, std::back_inserter(ret));
     }
-    catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
+    catch (const swr::Error& e)
+    {
+      static bool squelch = false;
+      if ( ! squelch)
+      {
+        syslog(LOG_ERR, "RedisConnection::%s %s - %s", __func__, "HEXPIRE requires redis-server 7.4.0 or higher",
+                        "Upgrade redis-server to permit redis-adapter watchdog feature to function");
+        squelch = true;
+      }
+    }
     return ret.size() ? ret.front() : -1;
   }
 
