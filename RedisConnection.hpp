@@ -523,7 +523,7 @@ public:
       }
       else { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
     }
-    return ret.size() ? ret[0] : -1;
+    return ret.size() ? ret.front() : -1;
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
