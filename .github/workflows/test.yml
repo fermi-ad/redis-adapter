@@ -10,7 +10,7 @@ on:
 
 jobs:
   build-test:
-    runs-on: alpine
+    runs-on: ubuntu-latest
 
     steps:
     - name: Checkout repository
@@ -20,7 +20,8 @@ jobs:
 
     - name: Install dependencies
       run: |
-        sudo apk --update add make cmake g++ redis
+        sudo apt-get update
+        sudo apt-get install -y cmake g++ redis
 
     - name: Redis Info
       run: |
