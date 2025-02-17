@@ -21,12 +21,22 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y cmake g++ redis
+        sudo apt-get install -y cmake g++
 
-    - name: Redis Info
+    - name: Install latest Redis
       run: |
-        redis-cli info
+        # Download and build the latest Redis
+        curl -O http://download.redis.io/redis-stable.tar.gz
+        tar xvzf redis-stable.tar.gz
+        cd redis-stable
+        make
+        sudo make install
 
+    - name: Start Redis server
+      run: |
+        chmod +x ./redis-start.sh
+        ./redis-start.sh
+        
     - name: Configure and Build redis-adapter
       run: |
         cmake -S . -B build -DREDIS_ADAPTER_TEST=1
