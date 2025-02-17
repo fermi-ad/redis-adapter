@@ -1,0 +1,45 @@
+name: Build and Unit Test redis-adapter
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake g++
+
+    - name: Start Redis server
+      run: |
+        chmod +x ./redis-start.sh
+        ./redis-start.sh
+
+    - name: Configure and Build RedisAdapter
+      run: |
+        cmake -S . -B build -DREDIS_ADAPTER_TEST=1
+        cmake --build build
+
+    - name: Run Tests
+      run: |
+        ./build/redis-adapter-test
