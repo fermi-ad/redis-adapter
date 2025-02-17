@@ -25,7 +25,6 @@ jobs:
 
     - name: Install latest Redis
       run: |
-        # Download and build the latest Redis
         curl -O http://download.redis.io/redis-stable.tar.gz
         tar xvzf redis-stable.tar.gz
         cd redis-stable
