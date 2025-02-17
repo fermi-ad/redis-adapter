@@ -498,6 +498,7 @@ public:
   //             0 if option not met (N/A)
   //            -1 if unsuccsessful or not connected
   //            -2 if key or field does not exist
+  //            -3 if hexpire not supported
   //
   int32_t hexpire(const std::string& key, const std::string& fld, uint32_t sec)
   {
@@ -509,15 +510,20 @@ public:
     }
     catch (const swr::Error& e)
     {
-      static bool squelch = false;
-      if ( ! squelch)
+      if (std::string(e.what()).find("unknown command") != std::string::npos)
       {
-        syslog(LOG_ERR, "RedisConnection::%s %s - %s", __func__, "HEXPIRE requires redis-server 7.4.0 or higher",
-                        "Upgrade redis-server to permit redis-adapter watchdog feature to function");
-        squelch = true;
+        static bool squelch = false;
+        if ( ! squelch)
+        {
+          syslog(LOG_ERR, "RedisConnection::%s %s", __func__,
+            "HEXPIRE requires redis-server 7.4.0 or higher - upgrade to support redis-adapter watchdog");
+          squelch = true;
+        }
+        return -3;
       }
+      else { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
     }
-    return ret.size() ? ret.front() : -1;
+    return ret.size() ? ret[0] : -1;
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

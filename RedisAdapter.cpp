@@ -89,11 +89,14 @@ RedisAdapter::RedisAdapter(const string& baseKey, const RA_Options& options)
 //
 RedisAdapter::~RedisAdapter()
 {
-  _watchdog_run = false;
-  _watchdog_cv.notify_all();
+  if (_watchdog_run)
+  {
+    _watchdog_run = false;
+    _watchdog_cv.notify_all();
+    _watchdog_thd.join();
+  }
   stop_listener();
   for (auto& item : _reader) { stop_reader(item.first); }
-  if (_watchdog_thd.joinable()) _watchdog_thd.join();
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
