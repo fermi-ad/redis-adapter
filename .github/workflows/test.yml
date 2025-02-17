@@ -10,16 +10,8 @@ on:
 
 jobs:
   build-test:
-    runs-on: ubuntu-latest
+    runs-on: alpine
 
-    services:
-      redis:
-        image: redis
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -28,8 +20,11 @@ jobs:
 
     - name: Install dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get install -y cmake g++
+        sudo apk --update add make cmake g++ redis
+
+    - name: Redis Info
+      run: |
+        redis-cli info
 
     - name: Configure and Build redis-adapter
       run: |
