@@ -23,5 +23,5 @@ jobs:
       run: sudo apt-get install redis-tools
       
     - name: Test Redis
-      run: redis-cli -h redis info
+      run: redis-cli -h localhost info
    
