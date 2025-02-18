@@ -1,9 +1,9 @@
 name: Build and Test redis-adapter
 
 on:
-#  pull_request:
-#    branches:
-#      - main
+  pull_request:
+    branches:
+    - main
  
 jobs:
   build-test:
