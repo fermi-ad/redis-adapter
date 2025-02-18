@@ -1,13 +1,10 @@
 name: Build and Test redis-adapter
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
-      - main
-
+    - main
+ 
 jobs:
   build-test:
     runs-on: ubuntu-latest
