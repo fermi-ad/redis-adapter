@@ -19,5 +19,9 @@ jobs:
           --health-retries 5
 
     steps:
+    - name: Install Redis Tools
+      run: sudo apt-get install redis-tools
+      
     - name: Test Redis
       run: redis-cli info
+   
