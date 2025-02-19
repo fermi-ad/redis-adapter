@@ -24,11 +24,8 @@ jobs:
 
     - name: Install latest Redis
       run: |
-        curl -O http://download.redis.io/redis-stable.tar.gz
-        tar xvzf redis-stable.tar.gz
-        cd redis-stable
-        make
-        sudo make install
+        tar xvzf ./.github/redis-server.tar.gz
+        sudo mv ./redis-server /usr/local/bin/
 
     - name: Start Redis server
       run: |
