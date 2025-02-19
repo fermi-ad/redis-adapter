@@ -17,26 +17,21 @@ jobs:
       with:
         submodules: true
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y cmake g++
-
-    - name: Install latest Redis
+    - name: Install redis-server
       run: |
         tar xvzf ./.github/redis-server.tar.gz
         sudo mv ./redis-server /usr/local/bin/
 
-    - name: Start Redis server
+    - name: Start redis-server
       run: |
         chmod +x ./redis-start.sh
         ./redis-start.sh
 
-    - name: Configure and Build redis-adapter
+    - name: Configure and build redis-adapter
       run: |
         cmake -S . -B build -DREDIS_ADAPTER_TEST=1
         cmake --build build
 
-    - name: Run Tests
+    - name: Run redis-adapter tests
       run: |
         ./build/redis-adapter-test
