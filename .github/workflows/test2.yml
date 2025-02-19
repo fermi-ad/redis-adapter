@@ -19,7 +19,7 @@ jobs:
 
     - name: Install latest Redis
       run: |
-        sudo tar xvzf ./redis-stable.tar.gz
+        tar xvzf ./redis-server.tar.gz
         sudo mv ./redis-server /usr/local/bin/
 
     - name: Start Redis server
