@@ -1,5 +1,4 @@
-name: Build and Test redis-adapter
-
+name: test2
 on:
   workflow_dispatch:
 
