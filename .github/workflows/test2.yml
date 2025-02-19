@@ -1,0 +1,39 @@
+name: Build and Test redis-adapter
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake g++
+
+    - name: Install latest Redis
+      run: |
+        sudo mv .github/redis-server.tar.gz /usr/local/bin
+        sudo tar xvzf /usr/local/bin/redis-stable.tar.gz
+        sudo rm /usr/local/bin/redis-stable.tar.gz
+
+    - name: Start Redis server
+      run: |
+        chmod +x ./redis-start.sh
+        ./redis-start.sh
+
+    - name: Configure and Build redis-adapter
+      run: |
+        cmake -S . -B build -DREDIS_ADAPTER_TEST=1
+        cmake --build build
+
+    - name: Run Tests
+      run: |
+        ./build/redis-adapter-test
