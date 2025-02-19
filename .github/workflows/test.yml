@@ -1,4 +1,4 @@
-name: Build and Test redis-adapter
+name: Build and test redis-adapter
 
 on:
   pull_request:
