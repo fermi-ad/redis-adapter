@@ -1,11 +1,11 @@
 name: Build and test redis-adapter
 
 on:
+  workflow_dispatch:
+
   pull_request:
     branches:
     - main
-
-  workflow_dispatch:
 
 jobs:
   build-test:
@@ -14,23 +14,21 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-      with:
+      with: 
         submodules: true
 
     - name: Install redis-server
       run: |
-        tar xvzf ./.github/redis-server.tar.gz
-        sudo mv ./redis-server /usr/local/bin/
+        tar xvzf .github/redis-server.tar.gz
+        sudo mv redis-server /usr/local/bin/
 
     - name: Start redis-server
-      run: |
-        redis-server --daemonize yes --unixsocket /tmp/redis.sock --unixsocketperm 700
+      run: redis-server --daemonize yes --unixsocket /tmp/redis.sock --unixsocketperm 700
 
     - name: Configure and build redis-adapter
       run: |
-        cmake -S . -B build -DREDIS_ADAPTER_TEST=1
+        cmake -S . -B build -D REDIS_ADAPTER_TEST=1
         cmake --build build
 
     - name: Run redis-adapter tests
-      run: |
-        ./build/redis-adapter-test
+      run: build/redis-adapter-test
