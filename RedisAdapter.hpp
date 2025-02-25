@@ -448,7 +448,7 @@ private:
   add_single_stream_list_helper(const std::string& subKey, RA_Time time, const T* data, size_t size, uint32_t trim);
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  Redis stuff
+  //  Redis server
   //
   RA_Options _options;
   RedisConnection _redis;
@@ -457,23 +457,17 @@ private:
   int32_t reconnect(int32_t result);
   std::atomic_bool _connecting;
 
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  Watchdog
+  //
   std::string _watchdog_key;
   std::thread _watchdog_thd;
   std::condition_variable _watchdog_cv;
   bool _watchdog_run;
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  Pub/Sub Listener and Stream Reader
+  //  Stream readers
   //
-  bool start_listener();
-  bool stop_listener();
-
-  std::thread _listener;
-  bool _listener_run;
-
-  std::unordered_map<std::string, std::vector<ListenSubFn>> _pattern_subs;
-  std::unordered_map<std::string, std::vector<ListenSubFn>> _command_subs;
-
   bool start_reader(uint32_t token);
   bool stop_reader(uint32_t token);
 
@@ -489,7 +483,7 @@ private:
   };
   std::unordered_map<uint32_t, reader_info> _reader;
 
-  ThreadPool _pool;
+  ThreadPool _replierPool;
 };
 
 #include "RedisAdapterTempl.hpp"
