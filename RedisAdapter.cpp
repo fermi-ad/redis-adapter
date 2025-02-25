@@ -62,9 +62,9 @@ string RA_Time::id_or_now() const
 //              e.g. { .user = "adinst", .password = "adinst" }
 //    return  : RedisAdapter
 //
-RedisAdapter::RedisAdapter(const string& baseKey, const RA_Options& options)
-: _options(options), _redis(options.cxn), _base_key(baseKey), _pool(options.workers),
-  _connecting(false), _listener_run(false), _readers_defer(false), _watchdog_run(false)
+RedisAdapter::RedisAdapter(const string& baseKey, const RA_Options& options) :
+  _options(options), _redis(options.cxn), _base_key(baseKey),_connecting(false),
+  _watchdog_run(false), _readers_defer(false), _replierPool(options.workers)
 {
   _watchdog_key = build_key("watchdog");
 
@@ -95,7 +95,6 @@ RedisAdapter::~RedisAdapter()
     _watchdog_cv.notify_all();
     _watchdog_thd.join();
   }
-  stop_listener();
   for (auto& item : _reader) { stop_reader(item.first); }
 }
 
@@ -119,59 +118,6 @@ RA_Time RedisAdapter::addSingleDouble(const string& subKey, double data, const R
   if (reconnect(id.size()) == 0) { return RA_NOT_CONNECTED; }
 
   return RA_Time(id);
-}
-
-//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  subscribe : subscribe to a channel
-//
-//    baseKey : the base key to construct the channel from
-//    subKey  : the sub key to construct the channel from
-//    func    : the function to call when message received on this channel
-//    return  : true if listener started, false if listener failed to start
-//
-bool RedisAdapter::subscribe(const string& subKey, ListenSubFn func, const string& baseKey)
-{
-  stop_listener();
-  _command_subs[build_key(subKey, baseKey)].push_back(func);
-  return start_listener();
-}
-
-//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  psubscribe : subscribe to a pattern
-//
-//    baseKey : the base key to construct the channel from
-//    subKey  : the sub key pattern to construct the channel from
-//    func    : the function to call when message received on this channel
-//    return  : true if listener started, false if listener failed to start
-//
-bool RedisAdapter::psubscribe(const string& subKey, ListenSubFn func, const string& baseKey)
-{
-  //  don't allow psubscribe if wildcards in the base key
-  if (baseKey.size())
-    { if (baseKey.find_first_of("*?[]") != string::npos) { return false; } }
-  else
-    { if (_base_key.find_first_of("*?[]") != string::npos) { return false; } }
-
-  stop_listener();
-  _pattern_subs[build_key(subKey, baseKey)].push_back(func);
-  return start_listener();
-}
-
-//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  unsubscribe : unsubscribe from a command and/or pattern
-//
-//    subKey  : device subKey/pattern to unsubscribe from
-//    baseKey : device basekey to unsubscribe from
-//    return  : true if listener started or no more commands/patterns
-//              false if listener failed to start
-//
-bool RedisAdapter::unsubscribe(const string& subKey, const string& baseKey)
-{
-  stop_listener();
-  string key = build_key(subKey, baseKey);
-  if (_pattern_subs.count(key)) _pattern_subs.erase(key);
-  if (_command_subs.count(key)) _command_subs.erase(key);
-  return (_pattern_subs.size() || _command_subs.size()) ? start_listener() : true;
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -298,99 +244,6 @@ bool RedisAdapter::copy(const string& srcSubKey, const string& dstSubKey, const 
   return ret > 0;
 }
 
-bool RedisAdapter::start_listener()
-{
-  if (_listener.joinable()) return false;
-
-  mutex mx; condition_variable cv;        //  use condition_variable to signal when
-  unique_lock<mutex> lk(mx, defer_lock);  //  thread is about to enter consume loop
-
-  bool ret = true;
-
-  //  begin lambda  //////////////////////////////////////////////////
-  _listener = thread([&]()
-    {
-      Subscriber* psub = _redis.subscriber();
-      if ( ! psub)
-      {
-        syslog(LOG_ERR, "failed to get subscriber");
-        ret = false;      //  start_listener return false
-        cv.notify_all();  //  notify cv
-        return;           //  return from lambda
-      }
-
-      //  begin lambda in lambda ///////////////////////////
-      psub->on_pmessage([&](string pat, string key, string msg)
-        {
-          if (_pattern_subs.count(pat))
-          {
-            auto split = split_key(key);
-            for (auto& func : _pattern_subs.at(pat))
-            {
-              _pool.job(key, [func, split = std::move(split), msg = std::move(msg)]()
-                { func(split.first, split.second, msg); }
-              );
-            }
-          }
-        }
-      );  //  end lambda in lambda /////////////////////////
-
-      //  begin lambda in lambda ///////////////////////////
-      psub->on_message([&](string key, string msg)
-        {
-          if (_command_subs.count(key))
-          {
-            auto split = split_key(key);
-            for (auto& func : _command_subs.at(key))
-            {
-              _pool.job(key, [func, split = std::move(split), msg = std::move(msg)]()
-                { func(split.first, split.second, msg); }
-              );
-            }
-          }
-        }
-      );  //  end lambda in lambda /////////////////////////
-
-      for (const auto& cs : _command_subs) { psub->subscribe(cs.first); }
-
-      for (const auto& ps : _pattern_subs) { psub->psubscribe(ps.first); }
-
-      psub->subscribe(build_key(STOP_STUB));
-
-      _listener_run = true;
-
-      cv.notify_all();  //  notify about to enter loop (NOT in loop)
-
-      while (_listener_run)
-      {
-        try { psub->consume(); }
-        catch (const TimeoutError&) {}
-        catch (const Error& e)
-        {
-          syslog(LOG_ERR, "consume in listener: %s", e.what());
-          _listener_run = false;
-        }
-      }
-      delete psub;
-    }
-  );  //  end lambda  ////////////////////////////////////////////////
-
-  //  wait until notified that thread is running (or timeout)
-  bool nto = cv.wait_for(lk, THREAD_START_CONFIRM) == cv_status::no_timeout;
-  if ( ! nto) syslog(LOG_ERR, "start_listener timeout waiting for thread start");
-  return nto && ret;
-}
-
-bool RedisAdapter::stop_listener()
-{
-  if ( ! _listener.joinable()) return false;
-  _listener_run = false;
-  //  if publish returns -1, pass 0 to reconnect
-  reconnect(_redis.publish(build_key(STOP_STUB), "") != -1);
-  _listener.join();
-  return true;
-}
-
 uint32_t RedisAdapter::reader_token(const std::string& key)
 {
   static hash<string> hasher;
@@ -497,13 +350,13 @@ bool RedisAdapter::start_reader(uint32_t token)
               {
                 if (split.first.size())
                 {
-                  _pool.job(item.first, [func, split = std::move(split), item = std::move(item)]()
+                  _replierPool.job(item.first, [func, split = std::move(split), item = std::move(item)]()
                     { func(split.first, split.second, item.second); }
                   );
                 }
                 else
                 {
-                  _pool.job(item.first, [func, item = std::move(item)]()
+                  _replierPool.job(item.first, [func, item = std::move(item)]()
                     { func(item.first, item.first, item.second); }
                   );
                 }
@@ -556,9 +409,6 @@ int32_t RedisAdapter::reconnect(int32_t result)
             stop_reader(rdr.first);
             start_reader(rdr.first);
           }
-          //  restart the listener
-          stop_listener();
-          start_listener();
         }
         _connecting = false;  //  thread is done
       }
