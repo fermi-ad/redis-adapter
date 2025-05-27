@@ -375,7 +375,7 @@ bool RedisAdapter::start_reader(uint32_t token)
 
   //  wait until notified that thread is running (or timeout)
    bool nto = cv.wait_for(lk, THREAD_START_CONFIRM) == cv_status::no_timeout;
-   if ( ! nto) syslog(LOG_ERR, "start_reader timeout waiting for thread start");
+   if ( ! nto) syslog(LOG_WARNING, "start_reader timeout waiting for thread start");
    return nto;
 }
 
@@ -395,6 +395,7 @@ bool RedisAdapter::stop_reader(uint32_t token)
 
 //  lazy reconnect - any _redis operation that passes zero into this function
 //    triggers a reconnect thread to launch (unless thread is already active)
+//    thread lingers for 100ms to throttle network connection requests
 int32_t RedisAdapter::reconnect(int32_t result)
 {
   if (result == 0 && _connecting.exchange(true) == false)
@@ -410,7 +411,8 @@ int32_t RedisAdapter::reconnect(int32_t result)
             start_reader(rdr.first);
           }
         }
-        _connecting = false;  //  thread is done
+        this_thread::sleep_for(milliseconds(100));  //  throttle reconnects
+        _connecting = false;                        //  thread is done
       }
     ).detach();   //  cast new thread into the void
   }
