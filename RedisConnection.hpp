@@ -515,7 +515,7 @@ public:
         static bool squelch = false;
         if ( ! squelch)
         {
-          syslog(LOG_ERR, "RedisConnection::%s %s", __func__,
+          syslog(LOG_NOTICE, "RedisConnection::%s %s", __func__,
             "HEXPIRE requires redis-server 7.4.0 or higher - upgrade to support redis-adapter watchdog");
           squelch = true;
         }
