@@ -411,8 +411,11 @@ int32_t RedisAdapter::reconnect(int32_t result)
             start_reader(rdr.first);
           }
         }
-        this_thread::sleep_for(milliseconds(100));  //  throttle reconnects
-        _connecting = false;                        //  thread is done
+        else
+        {
+          this_thread::sleep_for(milliseconds(100));  //  throttle failures
+        }
+        _connecting = false;  //  thread is done
       }
     ).detach();   //  cast new thread into the void
   }
