@@ -395,7 +395,7 @@ bool RedisAdapter::stop_reader(uint32_t token)
 
 //  lazy reconnect - any _redis operation that passes zero into this function
 //    triggers a reconnect thread to launch (unless thread is already active)
-//    thread lingers for 100ms to throttle network connection requests
+//    on failure thread lingers for 100ms to throttle network connection requests
 int32_t RedisAdapter::reconnect(int32_t result)
 {
   if (result == 0 && _connecting.exchange(true) == false)
