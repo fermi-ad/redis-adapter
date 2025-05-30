@@ -24,10 +24,12 @@ list(APPEND REDIS_ADAPTER_LIBRARIES hiredis)
 list(APPEND REDIS_ADAPTER_LIBRARIES redis++_static)
 
 # Try to get the git commit hash
-set(REDIS_ADAPTER_GIT_COMMIT unknown)
 execute_process(COMMAND git rev-parse HEAD WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
   OUTPUT_VARIABLE REDIS_ADAPTER_GIT_COMMIT OUTPUT_STRIP_TRAILING_WHITESPACE)
-message(STATUS "redis-adapter git commit: ${REDIS_ADAPTER_GIT_COMMIT}")
+if(NOT REDIS_ADAPTER_GIT_COMMIT)
+  set(REDIS_ADAPTER_GIT_COMMIT "unknown")
+endif()
+message(STATUS "REDIS_ADAPTER_GIT_COMMIT ${REDIS_ADAPTER_GIT_COMMIT}")
 
 # Add git commit hash to compiler definitions globally
 add_compile_definitions(REDIS_ADAPTER_GIT_COMMIT="${REDIS_ADAPTER_GIT_COMMIT}")
