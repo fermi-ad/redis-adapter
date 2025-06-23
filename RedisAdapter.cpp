@@ -13,6 +13,8 @@ const uint32_t NANOS_PER_MILLI = 1'000'000;
 
 const auto THREAD_START_CONFIRM = milliseconds(20);
 
+const uint32_t NO_TOKEN = -1;
+
 static uint64_t nanoseconds_since_epoch()
 {
   return duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
@@ -63,7 +65,7 @@ string RA_Time::id_or_now() const
 //    return  : RedisAdapter
 //
 RedisAdapter::RedisAdapter(const string& baseKey, const RA_Options& options) :
-  _options(options), _redis(options.cxn), _base_key(baseKey),_connecting(false),
+  _options(options), _redis(options.cxn), _base_key(baseKey), _connecting(false),
   _watchdog_run(false), _readers_defer(false), _replierPool(options.workers)
 {
   _watchdog_key = build_key("watchdog");
@@ -154,21 +156,23 @@ bool RedisAdapter::setDeferReaders(bool defer)
 //
 bool RedisAdapter::addGenericReader(const string& key, ReaderSubFn<Attrs> func)
 {
-  if (split_key(key).first.size()) return false;  //  reject if RedisAdapter key found
+  if (split_key(key).first.size()) return false;  //  reject if basekey found
 
   uint32_t token = reader_token(key);
-  if (token == -1) return false;
+  reader_info& info = _reader[token];
+
+  info.subs[key].push_back(make_reader_callback(func));
+  info.keyids[key] = "$";
+
+  if (token == NO_TOKEN) return false;
 
   stop_reader(token);
-  reader_info& info = _reader[token];
 
   if (info.stop.empty())
   {
     info.stop = build_key(STOP_STUB, key);
     info.keyids[info.stop] = "$";
   }
-  info.subs[key].push_back(make_reader_callback(func));
-  info.keyids[key] = "$";
   return start_reader(token);
 }
 
@@ -180,10 +184,15 @@ bool RedisAdapter::addGenericReader(const string& key, ReaderSubFn<Attrs> func)
 //
 bool RedisAdapter::removeGenericReader(const string& key)
 {
-  if (split_key(key).first.size()) return false;  //  reject if RedisAdapter key found
+  if (split_key(key).first.size()) return false;  //  reject if basekey found
 
   uint32_t token = reader_token(key);
-  if (token == -1 || _reader.count(token) == 0) return false;
+  if (token == NO_TOKEN || _reader.count(token) == 0) return false;
+
+  //  TODO: this is flawed - if NO_TOKEN (not connected) we need to search all buckets
+  //  for the key and remove it, also the NO_TOKEN bucket should be checked for every
+  //  remove to see if the key is in there - HOWEVER removing readers is very rare
+  //  (pretty much unheard of) so this is not a huge priority
 
   stop_reader(token);
   reader_info& info = _reader.at(token);
@@ -249,7 +258,7 @@ uint32_t RedisAdapter::reader_token(const std::string& key)
   static hash<string> hasher;
 
   int32_t slot = _redis.keyslot(key);
-  if (slot < 0) return -1;
+  if (slot < 0) return NO_TOKEN;
 
   uint32_t token = slot << 16;
   if (_options.readers > 1)
@@ -263,18 +272,20 @@ bool RedisAdapter::add_reader_helper(const string& baseKey, const string& subKey
   string key = build_key(subKey, baseKey);
 
   uint32_t token = reader_token(key);
-  if (token == -1) return false;
+  reader_info& info = _reader[token];
+
+  info.subs[key].push_back(func);
+  info.keyids[key] = "$";
+
+  if (token == NO_TOKEN) return false;
 
   stop_reader(token);
-  reader_info& info = _reader[token];
 
   if (info.stop.empty())
   {
     info.stop = build_key(subKey + ":" + STOP_STUB, baseKey);
     info.keyids[info.stop] = "$";
   }
-  info.subs[key].push_back(func);
-  info.keyids[key] = "$";
   return start_reader(token);
 }
 
@@ -283,7 +294,12 @@ bool RedisAdapter::remove_reader_helper(const string& baseKey, const string& sub
   string key = build_key(subKey, baseKey);
 
   uint32_t token = reader_token(key);
-  if (token == -1 || _reader.count(token) == 0) return false;
+  if (token == NO_TOKEN || _reader.count(token) == 0) return false;
+
+  //  TODO: this is flawed - if NO_TOKEN (not connected) we need to search all buckets
+  //  for the key and remove it, also the NO_TOKEN bucket should be checked for every
+  //  remove to see if the key is in there - HOWEVER removing readers is very rare
+  //  (pretty much unheard of) so this is not a huge priority
 
   stop_reader(token);
   reader_info& info = _reader.at(token);
@@ -302,7 +318,7 @@ bool RedisAdapter::start_reader(uint32_t token)
 {
   if (_readers_defer) return true;
 
-  if (_reader.count(token) == 0) return false;
+  if (token == NO_TOKEN || _reader.count(token) == 0) return false;
 
   reader_info& info = _reader.at(token);
 
@@ -381,7 +397,7 @@ bool RedisAdapter::start_reader(uint32_t token)
 
 bool RedisAdapter::stop_reader(uint32_t token)
 {
-  if (_reader.count(token) == 0) return false;
+  if (token == NO_TOKEN || _reader.count(token) == 0) return false;
 
   reader_info& info = _reader.at(token);
   if ( ! info.thread.joinable()) return false;
@@ -404,12 +420,31 @@ int32_t RedisAdapter::reconnect(int32_t result)
       {
         if (_redis.connect(_options.cxn))
         {
-          //  restart all the readers
-          for (auto& rdr : _reader)
+          //  stop any waiting readers
+          for (const auto& rdr : _reader) { stop_reader(rdr.first); }
+          //  if any NO_TOKEN readers exist move them to valid tokens
+          if (_reader.count(NO_TOKEN))
           {
-            stop_reader(rdr.first);
-            start_reader(rdr.first);
+            reader_info& tmp = _reader.at(NO_TOKEN);
+            for (const auto& subs : tmp.subs)
+            {
+              string key = subs.first;
+              uint32_t token = reader_token(key);
+              reader_info& info = _reader[token];
+              for (const auto& func : subs.second) { info.subs[key].push_back(func); }
+              info.keyids[key] = "$";
+              if (info.stop.empty())
+              {
+                auto part = split_key(key);
+                info.stop = build_key(part.second + ":" + STOP_STUB, part.first);
+                info.keyids[info.stop] = "$";
+              }
+              syslog(LOG_INFO, "RedisAdapter::reconnect create %s token %u funcs %zu", key.c_str(), token, subs.second.size());
+            }
+            _reader.erase(NO_TOKEN);
           }
+          //  restart all readers
+          for (const auto& rdr : _reader) { start_reader(rdr.first); }
         }
         else
         {
