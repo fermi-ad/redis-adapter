@@ -66,7 +66,7 @@ string RA_Time::id_or_now() const
 //
 RedisAdapter::RedisAdapter(const string& baseKey, const RA_Options& options) :
   _options(options), _redis(options.cxn), _base_key(baseKey), _connecting(false),
-  _watchdog_run(false), _readers_defer(false), _replierPool(options.workers)
+  _watchdog_run(false), _readers_defer(false), _replier_pool(options.workers)
 {
   _watchdog_key = build_key("watchdog");
 
@@ -366,13 +366,13 @@ bool RedisAdapter::start_reader(uint32_t token)
               {
                 if (split.first.size())
                 {
-                  _replierPool.job(item.first, [func, split = std::move(split), item = std::move(item)]()
+                  _replier_pool.job(item.first, [func, split = std::move(split), item = std::move(item)]()
                     { func(split.first, split.second, item.second); }
                   );
                 }
                 else
                 {
-                  _replierPool.job(item.first, [func, item = std::move(item)]()
+                  _replier_pool.job(item.first, [func, item = std::move(item)]()
                     { func(item.first, item.first, item.second); }
                   );
                 }

@@ -483,7 +483,7 @@ private:
   };
   std::unordered_map<uint32_t, reader_info> _reader;
 
-  ThreadPool _replierPool;
+  ThreadPool _replier_pool;
 };
 
 #include "RedisAdapterTempl.hpp"
