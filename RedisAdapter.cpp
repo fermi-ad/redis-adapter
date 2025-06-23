@@ -439,7 +439,7 @@ int32_t RedisAdapter::reconnect(int32_t result)
                 info.stop = build_key(part.second + ":" + STOP_STUB, part.first);
                 info.keyids[info.stop] = "$";
               }
-              syslog(LOG_INFO, "RedisAdapter::reconnect create %s token %u funcs %zu", key.c_str(), token, subs.second.size());
+              // syslog(LOG_INFO, "RedisAdapter::reconnect create %s token %u funcs %zu", key.c_str(), token, subs.second.size());
             }
             _reader.erase(NO_TOKEN);
           }
