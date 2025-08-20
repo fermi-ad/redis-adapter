@@ -9,7 +9,6 @@
 #include "mock/MockRedisAdapter.hpp"
 using RedisAdapter = MockRedisAdapter;
 #else
-#error "This shouldn't happen"
 #include "RedisConnection.hpp"
 #include "ThreadPool.hpp"
 #include <thread>
