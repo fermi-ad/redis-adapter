@@ -5,10 +5,10 @@
 
 #pragma once
 
-#if defined(UNIT_TEST)
+#if defined(MOCK_REDIS_ADAPTER)
 #include "mock/MockRedisAdapter.hpp"
 using RedisAdapter = MockRedisAdapter;
-#else
+#else // defined(MOCK_REDIS_ADAPTER)
 #include "RedisConnection.hpp"
 #include "ThreadPool.hpp"
 #include <thread>
@@ -493,4 +493,4 @@ private:
 #include "RedisAdapterTempl.hpp"
 
 
-#endif // !defined(UNIT_TEST)
+#endif // defined(MOCK_REDIS_ADAPTER)
