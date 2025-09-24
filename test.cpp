@@ -533,3 +533,11 @@ TEST(RedisAdapter, Watchdog)
   this_thread::sleep_for(milliseconds(600));
   EXPECT_EQ(redis.getWatchdogs().size(), 1);
 }
+
+TEST(RedisAdapter, TimeSequence)
+{
+  RedisAdapter redis("TEST");
+  EXPECT_TRUE(redis.del("seqval"));
+  EXPECT_TRUE(redis.addSingleValue<int>("seqval", 1, { .time = 23456789, .trim = 10 }).ok());
+  EXPECT_FALSE(redis.addSingleValue<int>("seqval", 1, { .time = 12345678, .trim = 10 }).ok());
+}
