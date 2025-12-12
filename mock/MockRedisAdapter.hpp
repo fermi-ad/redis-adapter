@@ -32,7 +32,7 @@ struct RA_Time
 };
 
 struct RA_ArgsAdd
-      { RA_Time time; uint32_t trim = 1; };
+  { RA_Time time; uint32_t trim = 1; };
 
 class MockRedisAdapter // Mock
 {
@@ -47,19 +47,21 @@ public:
 
   MockRedisAdapter() { }
 
-  //  overload for array and span
+    //  overload for array and span
     int addSingleList_numCalls_array_and_span = 0;
     struct addSingleList_array_and_span_args {
       std::string subKey;
       std::shared_ptr<void> data; // copy both into a raw array and let the tester deal with the type themself
+      int dataSize; // Size of data in bytes
       RA_ArgsAdd args;
     };
     std::vector<addSingleList_array_and_span_args> addSingleList_array_and_span_arguments;
     template<template<typename T, size_t S> class C, typename T, size_t S> RA_Time
     addSingleList(const std::string& subKey, const C<T, S>& data, const RA_ArgsAdd& args = {})
     {
+      int dataSize = data.size_bytes();
       std::shared_ptr<void> ptr(
-        new T[std::distance(data.begin(), data.end())],                   // allocate
+        new T[dataSize],                   // allocate
         [](void* p) { delete[] static_cast<T*>(p); } // deleter
       );
       T* raw = static_cast<T*>(ptr.get());
@@ -68,6 +70,7 @@ public:
       addSingleList_array_and_span_args arguments {
         .subKey = subKey,
         .data = ptr,
+        .dataSize = dataSize,
         .args = args
       };
       addSingleList_array_and_span_arguments.push_back(arguments);
@@ -75,19 +78,21 @@ public:
       addSingleList_numCalls_array_and_span++;
       return RA_Time(getTimeNanosTest());
     }
-  //  overload for vector
+    //  overload for vector
     int addSingleList_numCalls_vector = 0;
     struct addSingleList_vector_args {
       std::string subKey;
       std::shared_ptr<void> data; // copy both into a raw array and let the tester deal with the type themself
+      int dataSize; // Size of data in bytes
       RA_ArgsAdd args;
     };
     std::vector<addSingleList_vector_args> addSingleList_vector_arguments;
     template<typename T> RA_Time
     addSingleList(const std::string& subKey, const std::vector<T>& data, const RA_ArgsAdd& args = {})
     {
+      int dataSize = data.size_bytes();
       std::shared_ptr<void> ptr(
-        new T[std::distance(data.begin(), data.end())],                   // allocate
+        new T[dataSize],                   // allocate
         [](void* p) { delete[] static_cast<T*>(p); } // deleter
       );
       T* raw = static_cast<T*>(ptr.get());
@@ -96,6 +101,7 @@ public:
       addSingleList_vector_args arguments {
         .subKey = subKey,
         .data = ptr,
+        .dataSize = dataSize,
         .args = args
       };
       addSingleList_vector_arguments.push_back(arguments);
