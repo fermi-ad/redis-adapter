@@ -105,6 +105,55 @@ int main()
 
 See [doc/MANUAL.md](doc/MANUAL.md) for the complete API reference and usage guide.
 
+## Compatibility wrapper (RedisAdapter)
+
+If you are migrating from the old template-based `RedisAdapter`, a header-only compatibility wrapper is provided. It exposes the original template API on top of `RedisAdapterLite` via composition, so existing code can switch backends with minimal changes.
+
+```cpp
+#include "RedisAdapter.hpp"   // instead of the old RedisAdapter header
+
+RA_Options opts;
+opts.cxn.host = "10.0.0.5";
+opts.cxn.port = 6380;
+RedisAdapter redis("MYAPP", opts);
+
+// Template-based add/get — same syntax as the original API
+redis.addSingleValue<int64_t>("count", 42);
+redis.addSingleDouble("temperature", 23.5);
+
+int64_t count;
+redis.getSingleValue<int64_t>("count", count);
+
+// Typed range queries
+auto history = redis.getValues<double>("temperature");
+
+// Typed reader callbacks
+redis.addValuesReader<double>("temperature",
+  [](const std::string& base, const std::string& sub,
+     const RedisAdapter::TimeValList<double>& data)
+  {
+    for (auto& [time, value] : data)
+      printf("New temp: %f\n", value);
+  }
+);
+```
+
+Type dispatch is handled at compile time via `if constexpr`:
+
+| Template type `T` | Dispatches to |
+|---|---|
+| `std::string` | String methods |
+| `Attrs` | Attrs methods |
+| `double` | Double methods |
+| `int64_t` | Int methods |
+| Other trivial `T` | Blob path (`sizeof(T)` raw bytes) |
+
+The wrapper also re-creates the old argument structs (`RA_ArgsGet` with `count` defaulting to 1, `RA_ArgsAdd`) and the nested `RA_Options` / `RA_Options::Connection` layout. See [doc/MANUAL.md](doc/MANUAL.md) for full migration details and [doc/API.md](doc/API.md) for the complete wrapper API reference.
+
+**Note:** `psubscribe` (pattern subscribe) is not supported by the lite backend and always returns `false`.
+
+The wrapper test suite is in `test/test_wrapper.cpp` (CMake target: `ral-test-wrapper`).
+
 ## Project structure
 
 ```
@@ -113,6 +162,7 @@ redis-adapter/
   src/                     Library source
     RedisAdapterLite.hpp   Public API
     RedisAdapterLite.cpp   Implementation
+    RedisAdapter.hpp       Compatibility wrapper (header-only)
     RAL_Types.hpp          Type definitions
     RAL_Helpers.hpp        Serialization helpers
     RAL_Time.hpp/cpp       Nanosecond timestamps
@@ -122,6 +172,7 @@ redis-adapter/
     RedisCache.hpp         Double-buffered cache
   test/
     test_lite.cpp          Google Test suite (67 tests)
+    test_wrapper.cpp       Compatibility wrapper tests
   hiredis/                 hiredis submodule
 ```
 

@@ -9,6 +9,7 @@ C++17 | hiredis | Redis 6.0+ (7.4+ for watchdog)
 | Header | Include for |
 |--------|-------------|
 | `RedisAdapterLite.hpp` | Main adapter class (includes all below) |
+| `RedisAdapter.hpp` | Compatibility wrapper with template-based API (header-only) |
 | `RAL_Types.hpp` | Type aliases, option structs, callbacks |
 | `RAL_Helpers.hpp` | Serialization helpers (`ral_to_*`, `ral_from_*`) |
 | `RAL_Time.hpp` | Nanosecond timestamp type |
@@ -893,3 +894,564 @@ target_link_libraries(your_target PRIVATE redis-adapter-lite)
 - `_reader_mutex` and `_sub_mutex` protect reader/subscriber state
 - `ThreadPool` dispatches callbacks to worker threads with per-key ordering
 - `RedisCache` uses `shared_mutex` for concurrent reads with exclusive buffer swaps
+
+---
+
+## RedisAdapter (Compatibility Wrapper)
+
+**Header:** `RedisAdapter.hpp` (header-only)
+
+Template-based compatibility wrapper that delegates to `RedisAdapterLite` via composition. Provides the old `RedisAdapter` API for drop-in replacement during migration.
+
+---
+
+### Wrapper Type Aliases
+
+#### `RA_Time`
+
+```cpp
+using RA_Time = RAL_Time;
+inline constexpr RA_Time RA_NOT_CONNECTED(-1);
+```
+
+Alias for the lite timestamp type. `RA_NOT_CONNECTED` mirrors `RAL_NOT_CONNECTED`.
+
+#### `RA_VERSION`
+
+```cpp
+#define RA_VERSION RAL_VERSION
+```
+
+Defined only if not already defined. Maps to the lite version macro.
+
+---
+
+### RA_ArgsGet
+
+Options for get (read) operations in the wrapper API.
+
+```cpp
+struct RA_ArgsGet
+{
+  std::string baseKey;   // Override base key (empty = adapter default)
+  RA_Time minTime;       // Lower bound (0 = stream start)
+  RA_Time maxTime;       // Upper bound (0 = stream end)
+  uint32_t count = 1;    // Max entries (default 1)
+};
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `baseKey` | `""` | Override the adapter's base key for cross-adapter reads. |
+| `minTime` | `0` | Minimum timestamp (inclusive). `0` = stream start. |
+| `maxTime` | `0` | Maximum timestamp (inclusive). `0` = stream end. |
+| `count` | `1` | Maximum entries to return. **Defaults to 1**, unlike `RAL_GetArgs` which defaults to 0 (unlimited). |
+
+---
+
+### RA_ArgsAdd
+
+Options for add (write) operations in the wrapper API.
+
+```cpp
+struct RA_ArgsAdd
+{
+  RA_Time time;          // Timestamp. 0 = current host time.
+  uint32_t trim = 1;     // Trim stream to N entries. 0 = no trim.
+};
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `time` | `0` | Timestamp for the entry. `0` uses server-assigned time. |
+| `trim` | `1` | MAXLEN trim after write. Set to `0` to disable trimming. |
+
+---
+
+### RA_Options
+
+Connection and adapter configuration with nested connection struct.
+
+```cpp
+struct RA_Options
+{
+  struct Connection
+  {
+    std::string path;                 // Unix socket path (empty = TCP)
+    std::string host = "127.0.0.1";  // TCP host
+    std::string user = "default";    // AUTH username
+    std::string password;            // AUTH password (empty = no auth)
+    uint32_t timeout = 500;          // Timeout (ms)
+    uint16_t port = 6379;            // TCP port
+    uint16_t size = 5;               // Pool size (ignored by lite)
+  } cxn;
+
+  std::string dogname;               // Auto-watchdog name (empty = disabled)
+  uint16_t workers = 1;              // Worker thread pool size
+  uint16_t readers = 1;              // Reader thread count
+};
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `cxn.path` | `""` | Unix domain socket path. When set, `host`/`port` are ignored. |
+| `cxn.host` | `"127.0.0.1"` | Redis server hostname or IP (TCP mode). |
+| `cxn.user` | `"default"` | Redis ACL username. |
+| `cxn.password` | `""` | Redis password. Empty disables AUTH. |
+| `cxn.timeout` | `500` | Timeout in milliseconds for connect and commands. |
+| `cxn.port` | `6379` | Redis server port (TCP mode). |
+| `cxn.size` | `5` | Connection pool size. **Ignored by the lite backend** (single mutex-protected connection). |
+| `dogname` | `""` | When non-empty, auto-registers and pets a watchdog on construction. |
+| `workers` | `1` | Number of worker threads for reader/subscriber callbacks. |
+| `readers` | `1` | Number of reader threads. Keys are distributed across readers by hash. |
+
+---
+
+### Template Type Aliases
+
+Defined as members of `class RedisAdapter`:
+
+```cpp
+template<typename T> using TimeVal     = std::pair<RA_Time, T>;
+template<typename T> using TimeValList = std::vector<TimeVal<T>>;
+```
+
+| Alias | Definition |
+|-------|------------|
+| `TimeVal<T>` | `std::pair<RA_Time, T>` |
+| `TimeValList<T>` | `std::vector<TimeVal<T>>` |
+
+---
+
+### Callback Types
+
+```cpp
+using ListenSubFn = SubCallback;
+
+template<typename T>
+using ReaderSubFn = std::function<void(const std::string& baseKey,
+                                       const std::string& subKey,
+                                       const TimeValList<T>& data)>;
+```
+
+| Alias | Description |
+|-------|-------------|
+| `ListenSubFn` | Pub/sub callback. Same as `SubCallback`. |
+| `ReaderSubFn<T>` | Typed stream reader callback. Receives deserialized `TimeValList<T>`. |
+
+---
+
+### Constructor / Destructor
+
+```cpp
+RedisAdapter(const std::string& baseKey, const RA_Options& options = {});
+virtual ~RedisAdapter() = default;
+```
+
+Not copyable, not assignable. The constructor converts `RA_Options` to `RAL_Options` and constructs the internal `RedisAdapterLite`.
+
+---
+
+### Single Value Add
+
+#### `addSingleValue<T>`
+
+```cpp
+template<typename T>
+RA_Time addSingleValue(const std::string& subKey,
+                       const T& data,
+                       const RA_ArgsAdd& args = {});
+```
+
+Writes a single typed value to `baseKey:subKey`. Returns the timestamp of the new entry, or `RA_NOT_CONNECTED` on failure.
+
+**Type dispatch:**
+
+| `T` | Delegates to |
+|-----|-------------|
+| `std::string` | `addString` |
+| `Attrs` | `addAttrs` |
+| Other trivial `T` | `addBlob(&data, sizeof(T))` |
+
+**Note:** `T = double` is **not allowed** and produces a `static_assert` failure. Use `addSingleDouble` instead.
+
+#### `addSingleDouble`
+
+```cpp
+RA_Time addSingleDouble(const std::string& subKey,
+                        double data,
+                        const RA_ArgsAdd& args = {});
+```
+
+Writes a double value. Delegates to `RedisAdapterLite::addDouble`.
+
+---
+
+### Single List Add
+
+#### `addSingleList<T>` (vector)
+
+```cpp
+template<typename T>
+RA_Time addSingleList(const std::string& subKey,
+                      const std::vector<T>& data,
+                      const RA_ArgsAdd& args = {});
+```
+
+Writes a `vector<T>` as a contiguous blob of `sizeof(T) * data.size()` bytes. `T` must be trivially copyable.
+
+#### `addSingleList<T>` (array / span)
+
+```cpp
+template<template<typename, size_t> class C, typename T, size_t S>
+RA_Time addSingleList(const std::string& subKey,
+                      const C<T, S>& data,
+                      const RA_ArgsAdd& args = {});
+```
+
+Overload for `std::array<T, N>` and other fixed-size containers matching the `C<T, size_t>` template pattern. `T` must be trivially copyable.
+
+---
+
+### Single Value Get
+
+#### `getSingleValue<T>`
+
+```cpp
+template<typename T>
+RA_Time getSingleValue(const std::string& subKey,
+                       T& dest,
+                       const RA_ArgsGet& args = {});
+```
+
+Retrieves the most recent value at or before `maxTime`. Returns the timestamp of the entry found, or `RA_Time(0)` if not found.
+
+**Type dispatch:**
+
+| `T` | Delegates to |
+|-----|-------------|
+| `std::string` | `getString` |
+| `Attrs` | `getAttrs` |
+| Other trivial `T` | `getBlob` then `memcpy` into `dest` (requires `blob.size() == sizeof(T)`) |
+
+---
+
+### Single List Get
+
+#### `getSingleList<T>`
+
+```cpp
+template<typename T>
+RA_Time getSingleList(const std::string& subKey,
+                      std::vector<T>& dest,
+                      const RA_ArgsGet& args = {});
+```
+
+Retrieves the most recent blob entry and deserializes it as a `vector<T>`. `T` must be trivially copyable. Requires `blob.size() >= sizeof(T)`.
+
+---
+
+### Forward Range Queries
+
+#### `getValues<T>`
+
+```cpp
+template<typename T>
+TimeValList<T> getValues(const std::string& subKey,
+                         const RA_ArgsGet& args = {});
+```
+
+Returns entries in chronological order between `minTime` and `maxTime`. The `count` field of `RA_ArgsGet` is **ignored** (all matching entries are returned).
+
+**Type dispatch:** same as `getSingleValue<T>` but for range operations.
+
+#### `getLists<T>`
+
+```cpp
+template<typename T>
+TimeValList<std::vector<T>> getLists(const std::string& subKey,
+                                     const RA_ArgsGet& args = {});
+```
+
+Forward range query returning blob entries deserialized as `vector<T>`. `T` must be trivially copyable. The `count` field is ignored.
+
+---
+
+### Reverse Range Queries
+
+#### `getValuesBefore<T>`
+
+```cpp
+template<typename T>
+TimeValList<T> getValuesBefore(const std::string& subKey,
+                                const RA_ArgsGet& args = {});
+```
+
+Returns entries at or before `maxTime`, limited by `count`. Results are in chronological order (oldest first). The `minTime` field is ignored.
+
+#### `getListsBefore<T>`
+
+```cpp
+template<typename T>
+TimeValList<std::vector<T>> getListsBefore(const std::string& subKey,
+                                            const RA_ArgsGet& args = {});
+```
+
+Reverse range query for list (blob) entries. `T` must be trivially copyable. The `minTime` field is ignored.
+
+---
+
+### Forward Range After Queries
+
+#### `getValuesAfter<T>`
+
+```cpp
+template<typename T>
+TimeValList<T> getValuesAfter(const std::string& subKey,
+                               const RA_ArgsGet& args = {});
+```
+
+Returns entries after `minTime`, limited by `count`. The `maxTime` field is ignored.
+
+#### `getListsAfter<T>`
+
+```cpp
+template<typename T>
+TimeValList<std::vector<T>> getListsAfter(const std::string& subKey,
+                                           const RA_ArgsGet& args = {});
+```
+
+Forward range query for list entries starting after `minTime`. `T` must be trivially copyable. The `maxTime` field is ignored.
+
+---
+
+### Bulk Add
+
+#### `addValues<T>`
+
+```cpp
+template<typename T>
+std::vector<RA_Time> addValues(const std::string& subKey,
+                               const TimeValList<T>& data,
+                               uint32_t trim = 1);
+```
+
+Inserts multiple timestamped values. Returns timestamps of successfully added entries.
+
+**Type dispatch:**
+
+| `T` | Delegates to |
+|-----|-------------|
+| `std::string` | `addStrings` |
+| `Attrs` | `addAttrsBatch` |
+| `double` | `addDoubles` |
+| `int64_t` | `addInts` |
+| Other trivial `T` | Converts each value to blob via `memcpy`, then `addBlobs` |
+
+#### `addLists<T>`
+
+```cpp
+template<typename T>
+std::vector<RA_Time> addLists(const std::string& subKey,
+                               const TimeValList<std::vector<T>>& data,
+                               uint32_t trim = 1);
+```
+
+Inserts multiple timestamped lists. Each `vector<T>` is serialized as a contiguous blob. `T` must be trivially copyable.
+
+---
+
+### Stream Readers
+
+#### `addValuesReader<T>`
+
+```cpp
+template<typename T>
+bool addValuesReader(const std::string& subKey,
+                     ReaderSubFn<T> func,
+                     const std::string& baseKey = "");
+```
+
+Registers a typed reader callback. Incoming `TimeAttrsList` entries are deserialized into `TimeValList<T>` before the callback fires. Returns `false` if not connected.
+
+**Type dispatch in the internal converter:**
+
+| `T` | Deserialization |
+|-----|----------------|
+| `std::string` | `ral_to_string` |
+| `Attrs` | Direct copy of attrs |
+| `double` | `ral_to_double` |
+| `int64_t` | `ral_to_int` |
+| Other trivial `T` | `memcpy` from `DEFAULT_FIELD` (requires `size == sizeof(T)`) |
+
+#### `addListsReader<T>`
+
+```cpp
+template<typename T>
+bool addListsReader(const std::string& subKey,
+                    ReaderSubFn<std::vector<T>> func,
+                    const std::string& baseKey = "");
+```
+
+Registers a typed list reader. Incoming blobs are deserialized as `vector<T>`. `T` must be trivially copyable.
+
+#### `addGenericReader`
+
+```cpp
+bool addGenericReader(const std::string& key,
+                      ReaderSubFn<Attrs> func);
+```
+
+Registers a reader that passes raw `Attrs` through to the callback without type conversion.
+
+#### `removeGenericReader`
+
+```cpp
+bool removeGenericReader(const std::string& key);
+```
+
+Removes a generic reader. Equivalent to `removeReader(key)`.
+
+#### `removeReader`
+
+```cpp
+bool removeReader(const std::string& subKey,
+                  const std::string& baseKey = "");
+```
+
+Removes all reader callbacks for the given key.
+
+#### `setDeferReaders`
+
+```cpp
+bool setDeferReaders(bool defer);
+```
+
+Pause (`true`) or restart (`false`) reader threads. Delegates directly to `RedisAdapterLite::setDeferReaders`.
+
+---
+
+### Connection
+
+#### `connected`
+
+```cpp
+bool connected();
+```
+
+Delegates to `RedisAdapterLite::connected()`.
+
+---
+
+### Key Management
+
+#### `del`
+
+```cpp
+bool del(const std::string& subKey);
+```
+
+#### `rename`
+
+```cpp
+bool rename(const std::string& subKeySrc, const std::string& subKeyDst);
+```
+
+#### `copy`
+
+```cpp
+bool copy(const std::string& srcSubKey,
+          const std::string& dstSubKey,
+          const std::string& baseKey = "");
+```
+
+All delegate directly to the corresponding `RedisAdapterLite` methods.
+
+---
+
+### Watchdog
+
+#### `addWatchdog`
+
+```cpp
+bool addWatchdog(const std::string& dogname, uint32_t expiration);
+```
+
+#### `petWatchdog`
+
+```cpp
+bool petWatchdog(const std::string& dogname, uint32_t expiration);
+```
+
+#### `getWatchdogs`
+
+```cpp
+std::vector<std::string> getWatchdogs();
+```
+
+All delegate directly to the corresponding `RedisAdapterLite` methods.
+
+---
+
+### Pub/Sub
+
+#### `publish`
+
+```cpp
+bool publish(const std::string& subKey,
+             const std::string& message,
+             const std::string& baseKey = "");
+```
+
+#### `subscribe`
+
+```cpp
+bool subscribe(const std::string& subKey,
+               ListenSubFn func,
+               const std::string& baseKey = "");
+```
+
+#### `unsubscribe`
+
+```cpp
+bool unsubscribe(const std::string& subKey,
+                 const std::string& baseKey = "");
+```
+
+#### `psubscribe`
+
+```cpp
+bool psubscribe(const std::string& pattern,
+                ListenSubFn func,
+                const std::string& baseKey = "");
+```
+
+**Always returns `false`.** Pattern-based subscriptions are not supported by the lite backend. The parameters are accepted but ignored.
+
+---
+
+### Type Dispatch Summary
+
+The following table summarizes how each template type `T` maps to the underlying `RedisAdapterLite` path across all wrapper methods:
+
+| `T` | Single add | Single get | Range get | Bulk add | Reader |
+|-----|-----------|-----------|----------|---------|--------|
+| `std::string` | `addString` | `getString` | `getStrings` / `getStringsBefore` | `addStrings` | `ral_to_string` |
+| `Attrs` | `addAttrs` | `getAttrs` | `getAttrsRange` / `getAttrsBefore` | `addAttrsBatch` | Direct copy |
+| `double` | **Compile error** (use `addSingleDouble`) | N/A (use `double` with blob) | `getDoubles` / `getDoublesBefore` | `addDoubles` | `ral_to_double` |
+| `int64_t` | `addBlob` | `getBlob` + `memcpy` | `getInts` / `getIntsBefore` | `addInts` | `ral_to_int` |
+| Other trivial `T` | `addBlob` | `getBlob` + `memcpy` | `getBlobs` + `memcpy` | Convert to `TimeBlobList` + `addBlobs` | `memcpy` from `DEFAULT_FIELD` |
+
+**Note:** For `getSingleValue<double>`, the type dispatches through the blob path (not `getDouble`) because the template dispatch checks `std::string` and `Attrs` first, then falls through to the trivial `T` branch. However, `getValues<double>` and `getValuesBefore<double>` correctly use `getDoubles` / `getDoublesBefore` because the range dispatch has an explicit `double` branch.
+
+---
+
+### Testing
+
+The wrapper test suite is located at `test/test_wrapper.cpp` with the CMake target `ral-test-wrapper`:
+
+```bash
+cmake -S . -B build -DRAL_BUILD_TESTS=ON
+cmake --build build
+./build/ral-test-wrapper
+```

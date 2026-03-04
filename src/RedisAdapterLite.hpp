@@ -183,5 +183,4 @@ private:
   const std::string STOP_STUB = "<$-STOP-$>";
 };
 
-// Drop-in alias
-using RedisAdapter = RedisAdapterLite;
+// For the old template-based API, include "RedisAdapter.hpp" instead.

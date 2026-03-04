@@ -71,6 +71,10 @@ if(RAL_BUILD_TESTS)
   add_executable(ral-test test/test_lite.cpp)
   target_link_libraries(ral-test redis-adapter-lite GTest::gtest_main)
   gtest_discover_tests(ral-test)
+
+  add_executable(ral-test-wrapper test/test_wrapper.cpp)
+  target_link_libraries(ral-test-wrapper redis-adapter-lite GTest::gtest_main)
+  gtest_discover_tests(ral-test-wrapper)
 endif()
 
 # ---- Benchmarks ----

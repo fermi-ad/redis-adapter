@@ -22,6 +22,7 @@
 18. [RedisCache](#rediscache)
 19. [Threading model](#threading-model)
 20. [Error handling](#error-handling)
+21. [Compatibility wrapper (RedisAdapter)](#compatibility-wrapper-redisadapter)
 
 ---
 
@@ -577,4 +578,209 @@ if (!result.ok())
     printf("Add failed, error code: %u\n", result.err());
 }
 ```
+
+## Compatibility wrapper (RedisAdapter)
+
+`RedisAdapter.hpp` is a header-only wrapper that provides the old template-based `RedisAdapter` API on top of `RedisAdapterLite`. It is intended for projects migrating from the original `RedisAdapter` that used redis-plus-plus and templates. The wrapper uses composition (it holds a `RedisAdapterLite` member) and delegates all operations to the lite backend.
+
+### Include
+
+```cpp
+#include "RedisAdapter.hpp"
+```
+
+This includes `RedisAdapterLite.hpp` automatically.
+
+### Type mappings
+
+The wrapper defines its own type aliases that map to the lite equivalents:
+
+| Wrapper type | Lite equivalent |
+|---|---|
+| `RA_Time` | `RAL_Time` |
+| `RA_NOT_CONNECTED` | `RAL_NOT_CONNECTED` |
+| `RA_ArgsGet` | `RAL_GetArgs` (note: `count` defaults to **1**, not 0) |
+| `RA_ArgsAdd` | `RAL_AddArgs` |
+| `RA_Options` | `RAL_Options` (with nested `cxn` struct, see below) |
+| `RedisAdapter::TimeVal<T>` | `std::pair<RA_Time, T>` |
+| `RedisAdapter::TimeValList<T>` | `std::vector<TimeVal<T>>` |
+| `RedisAdapter::ReaderSubFn<T>` | Typed reader callback |
+| `RedisAdapter::ListenSubFn` | `SubCallback` |
+
+**Important difference:** `RA_ArgsGet::count` defaults to **1** (return only the most recent entry), whereas `RAL_GetArgs::count` defaults to **0** (unlimited). This matches the original `RedisAdapter` behavior.
+
+### Options layout
+
+The old `RA_Options` uses a nested `cxn` struct for connection settings:
+
+```cpp
+RA_Options opts;
+opts.cxn.host     = "10.0.0.5";
+opts.cxn.port     = 6380;
+opts.cxn.password = "secret";
+opts.cxn.path     = "/tmp/redis.sock";  // empty = use TCP
+opts.cxn.user     = "default";
+opts.cxn.timeout  = 500;                // ms
+opts.cxn.size     = 5;                  // pool size — ignored by lite
+opts.dogname      = "MY_PROCESS";
+opts.workers      = 4;
+opts.readers      = 1;
+RedisAdapter redis("MYAPP", opts);
+```
+
+The `cxn.size` field (connection pool size) is accepted but ignored since `RedisAdapterLite` uses a single connection with mutex protection instead of a pool.
+
+### Template type dispatch
+
+All template methods use `if constexpr` to dispatch to the appropriate lite method at compile time:
+
+| Template type `T` | Dispatches to |
+|---|---|
+| `std::string` | `addString` / `getString` / `getStrings` / etc. |
+| `Attrs` | `addAttrs` / `getAttrs` / `getAttrsRange` / etc. |
+| `double` | `addDoubles` / `getDoubles` / etc. (bulk only; see `addSingleDouble` for single) |
+| `int64_t` | `addInt` / `getInt` / `getInts` / etc. |
+| Other trivial `T` | `addBlob` / `getBlob` / `getBlobs` / etc. (raw `sizeof(T)` bytes) |
+
+The `static_assert` ensures that non-trivial, non-string, non-Attrs types produce a compile error rather than a runtime failure.
+
+### Single value operations
+
+```cpp
+// Write
+redis.addSingleValue<int64_t>("count", 42);
+redis.addSingleValue<std::string>("status", "running");
+redis.addSingleDouble("temperature", 23.5);  // double has a dedicated method
+
+// Read
+int64_t count;
+redis.getSingleValue<int64_t>("count", count);
+
+std::string status;
+redis.getSingleValue<std::string>("status", status);
+
+// Trivial struct — goes through the blob path
+struct Pose { float x, y, z; };
+Pose pose = {1.0f, 2.0f, 3.0f};
+redis.addSingleValue<Pose>("pose", pose);
+
+Pose readback;
+redis.getSingleValue<Pose>("pose", readback);
+```
+
+**Note:** `addSingleValue<double>` is disallowed at compile time. Use `addSingleDouble` instead (this matches the original API's distinction).
+
+### List (array) operations
+
+Lists serialize a `vector<T>` (or `array<T,N>` / `span<T>`) as a contiguous blob of `sizeof(T) * count` bytes:
+
+```cpp
+// Write a vector
+std::vector<float> waveform = {1.0f, 2.0f, 3.0f};
+redis.addSingleList<float>("waveform", waveform);
+
+// Write a fixed-size array
+std::array<double, 4> quaternion = {1.0, 0.0, 0.0, 0.0};
+redis.addSingleList("orientation", quaternion);
+
+// Read back
+std::vector<float> readback;
+redis.getSingleList<float>("waveform", readback);
+```
+
+### Range queries
+
+```cpp
+// Forward range — all entries between minTime and maxTime
+auto history = redis.getValues<double>("temperature");
+auto recent  = redis.getValuesAfter<double>("temperature", {.minTime = t1, .count = 100});
+
+// Reverse range — entries before maxTime, limited by count
+auto last10 = redis.getValuesBefore<double>("temperature", {.maxTime = t1, .count = 10});
+
+// List ranges
+auto waveforms = redis.getLists<float>("waveform");
+auto before    = redis.getListsBefore<float>("waveform", {.count = 5});
+auto after     = redis.getListsAfter<float>("waveform", {.minTime = t1});
+```
+
+### Bulk add
+
+```cpp
+// Bulk add typed values
+RedisAdapter::TimeValList<double> readings;
+readings.push_back({RA_Time(), 23.5});
+readings.push_back({RA_Time(), 23.6});
+auto ids = redis.addValues<double>("temperature", readings, 10000);
+
+// Bulk add lists
+RedisAdapter::TimeValList<std::vector<float>> frames;
+frames.push_back({RA_Time(), {1.0f, 2.0f, 3.0f}});
+frames.push_back({RA_Time(), {4.0f, 5.0f, 6.0f}});
+auto list_ids = redis.addLists<float>("waveform", frames, 1000);
+```
+
+### Typed stream readers
+
+The wrapper provides typed reader callbacks that deserialize data before calling your function:
+
+```cpp
+// Values reader — callback receives TimeValList<double>
+redis.addValuesReader<double>("temperature",
+  [](const std::string& base, const std::string& sub,
+     const RedisAdapter::TimeValList<double>& data)
+  {
+    for (auto& [time, value] : data)
+      printf("[%s] %s:%s = %f\n", time.id().c_str(), base.c_str(), sub.c_str(), value);
+  }
+);
+
+// Lists reader — callback receives TimeValList<vector<float>>
+redis.addListsReader<float>("waveform",
+  [](const std::string& base, const std::string& sub,
+     const RedisAdapter::TimeValList<std::vector<float>>& data)
+  {
+    for (auto& [time, vec] : data)
+      printf("Received %zu floats\n", vec.size());
+  }
+);
+
+// Generic reader — callback receives raw Attrs
+redis.addGenericReader("config",
+  [](const std::string& base, const std::string& sub,
+     const RedisAdapter::TimeValList<Attrs>& data)
+  {
+    for (auto& [time, attrs] : data)
+      for (auto& [k, v] : attrs) printf("  %s = %s\n", k.c_str(), v.c_str());
+  }
+);
+
+redis.removeReader("temperature");
+redis.removeGenericReader("config");
+```
+
+### Passthrough methods
+
+The following methods delegate directly to `RedisAdapterLite` with identical signatures:
+
+- `connected()`
+- `addWatchdog(dogname, expiration)`, `petWatchdog(dogname, expiration)`, `getWatchdogs()`
+- `del(subKey)`, `rename(src, dst)`, `copy(src, dst, baseKey)`
+- `publish(subKey, message, baseKey)`, `subscribe(subKey, func, baseKey)`, `unsubscribe(subKey, baseKey)`
+- `setDeferReaders(defer)`
+
+### Limitations
+
+- **`psubscribe` is not supported.** The lite backend does not implement pattern-based subscriptions. `psubscribe()` always returns `false`.
+- **`cxn.size` is ignored.** The lite backend uses a single mutex-protected connection instead of a pool.
+- **All `T` types for blob path must be trivially copyable.** A `static_assert` enforces this.
+
+### Migration checklist
+
+1. Replace `#include "RedisAdapter.h"` (or equivalent) with `#include "RedisAdapter.hpp"`.
+2. Replace `RedisConnection::Options` with `RA_Options::Connection` (accessed via `opts.cxn`).
+3. If you relied on `psubscribe`, replace with exact `subscribe` calls or implement pattern matching in your callback.
+4. Remove any references to the connection pool size (`cxn.size`) -- it compiles but has no effect.
+5. Link against `redis-adapter-lite` in CMake (the wrapper is header-only, no separate library target).
+6. Run `ral-test-wrapper` to verify your build (`test/test_wrapper.cpp`).
 
