@@ -34,6 +34,16 @@ public:
                     const Attrs& fields);
   std::string xadd_trim(const std::string& key, const std::string& id,
                          const Attrs& fields, uint32_t maxlen);
+
+  // Fast-path single-field variants (stack arrays, no heap allocs)
+  std::string xadd_single(const std::string& key, const std::string& id,
+                           const char* field, size_t field_len,
+                           const char* value, size_t value_len);
+  std::string xadd_trim_single(const std::string& key, const std::string& id,
+                                const char* field, size_t field_len,
+                                const char* value, size_t value_len,
+                                uint32_t maxlen);
+
   int64_t xtrim(const std::string& key, uint32_t maxlen);
 
   TimeAttrsList xrange(const std::string& key, const std::string& min,

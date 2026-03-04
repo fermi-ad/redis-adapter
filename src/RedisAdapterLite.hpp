@@ -121,6 +121,9 @@ private:
 
   //--- Internal stream helpers ---
   RAL_Time add_entry(const std::string& key, const Attrs& attrs, const RAL_AddArgs& args);
+  RAL_Time add_entry_single(const std::string& key,
+                             const char* data, size_t size,
+                             const RAL_AddArgs& args);
 
   TimeAttrsList get_forward(const std::string& key,
                             RAL_Time minTime, RAL_Time maxTime, uint32_t count);

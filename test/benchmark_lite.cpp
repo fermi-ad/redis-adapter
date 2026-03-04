@@ -250,7 +250,7 @@ static void BM_TCP_AddBlob(benchmark::State& state)
   state.SetBytesProcessed(state.iterations() * state.range(0));
   get_tcp().del("bm_add_blob");
 }
-BENCHMARK(BM_TCP_AddBlob)->Arg(64)->Arg(1024)->Arg(65536);
+BENCHMARK(BM_TCP_AddBlob)->Arg(64)->Arg(1024)->Arg(65536)->Arg(1048576);
 
 static void BM_UDS_AddBlob(benchmark::State& state)
 {

@@ -132,6 +132,8 @@ std::string HiredisConnection::xadd(const std::string& key, const std::string& i
   // Build argv: XADD key id field value field value ...
   std::vector<const char*> argv;
   std::vector<size_t> argvlen;
+  argv.reserve(3 + fields.size() * 2);
+  argvlen.reserve(3 + fields.size() * 2);
 
   std::string cmd_str = "XADD";
   argv.push_back(cmd_str.c_str());  argvlen.push_back(cmd_str.size());
@@ -170,6 +172,8 @@ std::string HiredisConnection::xadd_trim(const std::string& key, const std::stri
 
   std::vector<const char*> argv;
   std::vector<size_t> argvlen;
+  argv.reserve(6 + fields.size() * 2);
+  argvlen.reserve(6 + fields.size() * 2);
 
   argv.push_back(cmd_str.c_str());     argvlen.push_back(cmd_str.size());
   argv.push_back(key.c_str());         argvlen.push_back(key.size());
@@ -192,6 +196,55 @@ std::string HiredisConnection::xadd_trim(const std::string& key, const std::stri
 
   if (r && r->type == REDIS_REPLY_ERROR)
     syslog(LOG_ERR, "HiredisConnection::xadd_trim %s", r->str);
+
+  return {};
+}
+
+std::string HiredisConnection::xadd_single(const std::string& key, const std::string& id,
+                                             const char* field, size_t field_len,
+                                             const char* value, size_t value_len)
+{
+  std::lock_guard<std::mutex> lk(_mutex);
+  if (!_ctx) return {};
+
+  const char* argv[5]    = { "XADD", key.c_str(), id.c_str(), field, value };
+  size_t      argvlen[5] = { 4,      key.size(),  id.size(),  field_len, value_len };
+
+  ReplyPtr r(static_cast<redisReply*>(
+      redisCommandArgv(_ctx, 5, argv, argvlen)));
+
+  if (r && r->type == REDIS_REPLY_STRING)
+    return std::string(r->str, r->len);
+
+  if (r && r->type == REDIS_REPLY_ERROR)
+    syslog(LOG_ERR, "HiredisConnection::xadd_single %s", r->str);
+
+  return {};
+}
+
+std::string HiredisConnection::xadd_trim_single(const std::string& key, const std::string& id,
+                                                  const char* field, size_t field_len,
+                                                  const char* value, size_t value_len,
+                                                  uint32_t maxlen)
+{
+  std::lock_guard<std::mutex> lk(_mutex);
+  if (!_ctx) return {};
+
+  std::string maxlen_str = std::to_string(maxlen);
+
+  const char* argv[8]    = { "XADD", key.c_str(), "MAXLEN", "~",
+                              maxlen_str.c_str(), id.c_str(), field, value };
+  size_t      argvlen[8] = { 4,      key.size(),  6,         1,
+                              maxlen_str.size(),  id.size(),  field_len, value_len };
+
+  ReplyPtr r(static_cast<redisReply*>(
+      redisCommandArgv(_ctx, 8, argv, argvlen)));
+
+  if (r && r->type == REDIS_REPLY_STRING)
+    return std::string(r->str, r->len);
+
+  if (r && r->type == REDIS_REPLY_ERROR)
+    syslog(LOG_ERR, "HiredisConnection::xadd_trim_single %s", r->str);
 
   return {};
 }

@@ -99,6 +99,19 @@ RAL_Time RedisAdapterLite::add_entry(const std::string& key, const Attrs& attrs,
   return RAL_Time(id);
 }
 
+RAL_Time RedisAdapterLite::add_entry_single(const std::string& key,
+                                             const char* data, size_t size,
+                                             const RAL_AddArgs& args)
+{
+  static constexpr const char FIELD[] = "_";
+  std::string id = args.trim
+    ? _redis.xadd_trim_single(key, args.time.id_or_now(), FIELD, 1, data, size, args.trim)
+    : _redis.xadd_single(key, args.time.id_or_now(), FIELD, 1, data, size);
+
+  if (check_reconnect(id.size()) == 0) return RAL_NOT_CONNECTED;
+  return RAL_Time(id);
+}
+
 TimeAttrsList RedisAdapterLite::get_forward(const std::string& key,
                                              RAL_Time minTime, RAL_Time maxTime,
                                              uint32_t count)
@@ -138,25 +151,30 @@ TimeAttrsList RedisAdapterLite::get_reverse(const std::string& key,
 RAL_Time RedisAdapterLite::addString(const std::string& subKey, const std::string& data,
                                       const RAL_AddArgs& args)
 {
-  return add_entry(build_key(subKey), ral_from_string(data), args);
+  return add_entry_single(build_key(subKey), data.data(), data.size(), args);
 }
 
 RAL_Time RedisAdapterLite::addDouble(const std::string& subKey, double data,
                                       const RAL_AddArgs& args)
 {
-  return add_entry(build_key(subKey), ral_from_double(data), args);
+  char buf[sizeof(double)];
+  std::memcpy(buf, &data, sizeof(double));
+  return add_entry_single(build_key(subKey), buf, sizeof(double), args);
 }
 
 RAL_Time RedisAdapterLite::addInt(const std::string& subKey, int64_t data,
                                    const RAL_AddArgs& args)
 {
-  return add_entry(build_key(subKey), ral_from_int(data), args);
+  char buf[sizeof(int64_t)];
+  std::memcpy(buf, &data, sizeof(int64_t));
+  return add_entry_single(build_key(subKey), buf, sizeof(int64_t), args);
 }
 
 RAL_Time RedisAdapterLite::addBlob(const std::string& subKey, const void* data, size_t size,
                                     const RAL_AddArgs& args)
 {
-  return add_entry(build_key(subKey), ral_from_blob(data, size), args);
+  return add_entry_single(build_key(subKey),
+                          static_cast<const char*>(data), size, args);
 }
 
 RAL_Time RedisAdapterLite::addAttrs(const std::string& subKey, const Attrs& data,
