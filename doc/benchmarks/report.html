@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RedisAdapterLite Benchmark Report</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    background: #fafafa;
+    color: #333;
+  }
+  h1 { color: #1a1a1a; border-bottom: 3px solid #2196F3; padding-bottom: 10px; }
+  h2 { color: #1565C0; margin-top: 40px; }
+  .chart { margin: 20px 0; text-align: center; }
+  .chart img { max-width: 100%; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+  .desc { color: #555; font-size: 0.95em; margin: 8px 0 20px 0; line-height: 1.5; }
+  .meta { background: #e3f2fd; padding: 15px; border-radius: 6px; margin-bottom: 30px; }
+  .meta code { background: #bbdefb; padding: 2px 6px; border-radius: 3px; }
+  .takeaway { background: #e8f5e9; padding: 15px; border-radius: 6px; margin-top: 30px; }
+  .takeaway h2 { color: #2E7D32; margin-top: 0; }
+  .takeaway li { margin: 8px 0; line-height: 1.5; }
+  .legend { display: flex; gap: 20px; margin: 10px 0; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+</style>
+</head>
+<body>
+<h1>RedisAdapterLite Benchmark Report</h1>
+
+<div class="meta">
+  <strong>System:</strong> 20-core x86_64, 2.4-4.0 GHz, L3 8 MiB x2<br>
+  <strong>Build:</strong> Release (<code>-O2</code>), Google Benchmark v1.9.1<br>
+  <strong>Transports:</strong> TCP loopback, Unix domain socket<br>
+  <strong>Persistence:</strong> Disabled (<code>save ""</code>, <code>appendonly no</code>)<br>
+  <strong>Versions:</strong>
+  <div class="legend">
+    <span><span class="dot" style="background:#2196F3"></span> Redis 7.0.15 (system package)</span>
+    <span><span class="dot" style="background:#9C27B0"></span> Redis 7.4.8 (built from source)</span>
+    <span><span class="dot" style="background:#FF9800"></span> Redis 8.0.2 (io-threads 4)</span>
+    <span><span class="dot" style="background:#4CAF50"></span> Redis 8.6.1 (io-threads 4)</span>
+  </div>
+</div>
+
+<h2>Serialization Helpers</h2>
+<p class="desc">memcpy-based encode/decode performance. These are pure CPU — no Redis involved. Decoding (to_double, to_int) is ~2ns. Encoding allocates a std::string (~42ns).</p>
+<div class="chart"><img src="00_serialization.png" alt="Serialization Helpers"></div>
+
+<h2>Single Operations — TCP</h2>
+<p class="desc">Latency for individual add/get operations over TCP loopback. Redis 7.0.15 is consistently ~2x faster than 8.x for single-threaded operations.</p>
+<div class="chart"><img src="01_single_ops_tcp.png" alt="Single Operations — TCP"></div>
+
+<h2>Single Operations — UDS</h2>
+<p class="desc">Same operations over Unix domain socket. UDS reduces latency by 5-8us vs TCP on 7.0.15.</p>
+<div class="chart"><img src="02_single_ops_uds.png" alt="Single Operations — UDS"></div>
+
+<h2>TCP vs UDS — Redis 7.0.15</h2>
+<p class="desc">Direct transport comparison on the fastest Redis version. UDS wins by 1.3-1.9x on every operation.</p>
+<div class="chart"><img src="03_tcp_vs_uds.png" alt="TCP vs UDS — Redis 7.0.15"></div>
+
+<h2>Range Query Scaling</h2>
+<p class="desc">How latency scales with query size (XRANGE). All versions converge at large batch sizes — the transport round-trip becomes negligible vs Redis-side serialization.</p>
+<div class="chart"><img src="04_range_queries.png" alt="Range Query Scaling"></div>
+
+<h2>Bulk Add Throughput</h2>
+<p class="desc">Individual XADD calls in a loop. UDS advantage compounds linearly with batch size.</p>
+<div class="chart"><img src="05_bulk_add.png" alt="Bulk Add Throughput"></div>
+
+<h2>Large Blob Throughput</h2>
+<p class="desc">Write throughput vs payload size. All versions converge at 1 MiB (~1.2 GiB/s) — memory copy and TCP/UDS bandwidth become the limit.</p>
+<div class="chart"><img src="06_blob_throughput.png" alt="Large Blob Throughput"></div>
+
+<h2>Parallel Writer Scaling</h2>
+<p class="desc">Aggregate throughput with N concurrent writer threads. Redis 7.0.15+UDS peaks at ~250k ops/s. Redis 8.x io-threads help at 8 threads but don't overcome the single-op latency penalty.</p>
+<div class="chart"><img src="07_parallel_writers.png" alt="Parallel Writer Scaling"></div>
+
+<h2>Mixed Read/Write</h2>
+<p class="desc">Half writers, half readers on the same stream. Simulates realistic workloads.</p>
+<div class="chart"><img src="08_mixed_rw.png" alt="Mixed Read/Write"></div>
+
+<h2>Deep Stream Queries</h2>
+<p class="desc">Range queries on a 100K-entry stream. Redis 8.x shows some improvement at small query sizes.</p>
+<div class="chart"><img src="09_deep_stream.png" alt="Deep Stream Queries"></div>
+
+<h2>Many Streams (Key-Space Pressure)</h2>
+<p class="desc">Write one entry to N distinct stream keys then delete. Tests key creation overhead.</p>
+<div class="chart"><img src="10_many_streams.png" alt="Many Streams (Key-Space Pressure)"></div>
+
+<div class="takeaway">
+<h2>Key Takeaways</h2>
+<ol>
+<li><strong>Redis 7.0.15 is the fastest</strong> for single-threaded and low-thread workloads — ~2x faster per-operation than 8.x</li>
+<li><strong>UDS is 1.3-1.9x faster than TCP</strong> on the same Redis version (saves 5-8us per round-trip)</li>
+<li><strong>Best config: Redis 7.0.15 + UDS</strong> — peaks at ~100k single-thread ops/s and ~250k aggregate ops/s</li>
+<li><strong>Redis 8.x io-threads help at high concurrency</strong> (8+ threads) but don't overcome the per-operation latency regression</li>
+<li><strong>Serialization is free</strong> — memcpy helpers are 2-42ns vs 10-18us round-trip</li>
+<li><strong>Transport advantage disappears for large batches</strong> — at 1000+ entry reads, server-side work dominates</li>
+<li><strong>All versions converge at ~1.2 GiB/s</strong> for 1 MiB blob writes (memory copy limit)</li>
+</ol>
+</div>
+
+<p style="color:#999; margin-top: 40px; font-size: 0.85em;">
+Generated from Google Benchmark JSON data. Raw data in <code>doc/benchmarks/*.json</code>.
+</p>
+</body>
+</html>
