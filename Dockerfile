@@ -11,18 +11,17 @@ RUN git submodule update --init --recursive 2>/dev/null || true
 
 RUN cmake -S . -B build \
       -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_C_FLAGS="-O2" \
+      -DCMAKE_CXX_FLAGS="-O2" \
+      -DCMAKE_EXE_LINKER_FLAGS="-static" \
       -DRAL_BUILD_ADAPTERS=ON \
-    && cmake --build build -j$(nproc)
+    && cmake --build build -j$(nproc) \
+    && strip build/adapters/device-twin/device-twin
 
 # ---- Runtime image ----
-FROM ubuntu:24.04
+FROM scratch
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libstdc++6 \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY --from=builder /src/build/adapters/device-twin/device-twin /usr/local/bin/
+COPY --from=builder /src/build/adapters/device-twin/device-twin /device-twin
 COPY adapters/device-twin/configs/ /etc/adapters/device-twin/
 
-ENTRYPOINT ["device-twin"]
-CMD ["/etc/adapters/device-twin/acct-example.yml"]
+CMD ["/device-twin", "/etc/adapters/device-twin/acct-example.yml"]

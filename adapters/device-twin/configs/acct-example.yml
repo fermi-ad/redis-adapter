@@ -112,14 +112,55 @@ Device:
       ValType: Int32
       InitVal: 0
 
-    - PVName: WAVEFORM_FREQUENCY
-      GetKey: WAVEFORM_FREQUENCY
-      PutKey: WAVEFORM_FREQUENCY_S
-      ValType: Float32
-      InitVal: 0.1
+    # ---- Twin control PVs (reserved names, handled internally by twin) ----
+    # Listed here so the downstream project propagates them out of Redis.
+    # The twin ignores these entries and always registers them with defaults.
 
     - PVName: DEVICE_UPDATE_INTERVAL
       GetKey: DEVICE_UPDATE_INTERVAL
       PutKey: DEVICE_UPDATE_INTERVAL_S
       ValType: Int32
       InitVal: 50
+
+    - PVName: WAVEFORM_FREQUENCY
+      GetKey: WAVEFORM_FREQUENCY
+      PutKey: WAVEFORM_FREQUENCY_S
+      ValType: Float32
+      InitVal: 1.0
+
+    - PVName: WAVEFORM_AMPLITUDE
+      GetKey: WAVEFORM_AMPLITUDE
+      PutKey: WAVEFORM_AMPLITUDE_S
+      ValType: Float32
+      InitVal: 1.0
+
+    - PVName: WAVEFORM_PHASE
+      GetKey: WAVEFORM_PHASE
+      PutKey: WAVEFORM_PHASE_S
+      ValType: Float32
+      InitVal: 0.0
+
+    - PVName: WAVEFORM_NOISE
+      GetKey: WAVEFORM_NOISE
+      PutKey: WAVEFORM_NOISE_S
+      ValType: Float32
+      InitVal: 0.02
+
+    - PVName: GATE_ENABLE
+      GetKey: GATE_ENABLE
+      PutKey: GATE_ENABLE_S
+      ValType: Int32
+      InitVal: 0
+
+    - PVName: GATE_START
+      GetKey: GATE_START
+      PutKey: GATE_START_S
+      ValType: Float32
+      InitVal: 0.1
+
+    - PVName: GATE_WIDTH
+      GetKey: GATE_WIDTH
+      PutKey: GATE_WIDTH_S
+      ValType: Float32
+      InitVal: 0.3
+

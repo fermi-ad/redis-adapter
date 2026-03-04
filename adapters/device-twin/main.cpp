@@ -5,7 +5,8 @@
 //    - Connects to Redis via RedisAdapterLite
 //    - Listens for setting writes (PutKey / _S channels)
 //    - Echoes settings back on the reading channel (GetKey)
-//    - Generates dummy data: sinewaves for array PVs, random scalars
+//    - Generates dummy data: sinewaves for array PVs, oscillating scalars
+//    - Supports reserved control PVs for frequency, amplitude, phase, noise, gate
 //    - Updates at configurable rate (DEVICE_UPDATE_INTERVAL, default 50ms = 20Hz)
 //
 //  Usage: device-twin <config.yml>
@@ -50,6 +51,50 @@ struct PVState
     double  currentVal = 0.0;   // current scalar value (or unused for arrays)
     int64_t currentInt = 0;     // current int value for Int32 scalars
 };
+
+// ---- Signal generation parameters (reserved PVs) ----
+
+struct TwinParams
+{
+    int    updateIntervalMs = 50;
+    double frequency        = 1.0;
+    double amplitude        = 1.0;
+    double phase            = 0.0;
+    double noise            = 0.02;
+    int    gateEnable       = 0;
+    double gateStart        = 0.1;
+    double gateWidth        = 0.3;
+};
+
+// ---- Reserved control PV definitions ----
+
+struct ControlPVDef
+{
+    const char* pvName;
+    const char* getKey;
+    const char* putKey;
+    ValType     valType;
+    double      initVal;
+};
+
+static const ControlPVDef g_controlPVs[] = {
+    {"DEVICE_UPDATE_INTERVAL", "DEVICE_UPDATE_INTERVAL", "DEVICE_UPDATE_INTERVAL_S", ValType::Int32,   50.0},
+    {"WAVEFORM_FREQUENCY",     "WAVEFORM_FREQUENCY",     "WAVEFORM_FREQUENCY_S",     ValType::Float32, 1.0},
+    {"WAVEFORM_AMPLITUDE",     "WAVEFORM_AMPLITUDE",     "WAVEFORM_AMPLITUDE_S",     ValType::Float32, 1.0},
+    {"WAVEFORM_PHASE",         "WAVEFORM_PHASE",         "WAVEFORM_PHASE_S",         ValType::Float32, 0.0},
+    {"WAVEFORM_NOISE",         "WAVEFORM_NOISE",         "WAVEFORM_NOISE_S",         ValType::Float32, 0.02},
+    {"GATE_ENABLE",            "GATE_ENABLE",            "GATE_ENABLE_S",            ValType::Int32,   0.0},
+    {"GATE_START",             "GATE_START",             "GATE_START_S",             ValType::Float32, 0.1},
+    {"GATE_WIDTH",             "GATE_WIDTH",             "GATE_WIDTH_S",             ValType::Float32, 0.3},
+};
+
+static bool isReservedPV(const std::string& pvName)
+{
+    for (auto& def : g_controlPVs)
+        if (pvName == def.pvName)
+            return true;
+    return false;
+}
 
 // ---- Globals ----
 
@@ -107,23 +152,70 @@ static bool parseConfig(const std::string& path,
             fprintf(stderr, "Skipping PV entry with no PVName\n");
             continue;
         }
+        if (isReservedPV(d.pvName))
+        {
+            printf("[twin] Ignoring reserved PV '%s' in config (handled internally)\n",
+                   d.pvName.c_str());
+            continue;
+        }
         pvList.push_back(std::move(d));
     }
 
     return !pvList.empty();
 }
 
-// ---- Generate a sinewave with some noise ----
+// ---- Generate signal with gate/pulse support ----
 
-static void generateSinewave(std::vector<float>& buf, int count,
-                              double frequency, double phase,
-                              std::mt19937& rng)
+static void generateSignal(std::vector<float>& buf, int count,
+                            double frequency, double runningPhase,
+                            double amplitude, double phaseOffset,
+                            double noiseSigma,
+                            bool gateEnable, double gateStart, double gateWidth,
+                            std::mt19937& rng)
 {
     buf.resize(count);
-    std::normal_distribution<float> noise(0.0f, 0.02f);
+    std::normal_distribution<float> noiseDist(0.0f, static_cast<float>(noiseSigma));
     double step = 2.0 * M_PI * frequency / count;
     for (int i = 0; i < count; ++i)
-        buf[i] = static_cast<float>(std::sin(step * i + phase)) + noise(rng);
+    {
+        float n = noiseDist(rng);
+        if (gateEnable)
+        {
+            double t = static_cast<double>(i) / count;
+            if (t >= gateStart && t < gateStart + gateWidth)
+                buf[i] = static_cast<float>(amplitude * std::sin(step * i + phaseOffset + runningPhase)) + n;
+            else
+                buf[i] = n;
+        }
+        else
+        {
+            buf[i] = static_cast<float>(amplitude * std::sin(step * i + phaseOffset + runningPhase)) + n;
+        }
+    }
+}
+
+// ---- Build table mapping reserved GetKey names to TwinParams fields ----
+
+struct ParamBinding
+{
+    enum Kind { Double, Int } kind;
+    double* dptr = nullptr;
+    int*    iptr = nullptr;
+};
+
+static std::unordered_map<std::string, ParamBinding>
+buildParamTable(TwinParams& p)
+{
+    std::unordered_map<std::string, ParamBinding> table;
+    table["DEVICE_UPDATE_INTERVAL"] = {ParamBinding::Int,    nullptr, &p.updateIntervalMs};
+    table["WAVEFORM_FREQUENCY"]     = {ParamBinding::Double, &p.frequency, nullptr};
+    table["WAVEFORM_AMPLITUDE"]     = {ParamBinding::Double, &p.amplitude, nullptr};
+    table["WAVEFORM_PHASE"]         = {ParamBinding::Double, &p.phase, nullptr};
+    table["WAVEFORM_NOISE"]         = {ParamBinding::Double, &p.noise, nullptr};
+    table["GATE_ENABLE"]            = {ParamBinding::Int,    nullptr, &p.gateEnable};
+    table["GATE_START"]             = {ParamBinding::Double, &p.gateStart, nullptr};
+    table["GATE_WIDTH"]             = {ParamBinding::Double, &p.gateWidth, nullptr};
+    return table;
 }
 
 // ---- Main ----
@@ -160,13 +252,11 @@ int main(int argc, char* argv[])
     }
     printf("[twin] Connected to Redis\n");
 
-    // Build PV state map
+    // Build PV state map from user-defined PVs
     std::mutex pvMutex;
     std::unordered_map<std::string, PVState> pvMap;
-
-    // Track update interval and waveform frequency (settable PVs)
-    std::atomic<int>    updateIntervalMs{50};
-    std::atomic<double> waveformFrequency{0.1};
+    TwinParams params;
+    auto paramTable = buildParamTable(params);
 
     for (auto& d : pvDescs)
     {
@@ -177,7 +267,7 @@ int main(int argc, char* argv[])
         pvMap[d.getKey] = std::move(st);
     }
 
-    // Write initial values for all PVs
+    // Write initial values for user-defined PVs
     for (auto& [key, st] : pvMap)
     {
         if (st.desc.valCount > 0)
@@ -191,14 +281,7 @@ int main(int argc, char* argv[])
         printf("[twin]   init %s = %g\n", st.desc.pvName.c_str(), st.currentVal);
     }
 
-    // Pick up special PV initial values
-    if (pvMap.count("DEVICE_UPDATE_INTERVAL"))
-        updateIntervalMs = static_cast<int>(pvMap["DEVICE_UPDATE_INTERVAL"].currentVal);
-    if (pvMap.count("WAVEFORM_FREQUENCY"))
-        waveformFrequency = pvMap["WAVEFORM_FREQUENCY"].currentVal;
-
-    // Set up readers for all settable PVs (those with PutKey)
-    // When a value is written to the PutKey (_S), echo it back on GetKey
+    // Set up readers for user-defined settable PVs (those with PutKey)
     for (auto& [key, st] : pvMap)
     {
         if (st.desc.putKey.empty())
@@ -209,8 +292,7 @@ int main(int argc, char* argv[])
         const ValType     vt     = st.desc.valType;
 
         redis.addReader(putKey,
-            [&redis, &pvMap, &pvMutex, &updateIntervalMs, &waveformFrequency,
-             getKey, putKey, vt]
+            [&redis, &pvMap, &pvMutex, getKey, putKey, vt]
             (const std::string& /*base*/, const std::string& /*sub*/,
              const TimeAttrsList& data)
         {
@@ -221,11 +303,7 @@ int main(int argc, char* argv[])
                     auto v = ral_to_int(attrs);
                     if (!v) continue;
                     int64_t val = *v;
-
-                    // Echo back on reading channel
                     redis.addInt(getKey, val);
-
-                    // Update local state
                     {
                         std::lock_guard<std::mutex> lk(pvMutex);
                         if (pvMap.count(getKey))
@@ -234,15 +312,6 @@ int main(int argc, char* argv[])
                             pvMap[getKey].currentVal = static_cast<double>(val);
                         }
                     }
-
-                    // Handle special PVs
-                    if (getKey == "DEVICE_UPDATE_INTERVAL")
-                    {
-                        int ms = static_cast<int>(val);
-                        if (ms >= 10 && ms <= 10000)
-                            updateIntervalMs = ms;
-                    }
-
                     printf("[twin] SET %s -> %s = %ld\n",
                            putKey.c_str(), getKey.c_str(), (long)val);
                 }
@@ -251,18 +320,12 @@ int main(int argc, char* argv[])
                     auto v = ral_to_double(attrs);
                     if (!v) continue;
                     double val = *v;
-
                     redis.addDouble(getKey, val);
-
                     {
                         std::lock_guard<std::mutex> lk(pvMutex);
                         if (pvMap.count(getKey))
                             pvMap[getKey].currentVal = val;
                     }
-
-                    if (getKey == "WAVEFORM_FREQUENCY")
-                        waveformFrequency = val;
-
                     printf("[twin] SET %s -> %s = %f\n",
                            putKey.c_str(), getKey.c_str(), val);
                 }
@@ -273,28 +336,104 @@ int main(int argc, char* argv[])
                putKey.c_str(), getKey.c_str());
     }
 
+    // Register reserved control PVs (always present, not from config)
+    for (auto& def : g_controlPVs)
+    {
+        // Publish initial value
+        if (def.valType == ValType::Int32)
+            redis.addInt(def.getKey, static_cast<int64_t>(def.initVal));
+        else
+            redis.addDouble(def.getKey, def.initVal);
+
+        printf("[twin]   init control %s = %g\n", def.pvName, def.initVal);
+
+        // Wire up reader for the setting channel
+        const std::string putKey = def.putKey;
+        const std::string getKey = def.getKey;
+        const ValType     vt     = def.valType;
+
+        redis.addReader(putKey,
+            [&redis, &pvMutex, &params, &paramTable, getKey, putKey, vt]
+            (const std::string& /*base*/, const std::string& /*sub*/,
+             const TimeAttrsList& data)
+        {
+            for (auto& [time, attrs] : data)
+            {
+                if (vt == ValType::Int32)
+                {
+                    auto v = ral_to_int(attrs);
+                    if (!v) continue;
+                    int64_t val = *v;
+                    redis.addInt(getKey, val);
+                    {
+                        std::lock_guard<std::mutex> lk(pvMutex);
+                        auto pit = paramTable.find(getKey);
+                        if (pit != paramTable.end() && pit->second.kind == ParamBinding::Int)
+                        {
+                            int ival = static_cast<int>(val);
+                            if (getKey == "DEVICE_UPDATE_INTERVAL")
+                            {
+                                if (ival >= 10 && ival <= 10000)
+                                    *pit->second.iptr = ival;
+                            }
+                            else
+                            {
+                                *pit->second.iptr = ival;
+                            }
+                        }
+                    }
+                    printf("[twin] SET %s -> %s = %ld\n",
+                           putKey.c_str(), getKey.c_str(), (long)val);
+                }
+                else
+                {
+                    auto v = ral_to_double(attrs);
+                    if (!v) continue;
+                    double val = *v;
+                    redis.addDouble(getKey, val);
+                    {
+                        std::lock_guard<std::mutex> lk(pvMutex);
+                        auto pit = paramTable.find(getKey);
+                        if (pit != paramTable.end() && pit->second.kind == ParamBinding::Double)
+                            *pit->second.dptr = val;
+                    }
+                    printf("[twin] SET %s -> %s = %f\n",
+                           putKey.c_str(), getKey.c_str(), val);
+                }
+            }
+        });
+
+        printf("[twin]   listening on %s -> echoes to %s\n", def.putKey, def.getKey);
+    }
+
     // Signal handling
     signal(SIGINT,  sigHandler);
     signal(SIGTERM, sigHandler);
 
     printf("[twin] Running at %d ms update interval (%.1f Hz)\n",
-           updateIntervalMs.load(), 1000.0 / updateIntervalMs.load());
+           params.updateIntervalMs, 1000.0 / params.updateIntervalMs);
 
     // Main data generation loop
     std::mt19937 rng(42);
-    std::normal_distribution<double> scalarNoise(0.0, 0.01);
-    double phase = 0.0;
+    double runningPhase = 0.0;
     uint64_t tick = 0;
 
     while (g_running)
     {
         auto loopStart = std::chrono::steady_clock::now();
-        int intervalMs = updateIntervalMs.load();
-        double freq    = waveformFrequency.load();
 
-        // Advance phase
-        phase += 2.0 * M_PI * freq * intervalMs / 1000.0;
-        if (phase > 2.0 * M_PI) phase -= 2.0 * M_PI;
+        // Snapshot params under lock
+        TwinParams p;
+        {
+            std::lock_guard<std::mutex> lk(pvMutex);
+            p = params;
+        }
+
+        // Advance running phase
+        runningPhase += 2.0 * M_PI * p.frequency * p.updateIntervalMs / 1000.0;
+        if (runningPhase > 2.0 * M_PI) runningPhase -= 2.0 * M_PI;
+
+        std::normal_distribution<double> scalarNoise(0.0, p.noise);
 
         std::lock_guard<std::mutex> lk(pvMutex);
 
@@ -306,30 +445,34 @@ int main(int argc, char* argv[])
 
             if (st.desc.valCount > 0)
             {
-                // Array PV: generate sinewave data
+                // Array PV: generate signal with gate support
                 std::vector<float> wf;
-                generateSinewave(wf, st.desc.valCount, freq, phase, rng);
+                generateSignal(wf, st.desc.valCount,
+                               p.frequency, runningPhase,
+                               p.amplitude, p.phase, p.noise,
+                               p.gateEnable != 0, p.gateStart, p.gateWidth,
+                               rng);
                 redis.addBlob(st.desc.getKey, wf.data(),
                               wf.size() * sizeof(float));
             }
             else if (st.desc.valType == ValType::Float32)
             {
-                // Scalar float: slow random walk around a base
-                double base = std::sin(phase) * 50.0 + 100.0;
+                // Scalar float: oscillate around amplitude-scaled sine
+                double base = p.amplitude * std::sin(runningPhase);
                 st.currentVal = base + scalarNoise(rng) * 10.0;
                 redis.addDouble(st.desc.getKey, st.currentVal);
             }
-            // Int32 read-only scalars with no PutKey would go here if needed
         }
 
         tick++;
         if (tick % 200 == 0)
-            printf("[twin] tick %lu  interval=%dms  freq=%.3f\n",
-                   (unsigned long)tick, intervalMs, freq);
+            printf("[twin] tick %lu  interval=%dms  freq=%.3f  amp=%.3f  gate=%d\n",
+                   (unsigned long)tick, p.updateIntervalMs, p.frequency,
+                   p.amplitude, p.gateEnable);
 
         // Sleep for remainder of interval
         auto elapsed = std::chrono::steady_clock::now() - loopStart;
-        auto sleepTime = std::chrono::milliseconds(intervalMs) - elapsed;
+        auto sleepTime = std::chrono::milliseconds(p.updateIntervalMs) - elapsed;
         if (sleepTime > std::chrono::milliseconds(0))
             std::this_thread::sleep_for(sleepTime);
     }
