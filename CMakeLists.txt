@@ -95,6 +95,13 @@ if(RAL_BUILD_BENCHMARKS)
   target_link_libraries(ral-benchmark redis-adapter-lite benchmark::benchmark)
 endif()
 
+# ---- Adapters ----
+option(RAL_BUILD_ADAPTERS "Build adapter executables (digital twins, etc.)" OFF)
+if(RAL_BUILD_ADAPTERS)
+  message(STATUS "RAL_BUILD_ADAPTERS enabled")
+  add_subdirectory(adapters)
+endif()
+
 # ---- Install ----
 install(TARGETS redis-adapter-lite
   EXPORT redis-adapter-lite-targets

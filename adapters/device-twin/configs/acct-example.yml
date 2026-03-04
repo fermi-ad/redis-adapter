@@ -1,0 +1,125 @@
+Device:
+
+  DeviceName: ACCT:1001
+  RedisHost: redis
+
+  PVList:
+    - PVName: SIGNAL_WF
+      GetKey: SIGNAL_WF
+      ValType: Float32
+      ValCount: 5000
+
+    - PVName: BASELINE_WF
+      GetKey: BASELINE_WF
+      ValType: Float32
+      ValCount: 5000
+
+    - PVName: CORRECTED_WF
+      GetKey: CORRECTED_WF
+      ValType: Float32
+      ValCount: 5000
+
+    - PVName: INTENSITY
+      GetKey: INTENSITY
+      ValType: Float32
+      InitVal: 0.0
+
+    - PVName: CURRENT
+      GetKey: CURRENT
+      ValType: Float32
+      InitVal: 0.0
+
+    - PVName: PULSE_WIDTH
+      GetKey: PULSE_WIDTH
+      ValType: Float32
+      InitVal: 0.0
+
+    - PVName: SYS_MODE
+      GetKey: SYS_MODE
+      PutKey: SYS_MODE_S
+      ValType: Int32
+      InitVal: 0
+
+    - PVName: BASELINE_SUB
+      GetKey: BASELINE_SUB
+      PutKey: BASELINE_SUB_S
+      ValType: Int32
+      InitVal: 0
+
+    - PVName: MODE_FILT
+      GetKey: MODE_FILT
+      PutKey: MODE_FILT_S
+      ValType: Int32
+      InitVal: 0
+
+    - PVName: MODE_FILT_COEFF
+      GetKey: MODE_FILT_COEFF
+      PutKey: MODE_FILT_COEFF_S
+      ValType: Float32
+      InitVal: 0.0
+
+    - PVName: DROOP_CORR
+      GetKey: DROOP_CORR
+      PutKey: DROOP_CORR_S
+      ValType: Int32
+      InitVal: 0
+
+    - PVName: DROOP_COEFF
+      GetKey: DROOP_COEFF
+      PutKey: DROOP_COEFF_S
+      ValType: Float32
+      InitVal: 0.0
+
+    - PVName: INTEG_WINDOW
+      GetKey: INTEG_WINDOW
+      PutKey: INTEG_WINDOW_S
+      ValType: Float32
+      InitVal: 0.0
+
+    - PVName: INTENSITY_SCALE_GAIN
+      GetKey: INTENSITY_SCALE_GAIN
+      PutKey: INTENSITY_SCALE_GAIN_S
+      ValType: Float32
+      InitVal: 0.0
+
+    - PVName: INTENSITY_SCALE_OFFSET
+      GetKey: INTENSITY_SCALE_OFFSET
+      PutKey: INTENSITY_SCALE_OFFSET_S
+      ValType: Float32
+      InitVal: 0.0
+
+    - PVName: CURRENT_SCALE_GAIN
+      GetKey: CURRENT_SCALE_GAIN
+      PutKey: CURRENT_SCALE_GAIN_S
+      ValType: Float32
+      InitVal: 0.0
+
+    - PVName: CURRENT_SCALE_OFFSET
+      GetKey: CURRENT_SCALE_OFFSET
+      PutKey: CURRENT_SCALE_OFFSET_S
+      ValType: Float32
+      InitVal: 0.0
+
+    - PVName: POWER_CTRL
+      GetKey: POWER_CTRL
+      PutKey: POWER_CTRL_S
+      ValType: Int32
+      InitVal: 0
+
+    - PVName: TRIG_CONFIG
+      GetKey: TRIG_CONFIG
+      PutKey: TRIG_CONFIG_S
+      ValType: Int32
+      InitVal: 0
+
+    - PVName: WAVEFORM_FREQUENCY
+      GetKey: WAVEFORM_FREQUENCY
+      PutKey: WAVEFORM_FREQUENCY_S
+      ValType: Float32
+      InitVal: 0.1
+
+    - PVName: DEVICE_UPDATE_INTERVAL
+      GetKey: DEVICE_UPDATE_INTERVAL
+      PutKey: DEVICE_UPDATE_INTERVAL_S
+      ValType: Int32
+      InitVal: 50
