@@ -1,0 +1,7 @@
+Device:
+  DeviceName: BPM:0001
+  RedisHost: redis
+  InputKeyA: MAG_CH0
+  OutputKey: FILTERED_CH0
+  DataType: float32
+  FilterCoeff: 0.05                 # slow EMA for noise reduction

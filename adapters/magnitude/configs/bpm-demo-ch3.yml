@@ -1,0 +1,8 @@
+Device:
+  DeviceName: BPM:0001
+  RedisHost: redis
+  InputKeyI: I_CH3
+  InputKeyQ: Q_CH3
+  OutputKeyMag: MAG_CH3
+  OutputKeyPhase: PHASE_CH3
+  DataType: float32

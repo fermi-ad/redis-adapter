@@ -1,0 +1,9 @@
+Device:
+  DeviceName: ACCT:1001
+  RedisHost: redis
+
+  InputKey: SIGNAL_WF              # input waveform (real-valued)
+  OutputKeyMag: FFT_MAG_WF         # output: magnitude spectrum (DC to Nyquist)
+  OutputKeyPhase: FFT_PHASE_WF     # output: phase spectrum (DC to Nyquist)
+
+  DataType: float32                # float32 | float64 | int32

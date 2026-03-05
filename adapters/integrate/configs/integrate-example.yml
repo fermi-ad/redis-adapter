@@ -1,0 +1,21 @@
+Device:
+  DeviceName: ACCT:1001
+  RedisHost: redis
+
+  InputKeyA: SIGNAL_WF         # primary input (waveform blob)
+  InputKeyB: BASELINE_WF       # baseline input (waveform blob)
+
+  DataType: float32            # float32 | float64 | int32
+
+  Windows:
+    - OutputKey: INTENSITY_NARROW
+      Start: 0.1               # window start (0.0-1.0 normalized)
+      Width: 0.3               # window width (0.0-1.0 normalized)
+      AvgKey: INTENSITY_NARROW_AVG  # 5-min running average output
+      AvgSeconds: 300           # averaging period in seconds
+
+    - OutputKey: INTENSITY_WIDE
+      Start: 0.0
+      Width: 1.0               # full waveform integration
+      AvgKey: INTENSITY_WIDE_AVG
+      AvgSeconds: 300

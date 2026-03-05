@@ -1,0 +1,18 @@
+Device:
+  DeviceName: BPM:0001
+  RedisHost: redis
+
+  InputKey: RAW_MUX_WF
+  DataTypeIn: float32
+  DataTypeOut: float32
+
+  # 8-way demux: interleaved I0,Q0,I1,Q1,I2,Q2,I3,Q3
+  Channels:
+    - I_CH0
+    - Q_CH0
+    - I_CH1
+    - Q_CH1
+    - I_CH2
+    - Q_CH2
+    - I_CH3
+    - Q_CH3

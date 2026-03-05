@@ -1,0 +1,11 @@
+Device:
+  DeviceName: ACCT:1001
+  RedisHost: redis
+
+  InputKey: RAW_IQ_WF              # interleaved input waveform
+  DataTypeIn: int32                # input blob element type
+  DataTypeOut: float32             # output blob element type
+
+  Channels:                        # output keys in interleave order
+    - I_WF                         # sample[0], sample[2], sample[4], ...
+    - Q_WF                         # sample[1], sample[3], sample[5], ...

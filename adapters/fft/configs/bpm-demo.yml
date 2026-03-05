@@ -1,0 +1,7 @@
+Device:
+  DeviceName: BPM:0001
+  RedisHost: redis
+  InputKey: MAG_CH0
+  OutputKeyMag: FFT_MAG
+  OutputKeyPhase: FFT_PHASE
+  DataType: float32

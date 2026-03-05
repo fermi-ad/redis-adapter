@@ -1,0 +1,20 @@
+Device:
+  DeviceName: BPM:0001
+  RedisHost: redis
+
+  InputKeyA: MAG_CH0
+  InputKeyB: MAG_CH1               # baseline: opposite plate
+  DataType: float32
+
+  Windows:
+    - OutputKey: INTEG_NARROW
+      Start: 0.2                   # gate region only
+      Width: 0.4
+      AvgKey: INTEG_NARROW_AVG
+      AvgSeconds: 300              # 5-min running average
+
+    - OutputKey: INTEG_WIDE
+      Start: 0.0                   # full waveform
+      Width: 1.0
+      AvgKey: INTEG_WIDE_AVG
+      AvgSeconds: 300

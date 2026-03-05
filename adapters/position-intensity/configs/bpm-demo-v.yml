@@ -1,0 +1,10 @@
+Device:
+  DeviceName: BPM:0001
+  RedisHost: redis
+  InputKeyA: MAG_CH2                # vertical plate A
+  InputKeyB: MAG_CH3                # vertical plate B
+  OutputKeyPosition: POS_V
+  OutputKeyIntensity: INT_V
+  DataType: float32
+  PositionScale: 10.0               # mm per unit
+  IntensityScale: 1.0

@@ -1,0 +1,7 @@
+Device:
+  DeviceName: BPM:0001
+  RedisHost: redis
+  InputKeyA: MAG_CH0
+  InputKeyB: MAG_CH1
+  OutputKey: DIFF_H                 # horizontal difference waveform
+  DataType: float32

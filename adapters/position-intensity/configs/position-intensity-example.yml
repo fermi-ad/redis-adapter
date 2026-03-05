@@ -1,0 +1,12 @@
+Device:
+  DeviceName: ACCT:1001
+  RedisHost: redis
+
+  InputKeyA: SIGNAL_WF              # input A (waveform blob)
+  InputKeyB: BASELINE_WF            # input B (waveform blob)
+  OutputKeyPosition: POSITION_WF    # result: scale * (A-B)/(A+B) waveform
+  OutputKeyIntensity: INTENSITY_WF  # result: scale * (A+B) waveform
+
+  DataType: float32                 # float32 | float64 | int32
+  PositionScale: 1.0                # multiplier applied to position output
+  IntensityScale: 1.0               # multiplier applied to intensity output

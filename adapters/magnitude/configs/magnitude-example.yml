@@ -1,0 +1,10 @@
+Device:
+  DeviceName: ACCT:1001
+  RedisHost: redis
+
+  InputKeyI: SIGNAL_WF         # in-phase input (waveform blob)
+  InputKeyQ: BASELINE_WF       # quadrature input (waveform blob)
+  OutputKeyMag: MAGNITUDE_WF   # result: sqrt(I^2 + Q^2) waveform
+  OutputKeyPhase: PHASE_WF     # result: atan2(Q, I) waveform
+
+  DataType: float32            # float32 | float64 | int32

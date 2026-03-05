@@ -1,0 +1,9 @@
+Device:
+  DeviceName: ACCT:1001
+  RedisHost: redis
+
+  InputKeyA: SIGNAL_WF         # primary input (waveform blob)
+  InputKeyB: BASELINE_WF       # baseline input (waveform blob)
+  OutputKey: CORRECTED_WF      # result: A - B waveform
+
+  DataType: float32            # float32 | float64 | int32

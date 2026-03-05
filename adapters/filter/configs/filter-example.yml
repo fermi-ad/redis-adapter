@@ -1,0 +1,9 @@
+Device:
+  DeviceName: ACCT:1001
+  RedisHost: redis
+
+  InputKeyA: SIGNAL_WF         # input waveform blob
+  OutputKey: FILTERED_WF       # result: EMA-filtered waveform
+
+  DataType: float32            # float32 | float64 | int32
+  FilterCoeff: 0.1             # EMA alpha coefficient (0.0-1.0)
