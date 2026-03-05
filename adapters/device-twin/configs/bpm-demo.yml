@@ -1,0 +1,71 @@
+#
+#  BPM Digital Twin
+#
+#  Generates a single interleaved IQ muxed waveform (4 channels × IQ = 8192 samples).
+#  The bpm adapter handles all downstream processing and creates
+#  the derived streams itself — no placeholders needed here.
+#
+
+Device:
+
+  DeviceName: BPM:0001
+  RedisHost: redis
+
+  PVList:
+    # Raw muxed ADC output: 4 IQ channels interleaved
+    # Layout per sample set: [I0, Q0, I1, Q1, I2, Q2, I3, Q3]
+    # 1024 sample sets × 8 = 8192 total
+    - PVName: RAW_MUX_WF
+      GetKey: RAW_MUX_WF
+      ValType: Float32
+      ValCount: 8192
+
+    # ---- Twin control PVs ----
+
+    - PVName: DEVICE_UPDATE_INTERVAL
+      GetKey: DEVICE_UPDATE_INTERVAL
+      PutKey: DEVICE_UPDATE_INTERVAL_S
+      ValType: Int32
+      InitVal: 50
+
+    - PVName: WAVEFORM_FREQUENCY
+      GetKey: WAVEFORM_FREQUENCY
+      PutKey: WAVEFORM_FREQUENCY_S
+      ValType: Float32
+      InitVal: 3.0
+
+    - PVName: WAVEFORM_AMPLITUDE
+      GetKey: WAVEFORM_AMPLITUDE
+      PutKey: WAVEFORM_AMPLITUDE_S
+      ValType: Float32
+      InitVal: 1.0
+
+    - PVName: WAVEFORM_PHASE
+      GetKey: WAVEFORM_PHASE
+      PutKey: WAVEFORM_PHASE_S
+      ValType: Float32
+      InitVal: 0.0
+
+    - PVName: WAVEFORM_NOISE
+      GetKey: WAVEFORM_NOISE
+      PutKey: WAVEFORM_NOISE_S
+      ValType: Float32
+      InitVal: 0.05
+
+    - PVName: GATE_ENABLE
+      GetKey: GATE_ENABLE
+      PutKey: GATE_ENABLE_S
+      ValType: Int32
+      InitVal: 1
+
+    - PVName: GATE_START
+      GetKey: GATE_START
+      PutKey: GATE_START_S
+      ValType: Float32
+      InitVal: 0.2
+
+    - PVName: GATE_WIDTH
+      GetKey: GATE_WIDTH
+      PutKey: GATE_WIDTH_S
+      ValType: Float32
+      InitVal: 0.4

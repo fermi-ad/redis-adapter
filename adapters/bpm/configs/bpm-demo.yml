@@ -1,0 +1,83 @@
+#
+#  BPM Demo — full 4-channel IQ pipeline in one adapter
+#
+#  Input: RAW_MUX_WF — 80000 float32 samples, interleaved as
+#         [I0, Q0, I1, Q1, I2, Q2, I3, Q3, I0, Q0, ...]
+#
+#  Pipeline per trigger:
+#    1. Demux → 4 IQ pairs (10000 samples each)
+#    2. Magnitude + phase per channel
+#    3. Position-intensity (horizontal: ch0 vs ch1, vertical: ch2 vs ch3)
+#    4. Baseline subtract (ch0 - ch1)
+#    5. EMA filter on ch0
+#    6. FFT on ch0
+#    7. Integrate ch0 (baseline ch1), narrow + wide windows, 5-min averages
+#
+
+Device:
+  DeviceName: BPM:0001
+  RedisHost: redis
+
+  InputKey: RAW_MUX_WF
+  DataTypeIn: float32
+  DataTypeOut: float32
+  NumChannels: 4                    # 4 IQ pairs = 8 interleaved streams
+
+  # ---- Per-channel outputs ----
+  # Each channel gets magnitude (required) and optional phase, filter, FFT,
+  # baseline-subtract.
+
+  Channels:
+    - MagKey: MAG_CH0
+      PhaseKey: PHASE_CH0
+      FilterKey: FILTERED_CH0       # EMA-filtered magnitude
+      FilterCoeff: 0.05
+      FFTMagKey: FFT_MAG            # spectrum of magnitude
+      FFTPhaseKey: FFT_PHASE
+      BaselineSubKey: DIFF_H        # ch0 - ch1 difference
+      BaselineChIdx: 1
+
+    - MagKey: MAG_CH1
+      PhaseKey: PHASE_CH1
+
+    - MagKey: MAG_CH2
+      PhaseKey: PHASE_CH2
+
+    - MagKey: MAG_CH3
+      PhaseKey: PHASE_CH3
+
+  # ---- Position-intensity pairs ----
+
+  Positions:
+    - ChannelA: 0                   # horizontal plates
+      ChannelB: 1
+      PositionKey: POS_H
+      IntensityKey: INT_H
+      PositionScale: 10.0           # mm per unit
+      IntensityScale: 1.0
+
+    - ChannelA: 2                   # vertical plates
+      ChannelB: 3
+      PositionKey: POS_V
+      IntensityKey: INT_V
+      PositionScale: 10.0
+      IntensityScale: 1.0
+
+  # ---- Integration (operates on one channel's magnitude) ----
+
+  Integrate:
+    Channel: 0
+    BaselineChannel: 1
+
+    Windows:
+      - OutputKey: INTEG_NARROW
+        Start: 0.2                  # gate region
+        Width: 0.4
+        AvgKey: INTEG_NARROW_AVG
+        AvgSeconds: 300             # 5-min running average
+
+      - OutputKey: INTEG_WIDE
+        Start: 0.0                  # full waveform
+        Width: 1.0
+        AvgKey: INTEG_WIDE_AVG
+        AvgSeconds: 300

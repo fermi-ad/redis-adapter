@@ -1,0 +1,45 @@
+#
+#  BPM Digital Twin — 4-button / 8-electrode beam position monitor
+#
+#  Mode 0 (IQ):      4ch × IQ × 10000 = 80000 float32 → OutputKeyIQ
+#  Mode 1 (RAW_ADC): 8ch × 10000 = 80000 uint16       → OutputKeyADC
+#
+#  Switch at runtime:  redis-cli XADD BPM:0001:MODE_CHANGE_S '*' v 1
+#
+#  IQ mode:  4 buttons, amplitude ∝ beam proximity
+#    CH0 (H+), CH1 (H-), CH2 (V+), CH3 (V-)
+#
+#  RAW_ADC mode:  8 electrodes at 45° intervals, raw carrier as uint16
+#    Mid-scale = 32768, signal scaled by ADCScale
+#
+
+Device:
+  DeviceName: BPM:0001
+  RedisHost: redis
+
+  OutputKeyIQ: RAW_MUX_WF         # mode 0 output
+  OutputKeyADC: RAW_ADC            # mode 1 output
+  Mode: 0                          # 0 = IQ, 1 = RAW_ADC
+
+  # Timing
+  UpdateIntervalMs: 50             # 20 Hz
+  SamplesPerChannel: 10000         # per channel per trigger
+
+  # Beam
+  BeamX: 2.0                       # mm, positive = right (H+ > H-)
+  BeamY: -1.0                      # mm, positive = up (V+ > V-)
+  BeamIntensity: 1.0
+  Aperture: 10.0                   # mm
+
+  # RF carrier
+  CarrierFreq: 5.0                 # cycles per waveform
+  CarrierPhase: 0.0
+
+  # Noise & gating
+  Noise: 0.02
+  GateEnable: 1
+  GateStart: 0.2
+  GateWidth: 0.4
+
+  # RAW_ADC scaling (signal amplitude → ADC counts)
+  ADCScale: 16000.0
