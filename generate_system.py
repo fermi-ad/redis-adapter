@@ -18,9 +18,11 @@ Generate system-level configs and docker-compose for full accelerator simulation
   Total: 92 Redis + 220 twins + 220 adapters = 532 services
 
   Profiles:
+    tiny   — fixed subset: 10 BPM + 10 BLM + 5 BCM
     small  — first 1/2 of all devices
     medium — first 2/3 of all devices
-    large  — all devices (3/3)
+    large  — first 5/6 of all devices
+    full   — all devices
 
   Usage:
     docker compose -f docker-compose.system.yml --profile small up -d
@@ -68,23 +70,27 @@ def get_profiles(position, total, device_type):
     """Return profile list for a device based on its position (1-indexed) in the fleet.
 
     tiny   = first 10 BPM / 10 BLM / 5 BCM
-    small  = first 1/2   → profiles: [small, medium, large]
-    medium = next  1/6   → profiles: [medium, large]
-    large  = last  1/3   → profiles: [large]
+    small  = first 1/2   → profiles: [small, medium, large, full]
+    medium = next  1/6   → profiles: [medium, large, full]
+    large  = next  1/6   → profiles: [large, full]
+    full   = last  1/6   → profiles: [full]
     """
     tiny_limit = {"bpm": TINY_BPM, "blm": TINY_BLM, "bcm": TINY_BCM}[device_type]
     half = total // 2
     two_thirds = (total * 2 + 2) // 3  # round up
+    five_sixths = (total * 5 + 5) // 6  # round up
 
     profiles = []
     if position <= tiny_limit:
         profiles.append("tiny")
     if position <= half:
-        profiles.extend(["small", "medium", "large"])
+        profiles.extend(["small", "medium", "large", "full"])
     elif position <= two_thirds:
-        profiles.extend(["medium", "large"])
+        profiles.extend(["medium", "large", "full"])
+    elif position <= five_sixths:
+        profiles.extend(["large", "full"])
     else:
-        profiles.append("large")
+        profiles.append("full")
     return profiles
 
 
@@ -95,7 +101,7 @@ def broaden_profiles(existing, new):
     """
     all_profiles = set(existing) | set(new)
     # Keep canonical order
-    return [p for p in ["tiny", "small", "medium", "large"] if p in all_profiles]
+    return [p for p in ["tiny", "small", "medium", "large", "full"] if p in all_profiles]
 
 
 def write_yaml(path, data):
@@ -463,9 +469,8 @@ def gen_compose(bpm_instances, blm_instances, bcm_instances):
         svc["profiles"] = profiles
         services[redis_name] = svc
 
-    # Generate per-profile hosts files and add inst-tui services
-    build_block = {"context": ".", "dockerfile": "Dockerfile"}
-    for profile in ["tiny", "small", "medium", "large"]:
+    # Generate per-profile hosts files (for on-demand inst-tui use)
+    for profile in ["tiny", "small", "medium", "large", "full"]:
         profile_hosts = sorted(
             name for name, profs in redis_profiles.items()
             if profile in profs
@@ -474,22 +479,6 @@ def gen_compose(bpm_instances, blm_instances, bcm_instances):
         with open(hosts_file, "w") as hf:
             for h in profile_hosts:
                 hf.write(f"{h}\n")
-
-        svc_name = f"inst-tui-{profile}"
-        # Depend on all Redis nodes for this profile
-        depends = {h: {"condition": "service_healthy"} for h in profile_hosts}
-        services[svc_name] = {
-            "build": build_block,
-            "profiles": [profile],
-            "depends_on": depends,
-            "stdin_open": True,
-            "tty": True,
-            "volumes": [
-                f"./system-configs/inst-tui-hosts-{profile}.txt:"
-                f"/etc/inst-tui/hosts.txt:ro",
-            ],
-            "command": ["/inst-tui", "--config", "/etc/inst-tui/hosts.txt"],
-        }
 
     return {"services": services}, len(redis_profiles)
 
@@ -565,10 +554,13 @@ def main():
     n_bcm_tiny = TINY_BCM
     n_bpm_small = len(bpm_instances) // 2
     n_bpm_medium = (len(bpm_instances) * 2 + 2) // 3
+    n_bpm_large = (len(bpm_instances) * 5 + 5) // 6
     n_blm_small = NUM_BLM // 2
     n_blm_medium = (NUM_BLM * 2 + 2) // 3
+    n_blm_large = (NUM_BLM * 5 + 5) // 6
     n_bcm_small = NUM_BCM // 2
     n_bcm_medium = (NUM_BCM * 2 + 2) // 3
+    n_bcm_large = (NUM_BCM * 5 + 5) // 6
 
     def count_profile_services(profile):
         return sum(1 for s in compose["services"].values()
@@ -578,6 +570,7 @@ def main():
     n_small = count_profile_services("small")
     n_medium = count_profile_services("medium")
     n_large = count_profile_services("large")
+    n_full = count_profile_services("full")
 
     with open(COMPOSE_FILE, "w") as f:
         f.write("#\n")
@@ -597,7 +590,8 @@ def main():
         f.write(f"#    tiny   — fixed subset: {n_bpm_tiny} BPM + {n_blm_tiny} BLM + {n_bcm_tiny} BCM ({n_tiny} services)\n")
         f.write(f"#    small  — 1/2 devices:  {n_bpm_small} BPM + {n_blm_small} BLM + {n_bcm_small} BCM ({n_small} services)\n")
         f.write(f"#    medium — 2/3 devices:  {n_bpm_medium} BPM + {n_blm_medium} BLM + {n_bcm_medium} BCM ({n_medium} services)\n")
-        f.write(f"#    large  — all devices:  {len(bpm_instances)} BPM + {NUM_BLM} BLM + {NUM_BCM} BCM ({n_large} services)\n")
+        f.write(f"#    large  — 5/6 devices:  {n_bpm_large} BPM + {n_blm_large} BLM + {n_bcm_large} BCM ({n_large} services)\n")
+        f.write(f"#    full   — all devices:  {len(bpm_instances)} BPM + {NUM_BLM} BLM + {NUM_BCM} BCM ({n_full} services)\n")
         f.write("#\n")
         f.write("#  Generated by generate_system.py\n")
         f.write("#\n")
@@ -607,7 +601,8 @@ def main():
         f.write(f"#    docker compose -f {COMPOSE_FILE} --profile tiny up -d\n")
         f.write(f"#    docker compose -f {COMPOSE_FILE} --profile small up -d\n")
         f.write(f"#    docker compose -f {COMPOSE_FILE} --profile large up -d\n")
-        f.write(f"#    docker compose -f {COMPOSE_FILE} --profile large down\n")
+        f.write(f"#    docker compose -f {COMPOSE_FILE} --profile full up -d\n")
+        f.write(f"#    docker compose -f {COMPOSE_FILE} --profile full down\n")
         f.write("#\n\n")
         yaml.dump(compose, f, default_flow_style=False, sort_keys=False)
 
@@ -624,7 +619,8 @@ def main():
     print(f"    tiny   — {n_bpm_tiny} BPM + {n_blm_tiny} BLM + {n_bcm_tiny} BCM = {n_tiny} services")
     print(f"    small  — {n_bpm_small} BPM + {n_blm_small} BLM + {n_bcm_small} BCM = {n_small} services")
     print(f"    medium — {n_bpm_medium} BPM + {n_blm_medium} BLM + {n_bcm_medium} BCM = {n_medium} services")
-    print(f"    large  — {len(bpm_instances)} BPM + {NUM_BLM} BLM + {NUM_BCM} BCM = {n_large} services")
+    print(f"    large  — {n_bpm_large} BPM + {n_blm_large} BLM + {n_bcm_large} BCM = {n_large} services")
+    print(f"    full   — {len(bpm_instances)} BPM + {NUM_BLM} BLM + {NUM_BCM} BCM = {n_full} services")
     print(f"Generated {COMPOSE_FILE}")
 
 

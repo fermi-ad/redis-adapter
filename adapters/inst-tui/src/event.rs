@@ -87,7 +87,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
             } else if app.screen == Screen::DrillDown
                 && app.drilldown_tab == DrillDownTab::Settings
             {
-                // Navigate controls list
+                app.selected_control = app.selected_control.saturating_sub(1);
             } else {
                 app.device_scroll = app.device_scroll.saturating_sub(1);
             }
@@ -105,6 +105,16 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
                         .count();
                     if app.selected_channel + 1 < wf_count {
                         app.selected_channel += 1;
+                    }
+                }
+            } else if app.screen == Screen::DrillDown
+                && app.drilldown_tab == DrillDownTab::Settings
+            {
+                if let Some(dev) = snap.devices.get(app.selected_device) {
+                    if !dev.controls.is_empty()
+                        && app.selected_control + 1 < dev.controls.len()
+                    {
+                        app.selected_control += 1;
                     }
                 }
             } else {
@@ -131,8 +141,8 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
             {
                 let snap = app.snapshot();
                 if let Some(dev) = snap.devices.get(app.selected_device) {
-                    if !dev.controls.is_empty() {
-                        app.editing_control = Some(0);
+                    if app.selected_control < dev.controls.len() {
+                        app.editing_control = Some(app.selected_control);
                         app.edit_buffer.clear();
                     }
                 }
@@ -165,6 +175,13 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
                         app.selected_channel += 1;
                     }
                 }
+            }
+        }
+
+        // Save BLM baseline
+        KeyCode::Char('b') => {
+            if app.screen == Screen::Overview && app.overview_tab == OverviewTab::BlmLosses {
+                app.save_blm_baseline();
             }
         }
 

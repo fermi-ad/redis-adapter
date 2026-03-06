@@ -2,6 +2,7 @@ use crate::data::*;
 use crate::redis_client::SharedState;
 use num_complex::Complex;
 use rustfft::FftPlanner;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -98,6 +99,7 @@ pub struct App {
     pub selected_channel: usize,
     pub running: bool,
     // Control editing state
+    pub selected_control: usize,
     pub editing_control: Option<usize>,
     pub edit_buffer: String,
     // FFT cache
@@ -105,6 +107,8 @@ pub struct App {
     pub fft_source_key: String,
     // Hosts for write-back
     pub hosts: Vec<(String, u16)>,
+    // BLM baseline for comparison
+    pub blm_baseline: Option<HashMap<String, f64>>,
 }
 
 impl App {
@@ -118,11 +122,13 @@ impl App {
             selected_device: 0,
             selected_channel: 0,
             running: true,
+            selected_control: 0,
             editing_control: None,
             edit_buffer: String::new(),
             fft_result: Vec::new(),
             fft_source_key: String::new(),
             hosts: hosts.clone(),
+            blm_baseline: None,
         }
     }
 
@@ -234,6 +240,17 @@ impl App {
             }
         }
         result
+    }
+
+    /// Save current BLM losses as baseline
+    pub fn save_blm_baseline(&mut self) {
+        let snap = self.snapshot();
+        let losses = self.blm_loss_data(&snap);
+        let mut baseline = HashMap::new();
+        for (name, val) in losses {
+            baseline.insert(name, val);
+        }
+        self.blm_baseline = Some(baseline);
     }
 
     /// Get the currently selected device

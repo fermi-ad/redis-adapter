@@ -72,12 +72,8 @@ fn render_waveforms(f: &mut Frame, area: Rect, app: &App, snap: &SharedState) {
     if let Some(ch) = selected_ch {
         if let Some(dev_data) = data {
             if let Some(wf) = dev_data.waveforms.get(&ch.key) {
-                let plot_data = downsample(wf, area.width as usize * 2);
-                let data_points: Vec<(f64, f64)> = plot_data
-                    .iter()
-                    .enumerate()
-                    .map(|(i, &v)| (i as f64, v))
-                    .collect();
+                let max_pts = area.width as usize * 4;
+                let data_points = downsample_with_indices(wf, max_pts);
 
                 render_chart(
                     f,
@@ -160,12 +156,8 @@ fn render_fft(f: &mut Frame, area: Rect, app: &mut App, snap: &SharedState) {
                 if !app.fft_result.is_empty() {
                     // Skip DC component, show first half
                     let fft_data = &app.fft_result[1..];
-                    let plot_data = downsample(fft_data, area.width as usize * 2);
-                    let data_points: Vec<(f64, f64)> = plot_data
-                        .iter()
-                        .enumerate()
-                        .map(|(i, &v)| (i as f64, v))
-                        .collect();
+                    let max_pts = area.width as usize * 4;
+                    let data_points = downsample_with_indices(fft_data, max_pts);
 
                     render_chart(
                         f,
@@ -263,15 +255,20 @@ fn render_settings(f: &mut Frame, area: Rect, app: &App, snap: &SharedState) {
             .enumerate()
             .map(|(i, ctrl)| {
                 let editing = app.editing_control == Some(i);
+                let selected = i == app.selected_control;
                 let style = if editing {
                     Style::default().fg(Color::Yellow).bold()
+                } else if selected {
+                    Style::default().fg(Color::Cyan).bold()
                 } else {
                     Style::default()
                 };
                 let val_str = if editing {
                     format!("{}: {}_", ctrl.label, app.edit_buffer)
+                } else if selected {
+                    format!("> {}: {:.4}", ctrl.label, ctrl.default_value)
                 } else {
-                    format!("{}: {:.4} (Enter to edit)", ctrl.label, ctrl.default_value)
+                    format!("  {}: {:.4}", ctrl.label, ctrl.default_value)
                 };
                 ListItem::new(val_str).style(style)
             })
@@ -401,6 +398,39 @@ fn render_chart(
         );
 
     f.render_widget(chart, area);
+}
+
+/// Downsample a waveform preserving original sample indices for axis labels
+fn downsample_with_indices(data: &[f64], max_points: usize) -> Vec<(f64, f64)> {
+    if data.len() <= max_points || max_points == 0 {
+        return data.iter().enumerate().map(|(i, &v)| (i as f64, v)).collect();
+    }
+
+    let step = data.len() as f64 / max_points as f64;
+    let mut result = Vec::with_capacity(max_points);
+
+    for i in 0..max_points {
+        let start = (i as f64 * step) as usize;
+        let end = ((i + 1) as f64 * step) as usize;
+        let end = end.min(data.len());
+
+        if start < end {
+            let mut min_val = f64::INFINITY;
+            let mut max_val = f64::NEG_INFINITY;
+            for &v in &data[start..end] {
+                min_val = min_val.min(v);
+                max_val = max_val.max(v);
+            }
+            let mid = (start + end) / 2;
+            if i % 2 == 0 {
+                result.push((mid as f64, min_val));
+            } else {
+                result.push((mid as f64, max_val));
+            }
+        }
+    }
+
+    result
 }
 
 /// Downsample a waveform to at most max_points for plotting

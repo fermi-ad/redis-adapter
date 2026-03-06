@@ -406,10 +406,9 @@ fn host_reader(
                 break; // Break inner loop to re-discover
             }
 
-            // Non-blocking XREAD to grab all pending entries across all streams
-            // We sleep manually after each cycle for rate control
+            // Blocking XREAD with short timeout to get latest entries
             let mut cmd = redis::cmd("XREAD");
-            cmd.arg("COUNT").arg(1).arg("STREAMS");
+            cmd.arg("COUNT").arg(10).arg("BLOCK").arg(50).arg("STREAMS");
 
             for key in &stream_keys {
                 cmd.arg(key);
@@ -425,8 +424,6 @@ fn host_reader(
                 Ok(ref val) => {
                     let parsed = parse_xread_response(val);
                     if parsed.is_empty() {
-                        // Non-blocking XREAD returned nothing, sleep briefly
-                        thread::sleep(Duration::from_millis(20));
                         continue;
                     }
 

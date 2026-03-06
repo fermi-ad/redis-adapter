@@ -52,7 +52,7 @@ struct RAL_GetArgs
 struct RAL_AddArgs
 {
   RAL_Time time;         // 0 = current host time
-  uint32_t trim = 1;     // trim stream to this many entries
+  uint32_t trim = 100;   // trim stream to this many entries
 };
 
 // Connection/adapter options
