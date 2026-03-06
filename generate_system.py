@@ -16,6 +16,15 @@ Generate system-level configs and docker-compose for full accelerator simulation
   Grouping: 1 BPM pair per digitizer, 8 BLMs per digitizer, 4 BCMs per digitizer
 
   Total: 92 Redis + 220 twins + 220 adapters = 532 services
+
+  Profiles:
+    small  — first 1/2 of all devices
+    medium — first 2/3 of all devices
+    large  — all devices (3/3)
+
+  Usage:
+    docker compose -f docker-compose.system.yml --profile small up -d
+    docker compose -f docker-compose.system.yml --profile large up -d
 """
 
 import os
@@ -46,6 +55,33 @@ BCM_PER_DIGITIZER = 4
 
 def ensure_dir(path):
     os.makedirs(path, exist_ok=True)
+
+
+def get_profiles(position, total):
+    """Return profile list for a device based on its position (1-indexed) in the fleet.
+
+    small  = first 1/2   → profiles: [small, medium, large]
+    medium = next  1/6   → profiles: [medium, large]
+    large  = last  1/3   → profiles: [large]
+    """
+    half = total // 2
+    two_thirds = (total * 2 + 2) // 3  # round up
+    if position <= half:
+        return ["small", "medium", "large"]
+    elif position <= two_thirds:
+        return ["medium", "large"]
+    else:
+        return ["large"]
+
+
+def broaden_profiles(existing, new):
+    """Return the broadest (most permissive) profile set.
+
+    If either contains 'small', the result contains 'small', etc.
+    """
+    all_profiles = set(existing) | set(new)
+    # Keep canonical order
+    return [p for p in ["small", "medium", "large"] if p in all_profiles]
 
 
 def write_yaml(path, data):
@@ -297,29 +333,38 @@ def gen_compose(bpm_instances, blm_instances, bcm_instances):
     services = {}
 
     build_block = {"context": ".", "dockerfile": "Dockerfile"}
-    redis_services = set()
+    # Track Redis services and their profiles (broadened across all users)
+    redis_profiles = {}  # redis_name -> profile list
+
+    total_bpm = len(bpm_instances)
+    total_blm = len(blm_instances)
+    total_bcm = len(bcm_instances)
 
     # BPM twins + adapters — 1 Redis per BPM digitizer (per twin pair)
-    for idx, nch in bpm_instances:
+    for pos, (idx, nch) in enumerate(bpm_instances, 1):
         tag = f"{idx:03d}"
         redis_name = f"redis-bpm-{tag}"
         twin_name = f"bpm-twin-{tag}"
         adap_name = f"bpm-{tag}"
         twin_cfg = f"/etc/adapters/system/bpm-twin/bpm-twin-{tag}.yml"
         adap_cfg = f"/etc/adapters/system/bpm/bpm-{tag}.yml"
+        profiles = get_profiles(pos, total_bpm)
 
-        if redis_name not in redis_services:
-            services[redis_name] = gen_redis_service()
-            redis_services.add(redis_name)
+        if redis_name not in redis_profiles:
+            redis_profiles[redis_name] = profiles
+        else:
+            redis_profiles[redis_name] = broaden_profiles(redis_profiles[redis_name], profiles)
 
         services[twin_name] = {
             "build": build_block,
+            "profiles": profiles,
             "depends_on": {redis_name: {"condition": "service_healthy"}},
             "volumes": ["./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro"],
             "command": ["/bpm-twin", twin_cfg],
         }
         services[adap_name] = {
             "build": build_block,
+            "profiles": profiles,
             "depends_on": {
                 redis_name: {"condition": "service_healthy"},
                 twin_name: {"condition": "service_started"},
@@ -329,8 +374,8 @@ def gen_compose(bpm_instances, blm_instances, bcm_instances):
         }
 
     # BLM twins + adapters — 8 BLMs per digitizer/Redis
-    num_blm_digitizers = math.ceil(len(blm_instances) / BLM_PER_DIGITIZER)
     for i, idx in enumerate(blm_instances):
+        pos = i + 1
         dig = (i // BLM_PER_DIGITIZER) + 1
         tag = f"{idx:03d}"
         redis_name = f"redis-blm-{dig:02d}"
@@ -338,19 +383,23 @@ def gen_compose(bpm_instances, blm_instances, bcm_instances):
         adap_name = f"blm-{tag}"
         twin_cfg = f"/etc/adapters/system/blm-twin/blm-twin-{tag}.yml"
         adap_cfg = f"/etc/adapters/system/blm/blm-{tag}.yml"
+        profiles = get_profiles(pos, total_blm)
 
-        if redis_name not in redis_services:
-            services[redis_name] = gen_redis_service()
-            redis_services.add(redis_name)
+        if redis_name not in redis_profiles:
+            redis_profiles[redis_name] = profiles
+        else:
+            redis_profiles[redis_name] = broaden_profiles(redis_profiles[redis_name], profiles)
 
         services[twin_name] = {
             "build": build_block,
+            "profiles": profiles,
             "depends_on": {redis_name: {"condition": "service_healthy"}},
             "volumes": ["./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro"],
             "command": ["/blm-twin", twin_cfg],
         }
         services[adap_name] = {
             "build": build_block,
+            "profiles": profiles,
             "depends_on": {
                 redis_name: {"condition": "service_healthy"},
                 twin_name: {"condition": "service_started"},
@@ -360,8 +409,8 @@ def gen_compose(bpm_instances, blm_instances, bcm_instances):
         }
 
     # BCM twins + adapters — 4 BCMs per digitizer/Redis
-    num_bcm_digitizers = math.ceil(len(bcm_instances) / BCM_PER_DIGITIZER)
     for i, idx in enumerate(bcm_instances):
+        pos = i + 1
         dig = (i // BCM_PER_DIGITIZER) + 1
         tag = f"{idx:02d}"
         redis_name = f"redis-bcm-{dig:02d}"
@@ -369,19 +418,23 @@ def gen_compose(bpm_instances, blm_instances, bcm_instances):
         adap_name = f"bcm-{tag}"
         twin_cfg = f"/etc/adapters/system/bcm-twin/bcm-twin-{tag}.yml"
         adap_cfg = f"/etc/adapters/system/bcm/bcm-{tag}.yml"
+        profiles = get_profiles(pos, total_bcm)
 
-        if redis_name not in redis_services:
-            services[redis_name] = gen_redis_service()
-            redis_services.add(redis_name)
+        if redis_name not in redis_profiles:
+            redis_profiles[redis_name] = profiles
+        else:
+            redis_profiles[redis_name] = broaden_profiles(redis_profiles[redis_name], profiles)
 
         services[twin_name] = {
             "build": build_block,
+            "profiles": profiles,
             "depends_on": {redis_name: {"condition": "service_healthy"}},
             "volumes": ["./system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro"],
             "command": ["/bcm-twin", twin_cfg],
         }
         services[adap_name] = {
             "build": build_block,
+            "profiles": profiles,
             "depends_on": {
                 redis_name: {"condition": "service_healthy"},
                 twin_name: {"condition": "service_started"},
@@ -390,7 +443,13 @@ def gen_compose(bpm_instances, blm_instances, bcm_instances):
             "command": ["/bcm", adap_cfg],
         }
 
-    return {"services": services}, len(redis_services)
+    # Add Redis services with broadened profiles
+    for redis_name, profiles in redis_profiles.items():
+        svc = gen_redis_service()
+        svc["profiles"] = profiles
+        services[redis_name] = svc
+
+    return {"services": services}, len(redis_profiles)
 
 
 # ============================================================
@@ -458,6 +517,22 @@ def main():
     num_bcm_digitizers = math.ceil(NUM_BCM / BCM_PER_DIGITIZER)
     num_bpm_digitizers = len(bpm_instances)
 
+    # Calculate profile sizes
+    n_bpm_small = len(bpm_instances) // 2
+    n_bpm_medium = (len(bpm_instances) * 2 + 2) // 3
+    n_blm_small = NUM_BLM // 2
+    n_blm_medium = (NUM_BLM * 2 + 2) // 3
+    n_bcm_small = NUM_BCM // 2
+    n_bcm_medium = (NUM_BCM * 2 + 2) // 3
+
+    def count_profile_services(profile):
+        return sum(1 for s in compose["services"].values()
+                   if profile in s.get("profiles", []))
+
+    n_small = count_profile_services("small")
+    n_medium = count_profile_services("medium")
+    n_large = count_profile_services("large")
+
     with open(COMPOSE_FILE, "w") as f:
         f.write("#\n")
         f.write("#  Full Accelerator Simulation System\n")
@@ -472,13 +547,19 @@ def main():
         f.write("#\n")
         f.write(f"#  Total: {num_redis} Redis + {n_twins} twins + {n_twins} adapters = {n_services} services\n")
         f.write("#\n")
+        f.write("#  Profiles:\n")
+        f.write(f"#    small  — 1/2 devices: {n_bpm_small} BPM + {n_blm_small} BLM + {n_bcm_small} BCM ({n_small} services)\n")
+        f.write(f"#    medium — 2/3 devices: {n_bpm_medium} BPM + {n_blm_medium} BLM + {n_bcm_medium} BCM ({n_medium} services)\n")
+        f.write(f"#    large  — all devices: {len(bpm_instances)} BPM + {NUM_BLM} BLM + {NUM_BCM} BCM ({n_large} services)\n")
+        f.write("#\n")
         f.write("#  Generated by generate_system.py\n")
         f.write("#\n")
         f.write("#  Usage:\n")
         f.write("#    python3 generate_system.py\n")
         f.write(f"#    docker compose -f {COMPOSE_FILE} build\n")
-        f.write(f"#    docker compose -f {COMPOSE_FILE} up -d\n")
-        f.write(f"#    docker compose -f {COMPOSE_FILE} down\n")
+        f.write(f"#    docker compose -f {COMPOSE_FILE} --profile small up -d\n")
+        f.write(f"#    docker compose -f {COMPOSE_FILE} --profile large up -d\n")
+        f.write(f"#    docker compose -f {COMPOSE_FILE} --profile large down\n")
         f.write("#\n\n")
         yaml.dump(compose, f, default_flow_style=False, sort_keys=False)
 
@@ -490,6 +571,11 @@ def main():
     print(f"  BCM: {num_bcm_digitizers} digitizers ({NUM_BCM} BCMs, {BCM_PER_DIGITIZER} per digitizer)")
     print(f"  Redis: {num_redis} instances")
     print(f"  Total: {n_services} services")
+    print()
+    print("  Profiles:")
+    print(f"    small  — {n_bpm_small} BPM + {n_blm_small} BLM + {n_bcm_small} BCM = {n_small} services")
+    print(f"    medium — {n_bpm_medium} BPM + {n_blm_medium} BLM + {n_bcm_medium} BCM = {n_medium} services")
+    print(f"    large  — {len(bpm_instances)} BPM + {NUM_BLM} BLM + {NUM_BCM} BCM = {n_large} services")
     print(f"Generated {COMPOSE_FILE}")
 
 

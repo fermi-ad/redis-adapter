@@ -164,10 +164,19 @@ A full-scale accelerator simulation is provided via `docker-compose.system.yml`,
 
 At 20 Hz with 10,000 samples/channel and `trim=100` (5 s history), the system writes to **3,920 Redis Stream keys** across **92 Redis nodes** at **~78,400 XADDs/s** producing **~2.5 GiB/s** of payload data, requiring **~13.8 GiB** of total Redis memory.
 
+Three size profiles are available to run a subset of the system:
+
+| Profile | BPM | BLM | BCM | Services |
+|---------|-----|-----|-----|----------|
+| `small` | 35 | 65 | 10 | 267 |
+| `medium` | 47 | 87 | 14 | 358 |
+| `large` | 70 | 130 | 20 | 532 |
+
 ```bash
 python3 generate_system.py
 docker compose -f docker-compose.system.yml build
-docker compose -f docker-compose.system.yml up -d
+docker compose -f docker-compose.system.yml --profile small up -d
+docker compose -f docker-compose.system.yml --profile large up -d
 ```
 
 See [doc/SYSTEM.md](doc/SYSTEM.md) for the complete Redis data overview, stream key inventory, data rate breakdown, and memory estimates.
