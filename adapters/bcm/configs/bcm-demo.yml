@@ -1,0 +1,66 @@
+#
+#  BCM Demo — 4-channel beam current monitor processing pipeline
+#
+#  Inputs:
+#    RAW_BCM_WF — signal waveform (beam + baseline + noise)
+#    BKG_BCM_WF — background waveform (baseline + noise, no beam)
+#  Each: 4 × 50000 = 200000 float32, interleaved
+#
+#  Pipeline per trigger:
+#    1. Demux raw + background → 4 channels each
+#    2. Background subtraction: raw - bkg → SUB_CHn (waveform)
+#    3. EMA filter on CH0 (optional)
+#    4. Gated integration: sum within gate window → INTEG_GATED_CHn (scalar)
+#    5. Ungated integration: sum full waveform → INTEG_UNGATED_CHn (scalar)
+#    6. Running 1-min and 5-min averages on both
+#
+
+Device:
+  DeviceName: BCM:0001
+  RedisHost: redis
+
+  InputKeyRaw: RAW_BCM_WF
+  InputKeyBkg: BKG_BCM_WF
+  DataTypeIn: float32
+  DataTypeOut: float32
+  NumChannels: 4
+
+  # Gate window (fractional, matches twin gate)
+  GateStart: 0.2
+  GateWidth: 0.4
+
+  # ---- Per-channel outputs ----
+  Channels:
+    - SubKey: SUB_CH0                  # background-subtracted waveform
+      FilterKey: FILTERED_CH0
+      FilterCoeff: 0.05
+      GatedKey: INTEG_GATED_CH0       # gated integration (scalar)
+      GatedAvg1mKey: GATED_AVG1M_CH0
+      GatedAvg5mKey: GATED_AVG5M_CH0
+      UngatedKey: INTEG_UNGATED_CH0   # ungated integration (scalar)
+      UngatedAvg1mKey: UNGATED_AVG1M_CH0
+      UngatedAvg5mKey: UNGATED_AVG5M_CH0
+
+    - SubKey: SUB_CH1
+      GatedKey: INTEG_GATED_CH1
+      GatedAvg1mKey: GATED_AVG1M_CH1
+      GatedAvg5mKey: GATED_AVG5M_CH1
+      UngatedKey: INTEG_UNGATED_CH1
+      UngatedAvg1mKey: UNGATED_AVG1M_CH1
+      UngatedAvg5mKey: UNGATED_AVG5M_CH1
+
+    - SubKey: SUB_CH2
+      GatedKey: INTEG_GATED_CH2
+      GatedAvg1mKey: GATED_AVG1M_CH2
+      GatedAvg5mKey: GATED_AVG5M_CH2
+      UngatedKey: INTEG_UNGATED_CH2
+      UngatedAvg1mKey: UNGATED_AVG1M_CH2
+      UngatedAvg5mKey: UNGATED_AVG5M_CH2
+
+    - SubKey: SUB_CH3
+      GatedKey: INTEG_GATED_CH3
+      GatedAvg1mKey: GATED_AVG1M_CH3
+      GatedAvg5mKey: GATED_AVG5M_CH3
+      UngatedKey: INTEG_UNGATED_CH3
+      UngatedAvg1mKey: UNGATED_AVG1M_CH3
+      UngatedAvg5mKey: UNGATED_AVG5M_CH3

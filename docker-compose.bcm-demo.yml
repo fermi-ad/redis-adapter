@@ -1,0 +1,63 @@
+#
+#  BCM Demo — 3 containers, beam current monitor pipeline
+#
+#  bcm-twin outputs two waveforms at 20 Hz:
+#    RAW_BCM_WF — signal with 100 mA beam in gate window
+#    BKG_BCM_WF — background (no beam)
+#
+#  bcm adapter processes:
+#    background subtract → gated/ungated integration → 1m/5m averages
+#
+#  Runtime control:
+#    redis-cli XADD BCM:0001:BEAM_CURRENT_S '*' v 200.0
+#    redis-cli XADD BCM:0001:GATE_WIDTH_S '*' v 0.6
+#    redis-cli XADD BCM:0001:CH0_GAIN_S '*' v 1.5
+#
+#  Usage:
+#    docker compose -f docker-compose.bcm-demo.yml build
+#    docker compose -f docker-compose.bcm-demo.yml up -d
+#    redis-cli XREVRANGE BCM:0001:INTEG_GATED_CH0 + - COUNT 1
+#    docker compose -f docker-compose.bcm-demo.yml down
+#
+
+services:
+
+  redis:
+    image: redis:7.4
+    ports:
+      - "6379:6379"
+    command: >
+      redis-server
+        --appendonly no
+        --save ""
+        --bind 0.0.0.0
+        --protected-mode no
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 5
+
+  bcm-twin:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./adapters/bcm-twin/configs:/etc/adapters/bcm-twin:ro
+    command: ["/bcm-twin", "/etc/adapters/bcm-twin/bcm-demo.yml"]
+
+  bcm:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      bcm-twin:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./adapters/bcm/configs:/etc/adapters/bcm:ro
+    command: ["/bcm", "/etc/adapters/bcm/bcm-demo.yml"]

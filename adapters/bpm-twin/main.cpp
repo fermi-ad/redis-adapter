@@ -68,6 +68,8 @@ struct BPMParams
     double gateWidth     = 0.4;
 
     double adcScale      = 16000.0;
+
+    int    numChannels   = 4;       // IQ pairs (mode 0) or electrodes (mode 1)
 };
 
 enum class RegType { Double, Int };
@@ -173,6 +175,7 @@ static bool parseConfig(const std::string& path, Config& cfg)
     p.gateStart         = dev["GateStart"].as<double>(0.2);
     p.gateWidth         = dev["GateWidth"].as<double>(0.4);
     p.adcScale          = dev["ADCScale"].as<double>(16000.0);
+    p.numChannels       = dev["NumChannels"].as<int>(4);
 
     return true;
 }
@@ -250,27 +253,31 @@ static void initRegisters(RedisAdapterLite& redis, std::mutex& mtx,
     redis.setDeferReaders(false);
 }
 
-// ---- Generate Mode 0: IQ (4ch × IQ × N, float32) ----
+// ---- Generate Mode 0: IQ (nCh × IQ × N, float32) ----
 
 static void generateIQ(RedisAdapterLite& redis, const std::string& key,
                         const BPMParams& p, double runningPhase,
                         std::mt19937& rng)
 {
-    int N = p.samplesPerChannel;
+    int N   = p.samplesPerChannel;
+    int nCh = p.numChannels;
 
     double clampX = std::max(-p.aperture, std::min(p.aperture, p.beamX));
     double clampY = std::max(-p.aperture, std::min(p.aperture, p.beamY));
 
-    double ampCh[4];
-    ampCh[0] = p.beamIntensity * (1.0 + clampX / p.aperture);
-    ampCh[1] = p.beamIntensity * (1.0 - clampX / p.aperture);
-    ampCh[2] = p.beamIntensity * (1.0 + clampY / p.aperture);
-    ampCh[3] = p.beamIntensity * (1.0 - clampY / p.aperture);
+    // Base 4-button amplitude model, cycled for channels > 4
+    double baseAmp[4] = {
+        p.beamIntensity * (1.0 + clampX / p.aperture),
+        p.beamIntensity * (1.0 - clampX / p.aperture),
+        p.beamIntensity * (1.0 + clampY / p.aperture),
+        p.beamIntensity * (1.0 - clampY / p.aperture),
+    };
 
     std::normal_distribution<float> nd(0.0f, static_cast<float>(p.noise));
     double step = 2.0 * M_PI * p.carrierFreq / N;
+    int muxWidth = nCh * 2;
 
-    std::vector<float> buf(N * 8);
+    std::vector<float> buf(N * muxWidth);
 
     for (int s = 0; s < N; ++s)
     {
@@ -280,8 +287,8 @@ static void generateIQ(RedisAdapterLite& redis, const std::string& key,
         bool gated = p.gateEnable &&
             (t < p.gateStart || t >= p.gateStart + p.gateWidth);
 
-        int base = s * 8;
-        for (int ch = 0; ch < 4; ++ch)
+        int base = s * muxWidth;
+        for (int ch = 0; ch < nCh; ++ch)
         {
             float ni = nd(rng);
             float nq = nd(rng);
@@ -292,7 +299,7 @@ static void generateIQ(RedisAdapterLite& redis, const std::string& key,
             }
             else
             {
-                float a = static_cast<float>(ampCh[ch]);
+                float a = static_cast<float>(baseAmp[ch % 4]);
                 buf[base + ch * 2]     = a * static_cast<float>(std::cos(theta)) + ni;
                 buf[base + ch * 2 + 1] = a * static_cast<float>(std::sin(theta)) + nq;
             }
@@ -302,21 +309,22 @@ static void generateIQ(RedisAdapterLite& redis, const std::string& key,
     redis.addBlob(key, buf.data(), buf.size() * sizeof(float));
 }
 
-// ---- Generate Mode 1: RAW_ADC (8ch × N, uint16) ----
+// ---- Generate Mode 1: RAW_ADC (nCh × N, uint16) ----
 
 static void generateRAW(RedisAdapterLite& redis, const std::string& key,
                          const BPMParams& p, double runningPhase,
                          std::mt19937& rng)
 {
-    int N = p.samplesPerChannel;
+    int N   = p.samplesPerChannel;
+    int nCh = p.numChannels;
 
     double clampX = std::max(-p.aperture, std::min(p.aperture, p.beamX));
     double clampY = std::max(-p.aperture, std::min(p.aperture, p.beamY));
 
-    double ampCh[8];
-    for (int ch = 0; ch < 8; ++ch)
+    std::vector<double> ampCh(nCh);
+    for (int ch = 0; ch < nCh; ++ch)
     {
-        double angle = ch * M_PI / 4.0;
+        double angle = ch * 2.0 * M_PI / nCh;
         double proj  = clampX * std::cos(angle) + clampY * std::sin(angle);
         ampCh[ch]    = p.beamIntensity * (1.0 + proj / p.aperture);
     }
@@ -324,7 +332,7 @@ static void generateRAW(RedisAdapterLite& redis, const std::string& key,
     std::normal_distribution<double> nd(0.0, p.noise);
     double step = 2.0 * M_PI * p.carrierFreq / N;
 
-    std::vector<uint16_t> buf(N * 8);
+    std::vector<uint16_t> buf(N * nCh);
 
     for (int s = 0; s < N; ++s)
     {
@@ -334,8 +342,8 @@ static void generateRAW(RedisAdapterLite& redis, const std::string& key,
         bool gated = p.gateEnable &&
             (t < p.gateStart || t >= p.gateStart + p.gateWidth);
 
-        int base = s * 8;
-        for (int ch = 0; ch < 8; ++ch)
+        int base = s * nCh;
+        for (int ch = 0; ch < nCh; ++ch)
         {
             double signal = gated ? nd(rng)
                                   : ampCh[ch] * std::sin(theta) + nd(rng);
@@ -370,8 +378,8 @@ int main(int argc, char* argv[])
     printf("[bpm-twin] IQ → %s  ADC → %s  Mode: %s\n",
            cfg.outputKeyIQ.c_str(), cfg.outputKeyADC.c_str(),
            modeNames[cfg.defaults.mode & 1]);
-    printf("[bpm-twin] %d samples/ch  Beam: (%.2f, %.2f)  Intensity: %.2f\n",
-           cfg.defaults.samplesPerChannel,
+    printf("[bpm-twin] %d samples/ch  %d channels  Beam: (%.2f, %.2f)  Intensity: %.2f\n",
+           cfg.defaults.samplesPerChannel, cfg.defaults.numChannels,
            cfg.defaults.beamX, cfg.defaults.beamY, cfg.defaults.beamIntensity);
 
     RAL_Options opts;

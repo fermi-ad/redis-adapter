@@ -1,0 +1,143 @@
+#
+#  BLM Demo — 8-channel beam loss monitor processing pipeline
+#
+#  Input: RAW_BLM_WF — 400000 float32 samples, interleaved as
+#         [CH0, CH1, ..., CH7, CH0, CH1, ...] × 50000 samples
+#
+#  Sample rate: 1 MHz (1 sample/us)
+#
+#  Pipeline per trigger:
+#    1. Demux → 8 channels (50000 samples each)
+#    2. Per-channel raw waveform output
+#    3. Optional EMA filter on CH0
+#    4. 10ms integration: 10000 samples/bin → 5-element waveform per channel
+#    5. 50ms integration: sum all 50000 samples → scalar per channel
+#    6. Running 1-minute and 5-minute averages on both integrations
+#
+
+Device:
+  DeviceName: BLM:0001
+  RedisHost: redis
+
+  InputKey: RAW_BLM_WF
+  DataTypeIn: float32
+  DataTypeOut: float32
+  NumChannels: 8
+
+  # ---- Per-channel outputs ----
+  Channels:
+    - RawKey: RAW_CH0
+      FilterKey: FILTERED_CH0
+      FilterCoeff: 0.05
+
+    - RawKey: RAW_CH1
+
+    - RawKey: RAW_CH2
+
+    - RawKey: RAW_CH3
+
+    - RawKey: RAW_CH4
+
+    - RawKey: RAW_CH5
+
+    - RawKey: RAW_CH6
+
+    - RawKey: RAW_CH7
+
+  # ---- Integration windows ----
+  #
+  # 10ms integration: 10000 samples per bin at 1 MHz
+  #   50000 samples / 10000 = 5 bins → output is a 5-element waveform
+  #
+  # 50ms integration: 50000 samples per bin (entire waveform)
+  #   50000 / 50000 = 1 bin → output is a scalar
+  #
+
+  Integrate:
+    - Name: 10ms
+      BinSamples: 10000                 # 10ms at 1 MHz
+      AvgSeconds: 300                   # 5-min running average
+      OutputKeys:
+        - INTEG_10MS_CH0
+        - INTEG_10MS_CH1
+        - INTEG_10MS_CH2
+        - INTEG_10MS_CH3
+        - INTEG_10MS_CH4
+        - INTEG_10MS_CH5
+        - INTEG_10MS_CH6
+        - INTEG_10MS_CH7
+      AvgKeys:
+        - INTEG_10MS_AVG5M_CH0
+        - INTEG_10MS_AVG5M_CH1
+        - INTEG_10MS_AVG5M_CH2
+        - INTEG_10MS_AVG5M_CH3
+        - INTEG_10MS_AVG5M_CH4
+        - INTEG_10MS_AVG5M_CH5
+        - INTEG_10MS_AVG5M_CH6
+        - INTEG_10MS_AVG5M_CH7
+
+    - Name: 10ms-1min
+      BinSamples: 10000                 # same 10ms binning
+      AvgSeconds: 60                    # 1-min running average
+      OutputKeys:
+        - ""                            # skip instantaneous (already output above)
+        - ""
+        - ""
+        - ""
+        - ""
+        - ""
+        - ""
+        - ""
+      AvgKeys:
+        - INTEG_10MS_AVG1M_CH0
+        - INTEG_10MS_AVG1M_CH1
+        - INTEG_10MS_AVG1M_CH2
+        - INTEG_10MS_AVG1M_CH3
+        - INTEG_10MS_AVG1M_CH4
+        - INTEG_10MS_AVG1M_CH5
+        - INTEG_10MS_AVG1M_CH6
+        - INTEG_10MS_AVG1M_CH7
+
+    - Name: 50ms
+      BinSamples: 50000                 # 50ms at 1 MHz = entire waveform
+      AvgSeconds: 300                   # 5-min running average
+      OutputKeys:
+        - INTEG_50MS_CH0
+        - INTEG_50MS_CH1
+        - INTEG_50MS_CH2
+        - INTEG_50MS_CH3
+        - INTEG_50MS_CH4
+        - INTEG_50MS_CH5
+        - INTEG_50MS_CH6
+        - INTEG_50MS_CH7
+      AvgKeys:
+        - INTEG_50MS_AVG5M_CH0
+        - INTEG_50MS_AVG5M_CH1
+        - INTEG_50MS_AVG5M_CH2
+        - INTEG_50MS_AVG5M_CH3
+        - INTEG_50MS_AVG5M_CH4
+        - INTEG_50MS_AVG5M_CH5
+        - INTEG_50MS_AVG5M_CH6
+        - INTEG_50MS_AVG5M_CH7
+
+    - Name: 50ms-1min
+      BinSamples: 50000                 # same 50ms total
+      AvgSeconds: 60                    # 1-min running average
+      OutputKeys:
+        - ""
+        - ""
+        - ""
+        - ""
+        - ""
+        - ""
+        - ""
+        - ""
+      AvgKeys:
+        - INTEG_50MS_AVG1M_CH0
+        - INTEG_50MS_AVG1M_CH1
+        - INTEG_50MS_AVG1M_CH2
+        - INTEG_50MS_AVG1M_CH3
+        - INTEG_50MS_AVG1M_CH4
+        - INTEG_50MS_AVG1M_CH5
+        - INTEG_50MS_AVG1M_CH6
+        - INTEG_50MS_AVG1M_CH7

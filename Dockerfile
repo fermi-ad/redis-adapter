@@ -25,7 +25,11 @@ RUN cmake -S . -B build \
     && strip build/adapters/demux/demux \
     && strip build/adapters/fft/fft \
     && strip build/adapters/bpm/bpm \
-    && strip build/adapters/bpm-twin/bpm-twin
+    && strip build/adapters/bpm-twin/bpm-twin \
+    && strip build/adapters/blm/blm \
+    && strip build/adapters/blm-twin/blm-twin \
+    && strip build/adapters/bcm/bcm \
+    && strip build/adapters/bcm-twin/bcm-twin
 
 # ---- Runtime image ----
 FROM scratch
@@ -40,6 +44,10 @@ COPY --from=builder /src/build/adapters/demux/demux /demux
 COPY --from=builder /src/build/adapters/fft/fft /fft
 COPY --from=builder /src/build/adapters/bpm/bpm /bpm
 COPY --from=builder /src/build/adapters/bpm-twin/bpm-twin /bpm-twin
+COPY --from=builder /src/build/adapters/blm/blm /blm
+COPY --from=builder /src/build/adapters/blm-twin/blm-twin /blm-twin
+COPY --from=builder /src/build/adapters/bcm/bcm /bcm
+COPY --from=builder /src/build/adapters/bcm-twin/bcm-twin /bcm-twin
 
 COPY adapters/device-twin/configs/ /etc/adapters/device-twin/
 COPY adapters/baseline-subtract/configs/ /etc/adapters/baseline-subtract/
@@ -51,5 +59,9 @@ COPY adapters/demux/configs/ /etc/adapters/demux/
 COPY adapters/fft/configs/ /etc/adapters/fft/
 COPY adapters/bpm/configs/ /etc/adapters/bpm/
 COPY adapters/bpm-twin/configs/ /etc/adapters/bpm-twin/
+COPY adapters/blm/configs/ /etc/adapters/blm/
+COPY adapters/blm-twin/configs/ /etc/adapters/blm-twin/
+COPY adapters/bcm/configs/ /etc/adapters/bcm/
+COPY adapters/bcm-twin/configs/ /etc/adapters/bcm-twin/
 
 CMD ["/device-twin", "/etc/adapters/device-twin/acct-example.yml"]

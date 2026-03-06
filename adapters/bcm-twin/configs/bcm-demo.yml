@@ -1,0 +1,47 @@
+#
+#  BCM Digital Twin — 4-channel beam current monitor
+#
+#  Simulates 4 current transformer channels at 5 MHz.
+#  Outputs two waveforms per trigger at 20 Hz:
+#
+#    RAW_BCM_WF — beam signal: baseline + gain × current × carrier (in gate) + noise
+#    BKG_BCM_WF — background:  baseline + noise (no beam component)
+#
+#  Each waveform: 4 × 50000 = 200000 float32, interleaved
+#    [CH0,CH1,CH2,CH3, CH0,CH1,CH2,CH3, ...] × 50000 samples
+#
+#  Runtime control:
+#    redis-cli XADD BCM:0001:BEAM_CURRENT_S '*' v 200.0
+#    redis-cli XADD BCM:0001:GATE_ENABLE_S '*' v 0
+#    redis-cli XADD BCM:0001:CH0_GAIN_S '*' v 1.5
+#
+
+Device:
+  DeviceName: BCM:0001
+  RedisHost: redis
+
+  OutputKeyRaw: RAW_BCM_WF            # signal waveform
+  OutputKeyBkg: BKG_BCM_WF            # background waveform
+
+  # Timing
+  UpdateIntervalMs: 50                 # 20 Hz
+  SamplesPerChannel: 50000             # 10ms at 5 MHz
+
+  # Beam
+  BeamCurrent: 100.0                   # mA
+
+  # Baseline & noise
+  Baseline: 0.01
+  Noise: 0.005
+
+  # RF carrier
+  CarrierFreq: 50.0                    # cycles per waveform
+  CarrierPhase: 0.0
+
+  # Gate (beam present window)
+  GateEnable: 1
+  GateStart: 0.2                       # beam arrives at 20% of window
+  GateWidth: 0.4                       # beam present for 40% of window
+
+  # Per-channel gain scaling
+  ChannelGains: [1.0, 0.95, 1.05, 0.98]

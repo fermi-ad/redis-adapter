@@ -1,0 +1,39 @@
+#
+#  BLM Digital Twin — 8-channel beam loss monitor
+#
+#  Simulates 8 ionization chambers at 1 MHz (1 sample/us).
+#  Each channel sees a fraction of the total beam loss, scaled
+#  by its proximity to the loss point.
+#
+#  Output: RAW_BLM_WF — 8 × 50000 = 400000 float32, interleaved
+#    [CH0,CH1,...,CH7, CH0,CH1,...,CH7, ...] × 50000 samples
+#
+#  Runtime control:
+#    redis-cli XADD BLM:0001:LOSS_AMPLITUDE_S '*' v 2.5
+#    redis-cli XADD BLM:0001:LOSS_ENABLE_S '*' v 0
+#    redis-cli XADD BLM:0001:CH0_SCALE_S '*' v 0.5
+#
+
+Device:
+  DeviceName: BLM:0001
+  RedisHost: redis
+
+  OutputKey: RAW_BLM_WF
+
+  # Timing
+  UpdateIntervalMs: 50              # 20 Hz output rate
+  SamplesPerChannel: 50000          # 50ms at 1 MHz = 50000 samples
+
+  # Baseline & noise
+  Baseline: 0.001                   # DC dark current (nA equivalent)
+  Noise: 0.0005                     # Gaussian noise amplitude
+
+  # Loss pulse (Gaussian shape in time)
+  LossEnable: 1
+  LossAmplitude: 1.0                # peak loss signal
+  LossPosition: 0.5                 # centered at 50% of waveform (25ms)
+  LossWidth: 0.02                   # sigma = 1ms (2% of 50ms)
+
+  # Per-channel amplitude scaling
+  # Simulates non-uniform loss distribution: CH0 closest to loss point
+  ChannelScales: [1.0, 0.8, 0.6, 0.4, 0.3, 0.2, 0.15, 0.1]
