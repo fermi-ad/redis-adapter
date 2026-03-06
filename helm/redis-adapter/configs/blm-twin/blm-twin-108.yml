@@ -1,0 +1,15 @@
+Device:
+  DeviceName: BLM:0108
+  RedisHost: redis-blm-14
+  OutputKey: RAW_BLM_WF
+  UpdateIntervalMs: 50
+  SamplesPerChannel: 10000
+  NumChannels: 1
+  Baseline: 0.001
+  Noise: 0.0005
+  LossEnable: 1
+  LossAmplitude: 1.3
+  LossPosition: 0.5
+  LossWidth: 0.02
+  ChannelScales:
+  - 1.0

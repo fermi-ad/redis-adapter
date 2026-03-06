@@ -1,0 +1,20 @@
+Device:
+  DeviceName: BPM:0005
+  RedisHost: redis-bpm-005
+  OutputKeyIQ: RAW_MUX_WF
+  OutputKeyADC: RAW_ADC
+  Mode: 0
+  UpdateIntervalMs: 50
+  SamplesPerChannel: 10000
+  NumChannels: 8
+  BeamX: 1.0
+  BeamY: -0.4
+  BeamIntensity: 1.0
+  Aperture: 10.0
+  CarrierFreq: 5.0
+  CarrierPhase: 0.0
+  Noise: 0.02
+  GateEnable: 1
+  GateStart: 0.2
+  GateWidth: 0.4
+  ADCScale: 16000.0

@@ -1,0 +1,72 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "redis-adapter.fullname" . }}-bpm-twin-configs
+  labels:
+    {{- include "redis-adapter.labels" . | nindent 4 }}
+data:
+  {{- range $path, $_ := .Files.Glob "configs/bpm-twin/*.yml" }}
+  {{ base $path }}: |
+    {{- $.Files.Get $path | nindent 4 }}
+  {{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "redis-adapter.fullname" . }}-bpm-configs
+  labels:
+    {{- include "redis-adapter.labels" . | nindent 4 }}
+data:
+  {{- range $path, $_ := .Files.Glob "configs/bpm/*.yml" }}
+  {{ base $path }}: |
+    {{- $.Files.Get $path | nindent 4 }}
+  {{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "redis-adapter.fullname" . }}-blm-twin-configs
+  labels:
+    {{- include "redis-adapter.labels" . | nindent 4 }}
+data:
+  {{- range $path, $_ := .Files.Glob "configs/blm-twin/*.yml" }}
+  {{ base $path }}: |
+    {{- $.Files.Get $path | nindent 4 }}
+  {{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "redis-adapter.fullname" . }}-blm-configs
+  labels:
+    {{- include "redis-adapter.labels" . | nindent 4 }}
+data:
+  {{- range $path, $_ := .Files.Glob "configs/blm/*.yml" }}
+  {{ base $path }}: |
+    {{- $.Files.Get $path | nindent 4 }}
+  {{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "redis-adapter.fullname" . }}-bcm-twin-configs
+  labels:
+    {{- include "redis-adapter.labels" . | nindent 4 }}
+data:
+  {{- range $path, $_ := .Files.Glob "configs/bcm-twin/*.yml" }}
+  {{ base $path }}: |
+    {{- $.Files.Get $path | nindent 4 }}
+  {{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "redis-adapter.fullname" . }}-bcm-configs
+  labels:
+    {{- include "redis-adapter.labels" . | nindent 4 }}
+data:
+  {{- range $path, $_ := .Files.Glob "configs/bcm/*.yml" }}
+  {{ base $path }}: |
+    {{- $.Files.Get $path | nindent 4 }}
+  {{- end }}

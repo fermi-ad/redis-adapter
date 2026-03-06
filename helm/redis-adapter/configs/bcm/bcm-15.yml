@@ -1,0 +1,41 @@
+Device:
+  DeviceName: BCM:0015
+  RedisHost: redis-bcm-04
+  InputKeyRaw: RAW_BCM_WF
+  InputKeyBkg: BKG_BCM_WF
+  DataTypeIn: float32
+  DataTypeOut: float32
+  NumChannels: 4
+  GateStart: 0.2
+  GateWidth: 0.4
+  Channels:
+  - SubKey: SUB_CH0
+    GatedKey: INTEG_GATED_CH0
+    GatedAvg1mKey: GATED_AVG1M_CH0
+    GatedAvg5mKey: GATED_AVG5M_CH0
+    UngatedKey: INTEG_UNGATED_CH0
+    UngatedAvg1mKey: UNGATED_AVG1M_CH0
+    UngatedAvg5mKey: UNGATED_AVG5M_CH0
+    FilterKey: FILTERED_CH0
+    FilterCoeff: 0.05
+  - SubKey: SUB_CH1
+    GatedKey: INTEG_GATED_CH1
+    GatedAvg1mKey: GATED_AVG1M_CH1
+    GatedAvg5mKey: GATED_AVG5M_CH1
+    UngatedKey: INTEG_UNGATED_CH1
+    UngatedAvg1mKey: UNGATED_AVG1M_CH1
+    UngatedAvg5mKey: UNGATED_AVG5M_CH1
+  - SubKey: SUB_CH2
+    GatedKey: INTEG_GATED_CH2
+    GatedAvg1mKey: GATED_AVG1M_CH2
+    GatedAvg5mKey: GATED_AVG5M_CH2
+    UngatedKey: INTEG_UNGATED_CH2
+    UngatedAvg1mKey: UNGATED_AVG1M_CH2
+    UngatedAvg5mKey: UNGATED_AVG5M_CH2
+  - SubKey: SUB_CH3
+    GatedKey: INTEG_GATED_CH3
+    GatedAvg1mKey: GATED_AVG1M_CH3
+    GatedAvg5mKey: GATED_AVG5M_CH3
+    UngatedKey: INTEG_UNGATED_CH3
+    UngatedAvg1mKey: UNGATED_AVG1M_CH3
+    UngatedAvg5mKey: UNGATED_AVG5M_CH3

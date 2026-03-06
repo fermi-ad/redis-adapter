@@ -1,0 +1,20 @@
+Device:
+  DeviceName: BCM:0001
+  RedisHost: redis-bcm-01
+  OutputKeyRaw: RAW_BCM_WF
+  OutputKeyBkg: BKG_BCM_WF
+  UpdateIntervalMs: 50
+  SamplesPerChannel: 10000
+  BeamCurrent: 100.0
+  Baseline: 0.01
+  Noise: 0.005
+  CarrierFreq: 50.0
+  CarrierPhase: 0.0
+  GateEnable: 1
+  GateStart: 0.2
+  GateWidth: 0.4
+  ChannelGains:
+  - 1.0
+  - 0.95
+  - 1.05
+  - 0.98

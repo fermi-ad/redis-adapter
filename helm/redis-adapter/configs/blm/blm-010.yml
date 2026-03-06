@@ -1,0 +1,40 @@
+Device:
+  DeviceName: BLM:0010
+  RedisHost: redis-blm-02
+  InputKey: RAW_BLM_WF
+  DataTypeIn: float32
+  DataTypeOut: float32
+  NumChannels: 1
+  Channels:
+  - RawKey: RAW_CH0
+    FilterKey: FILTERED_CH0
+    FilterCoeff: 0.05
+  Integrate:
+  - Name: 10ms
+    BinSamples: 10000
+    AvgSeconds: 300
+    OutputKeys:
+    - INTEG_10MS_CH0
+    AvgKeys:
+    - INTEG_10MS_AVG5M_CH0
+  - Name: 10ms-1min
+    BinSamples: 10000
+    AvgSeconds: 60
+    OutputKeys:
+    - ''
+    AvgKeys:
+    - INTEG_10MS_AVG1M_CH0
+  - Name: full
+    BinSamples: 10000
+    AvgSeconds: 300
+    OutputKeys:
+    - INTEG_FULL_CH0
+    AvgKeys:
+    - INTEG_FULL_AVG5M_CH0
+  - Name: full-1min
+    BinSamples: 10000
+    AvgSeconds: 60
+    OutputKeys:
+    - ''
+    AvgKeys:
+    - INTEG_FULL_AVG1M_CH0

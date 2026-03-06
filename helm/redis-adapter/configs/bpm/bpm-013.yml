@@ -1,0 +1,69 @@
+Device:
+  DeviceName: BPM:0013
+  RedisHost: redis-bpm-013
+  InputKey: RAW_MUX_WF
+  DataTypeIn: float32
+  DataTypeOut: float32
+  NumChannels: 8
+  Channels:
+  - MagKey: MAG_CH0
+    PhaseKey: PHASE_CH0
+    FilterKey: FILTERED_CH0
+    FilterCoeff: 0.05
+    FFTMagKey: FFT_MAG
+    FFTPhaseKey: FFT_PHASE
+    BaselineSubKey: DIFF_H
+    BaselineChIdx: 1
+  - MagKey: MAG_CH1
+    PhaseKey: PHASE_CH1
+  - MagKey: MAG_CH2
+    PhaseKey: PHASE_CH2
+  - MagKey: MAG_CH3
+    PhaseKey: PHASE_CH3
+  - MagKey: MAG_CH4
+    PhaseKey: PHASE_CH4
+  - MagKey: MAG_CH5
+    PhaseKey: PHASE_CH5
+  - MagKey: MAG_CH6
+    PhaseKey: PHASE_CH6
+  - MagKey: MAG_CH7
+    PhaseKey: PHASE_CH7
+  Positions:
+  - ChannelA: 0
+    ChannelB: 1
+    PositionKey: POS_H
+    IntensityKey: INT_H
+    PositionScale: 10.0
+    IntensityScale: 1.0
+  - ChannelA: 2
+    ChannelB: 3
+    PositionKey: POS_V
+    IntensityKey: INT_V
+    PositionScale: 10.0
+    IntensityScale: 1.0
+  - ChannelA: 4
+    ChannelB: 5
+    PositionKey: POS_H1
+    IntensityKey: INT_H1
+    PositionScale: 10.0
+    IntensityScale: 1.0
+  - ChannelA: 6
+    ChannelB: 7
+    PositionKey: POS_V1
+    IntensityKey: INT_V1
+    PositionScale: 10.0
+    IntensityScale: 1.0
+  Integrate:
+    Channel: 0
+    BaselineChannel: 1
+    Windows:
+    - OutputKey: INTEG_NARROW
+      Start: 0.2
+      Width: 0.4
+      AvgKey: INTEG_NARROW_AVG
+      AvgSeconds: 300
+    - OutputKey: INTEG_WIDE
+      Start: 0.0
+      Width: 1.0
+      AvgKey: INTEG_WIDE_AVG
+      AvgSeconds: 300

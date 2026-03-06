@@ -1,0 +1,41 @@
+# Profile to deploy: tiny, small, medium, large, full
+profile: medium
+
+profiles:
+  tiny:
+    bpm: 10
+    blm: 10
+    bcm: 5
+  small:
+    bpm: 35
+    blm: 65
+    bcm: 10
+  medium:
+    bpm: 47
+    blm: 87
+    bcm: 14
+  large:
+    bpm: 59
+    blm: 109
+    bcm: 17
+  full:
+    bpm: 70
+    blm: 130
+    bcm: 20
+
+# Container image for all adapter/twin binaries (built from project Dockerfile)
+image:
+  repository: redis-adapter
+  tag: latest
+  pullPolicy: IfNotPresent
+
+redis:
+  image: redis:7.4
+
+# Init container image used to wait for Redis readiness
+initImage: busybox:1.36
+
+# Device-to-Redis multiplexing ratios
+# BPM: 1 device per Redis instance
+# BLM: 8 devices per Redis instance
+# BCM: 4 devices per Redis instance
