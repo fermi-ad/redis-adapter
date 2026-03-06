@@ -37,6 +37,7 @@ import yaml
 
 OUT_DIR = "system-configs"
 COMPOSE_FILE = "docker-compose.yml"
+IMAGE_NAME = "redis-adapter:latest"
 
 # --- BPM ---
 NUM_BPM_8CH = 55   # 8 IQ channels each (2 BPMs worth)
@@ -106,6 +107,7 @@ def write_yaml(path, data):
 def gen_demo_services():
     """Generate demo profile services (pipeline, bpm-demo, blm-demo, bcm-demo)."""
     build = {"context": "..", "dockerfile": "Dockerfile"}
+    img = IMAGE_NAME
     services = {}
 
     # Shared redis for all demo profiles
@@ -141,6 +143,7 @@ def gen_demo_services():
             else:
                 depends_on[d] = {"condition": "service_started"}
         services[name] = {
+            "image": img,
             "build": build,
             "profiles": ["pipeline"],
             "depends_on": depends_on,
@@ -150,6 +153,7 @@ def gen_demo_services():
 
     # BPM demo
     services["bpm-twin"] = {
+        "image": img,
         "build": build,
         "profiles": ["bpm-demo"],
         "depends_on": {"redis": {"condition": "service_healthy"}},
@@ -157,6 +161,7 @@ def gen_demo_services():
         "command": ["/bpm-twin", "/etc/adapters/bpm-twin/bpm-demo.yml"],
     }
     services["bpm"] = {
+        "image": img,
         "build": build,
         "profiles": ["bpm-demo"],
         "depends_on": {
@@ -169,6 +174,7 @@ def gen_demo_services():
 
     # BLM demo
     services["blm-twin"] = {
+        "image": img,
         "build": build,
         "profiles": ["blm-demo"],
         "depends_on": {"redis": {"condition": "service_healthy"}},
@@ -176,6 +182,7 @@ def gen_demo_services():
         "command": ["/blm-twin", "/etc/adapters/blm-twin/blm-demo.yml"],
     }
     services["blm"] = {
+        "image": img,
         "build": build,
         "profiles": ["blm-demo"],
         "depends_on": {
@@ -188,6 +195,7 @@ def gen_demo_services():
 
     # BCM demo
     services["bcm-twin"] = {
+        "image": img,
         "build": build,
         "profiles": ["bcm-demo"],
         "depends_on": {"redis": {"condition": "service_healthy"}},
@@ -195,6 +203,7 @@ def gen_demo_services():
         "command": ["/bcm-twin", "/etc/adapters/bcm-twin/bcm-demo.yml"],
     }
     services["bcm"] = {
+        "image": img,
         "build": build,
         "profiles": ["bcm-demo"],
         "depends_on": {
@@ -217,6 +226,7 @@ def gen_tui_services():
     build = {"context": "..", "dockerfile": "Dockerfile"}
     return {
         "inst-tui": {
+            "image": IMAGE_NAME,
             "build": build,
             "profiles": ["tui"],
             "stdin_open": True,
@@ -225,6 +235,7 @@ def gen_tui_services():
             "command": ["/inst-tui"],
         },
         "redis-tui": {
+            "image": IMAGE_NAME,
             "build": build,
             "profiles": ["tui"],
             "stdin_open": True,
@@ -501,6 +512,7 @@ def gen_system_services(bpm_instances, blm_instances, bcm_instances):
             redis_profiles[redis_name] = broaden_profiles(redis_profiles[redis_name], profiles)
 
         services[twin_name] = {
+            "image": IMAGE_NAME,
             "build": build_block,
             "profiles": profiles,
             "depends_on": {redis_name: {"condition": "service_healthy"}},
@@ -508,6 +520,7 @@ def gen_system_services(bpm_instances, blm_instances, bcm_instances):
             "command": ["/bpm-twin", twin_cfg],
         }
         services[adap_name] = {
+            "image": IMAGE_NAME,
             "build": build_block,
             "profiles": profiles,
             "depends_on": {
@@ -536,6 +549,7 @@ def gen_system_services(bpm_instances, blm_instances, bcm_instances):
             redis_profiles[redis_name] = broaden_profiles(redis_profiles[redis_name], profiles)
 
         services[twin_name] = {
+            "image": IMAGE_NAME,
             "build": build_block,
             "profiles": profiles,
             "depends_on": {redis_name: {"condition": "service_healthy"}},
@@ -543,6 +557,7 @@ def gen_system_services(bpm_instances, blm_instances, bcm_instances):
             "command": ["/blm-twin", twin_cfg],
         }
         services[adap_name] = {
+            "image": IMAGE_NAME,
             "build": build_block,
             "profiles": profiles,
             "depends_on": {
@@ -571,6 +586,7 @@ def gen_system_services(bpm_instances, blm_instances, bcm_instances):
             redis_profiles[redis_name] = broaden_profiles(redis_profiles[redis_name], profiles)
 
         services[twin_name] = {
+            "image": IMAGE_NAME,
             "build": build_block,
             "profiles": profiles,
             "depends_on": {redis_name: {"condition": "service_healthy"}},
@@ -578,6 +594,7 @@ def gen_system_services(bpm_instances, blm_instances, bcm_instances):
             "command": ["/bcm-twin", twin_cfg],
         }
         services[adap_name] = {
+            "image": IMAGE_NAME,
             "build": build_block,
             "profiles": profiles,
             "depends_on": {

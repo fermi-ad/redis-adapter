@@ -51,6 +51,7 @@ services:
       timeout: 3s
       retries: 5
   device-twin:
+    image: redis-adapter:latest
     build: &id001
       context: ..
       dockerfile: Dockerfile
@@ -65,6 +66,7 @@ services:
     - /device-twin
     - /etc/adapters/device-twin/acct-example.yml
   baseline-subtract:
+    image: redis-adapter:latest
     build: *id001
     profiles:
     - pipeline
@@ -79,6 +81,7 @@ services:
     - /baseline-subtract
     - /etc/adapters/baseline-subtract/baseline-subtract-example.yml
   integrate:
+    image: redis-adapter:latest
     build: *id001
     profiles:
     - pipeline
@@ -93,6 +96,7 @@ services:
     - /integrate
     - /etc/adapters/integrate/integrate-example.yml
   filter:
+    image: redis-adapter:latest
     build: *id001
     profiles:
     - pipeline
@@ -107,6 +111,7 @@ services:
     - /filter
     - /etc/adapters/filter/filter-example.yml
   magnitude:
+    image: redis-adapter:latest
     build: *id001
     profiles:
     - pipeline
@@ -121,6 +126,7 @@ services:
     - /magnitude
     - /etc/adapters/magnitude/magnitude-example.yml
   position-intensity:
+    image: redis-adapter:latest
     build: *id001
     profiles:
     - pipeline
@@ -135,6 +141,7 @@ services:
     - /position-intensity
     - /etc/adapters/position-intensity/position-intensity-example.yml
   demux:
+    image: redis-adapter:latest
     build: *id001
     profiles:
     - pipeline
@@ -149,6 +156,7 @@ services:
     - /demux
     - /etc/adapters/demux/demux-example.yml
   fft:
+    image: redis-adapter:latest
     build: *id001
     profiles:
     - pipeline
@@ -163,6 +171,7 @@ services:
     - /fft
     - /etc/adapters/fft/fft-example.yml
   bpm-twin:
+    image: redis-adapter:latest
     build: *id001
     profiles:
     - bpm-demo
@@ -175,6 +184,7 @@ services:
     - /bpm-twin
     - /etc/adapters/bpm-twin/bpm-demo.yml
   bpm:
+    image: redis-adapter:latest
     build: *id001
     profiles:
     - bpm-demo
@@ -189,6 +199,7 @@ services:
     - /bpm
     - /etc/adapters/bpm/bpm-demo.yml
   blm-twin:
+    image: redis-adapter:latest
     build: *id001
     profiles:
     - blm-demo
@@ -201,6 +212,7 @@ services:
     - /blm-twin
     - /etc/adapters/blm-twin/blm-demo.yml
   blm:
+    image: redis-adapter:latest
     build: *id001
     profiles:
     - blm-demo
@@ -215,6 +227,7 @@ services:
     - /blm
     - /etc/adapters/blm/blm-demo.yml
   bcm-twin:
+    image: redis-adapter:latest
     build: *id001
     profiles:
     - bcm-demo
@@ -227,6 +240,7 @@ services:
     - /bcm-twin
     - /etc/adapters/bcm-twin/bcm-demo.yml
   bcm:
+    image: redis-adapter:latest
     build: *id001
     profiles:
     - bcm-demo
@@ -241,6 +255,7 @@ services:
     - /bcm
     - /etc/adapters/bcm/bcm-demo.yml
   inst-tui:
+    image: redis-adapter:latest
     build: &id002
       context: ..
       dockerfile: Dockerfile
@@ -253,6 +268,7 @@ services:
     command:
     - /inst-tui
   redis-tui:
+    image: redis-adapter:latest
     build: *id002
     profiles:
     - tui
@@ -261,6 +277,7 @@ services:
     command:
     - /redis-tui
   bpm-twin-001:
+    image: redis-adapter:latest
     build: &id003
       context: ..
       dockerfile: Dockerfile
@@ -279,6 +296,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-001.yml
   bpm-001:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id004
     depends_on:
@@ -292,6 +310,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-001.yml
   bpm-twin-002:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id005
     - tiny
@@ -308,6 +327,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-002.yml
   bpm-002:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id005
     depends_on:
@@ -321,6 +341,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-002.yml
   bpm-twin-003:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id006
     - tiny
@@ -337,6 +358,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-003.yml
   bpm-003:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id006
     depends_on:
@@ -350,6 +372,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-003.yml
   bpm-twin-004:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id007
     - tiny
@@ -366,6 +389,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-004.yml
   bpm-004:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id007
     depends_on:
@@ -379,6 +403,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-004.yml
   bpm-twin-005:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id008
     - tiny
@@ -395,6 +420,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-005.yml
   bpm-005:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id008
     depends_on:
@@ -408,6 +434,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-005.yml
   bpm-twin-006:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id009
     - tiny
@@ -424,6 +451,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-006.yml
   bpm-006:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id009
     depends_on:
@@ -437,6 +465,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-006.yml
   bpm-twin-007:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id010
     - tiny
@@ -453,6 +482,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-007.yml
   bpm-007:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id010
     depends_on:
@@ -466,6 +496,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-007.yml
   bpm-twin-008:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id011
     - tiny
@@ -482,6 +513,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-008.yml
   bpm-008:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id011
     depends_on:
@@ -495,6 +527,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-008.yml
   bpm-twin-009:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id012
     - tiny
@@ -511,6 +544,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-009.yml
   bpm-009:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id012
     depends_on:
@@ -524,6 +558,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-009.yml
   bpm-twin-010:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id013
     - tiny
@@ -540,6 +575,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-010.yml
   bpm-010:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id013
     depends_on:
@@ -553,6 +589,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-010.yml
   bpm-twin-011:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id014
     - small
@@ -568,6 +605,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-011.yml
   bpm-011:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id014
     depends_on:
@@ -581,6 +619,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-011.yml
   bpm-twin-012:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id015
     - small
@@ -596,6 +635,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-012.yml
   bpm-012:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id015
     depends_on:
@@ -609,6 +649,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-012.yml
   bpm-twin-013:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id016
     - small
@@ -624,6 +665,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-013.yml
   bpm-013:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id016
     depends_on:
@@ -637,6 +679,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-013.yml
   bpm-twin-014:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id017
     - small
@@ -652,6 +695,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-014.yml
   bpm-014:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id017
     depends_on:
@@ -665,6 +709,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-014.yml
   bpm-twin-015:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id018
     - small
@@ -680,6 +725,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-015.yml
   bpm-015:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id018
     depends_on:
@@ -693,6 +739,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-015.yml
   bpm-twin-016:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id019
     - small
@@ -708,6 +755,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-016.yml
   bpm-016:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id019
     depends_on:
@@ -721,6 +769,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-016.yml
   bpm-twin-017:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id020
     - small
@@ -736,6 +785,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-017.yml
   bpm-017:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id020
     depends_on:
@@ -749,6 +799,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-017.yml
   bpm-twin-018:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id021
     - small
@@ -764,6 +815,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-018.yml
   bpm-018:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id021
     depends_on:
@@ -777,6 +829,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-018.yml
   bpm-twin-019:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id022
     - small
@@ -792,6 +845,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-019.yml
   bpm-019:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id022
     depends_on:
@@ -805,6 +859,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-019.yml
   bpm-twin-020:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id023
     - small
@@ -820,6 +875,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-020.yml
   bpm-020:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id023
     depends_on:
@@ -833,6 +889,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-020.yml
   bpm-twin-021:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id024
     - small
@@ -848,6 +905,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-021.yml
   bpm-021:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id024
     depends_on:
@@ -861,6 +919,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-021.yml
   bpm-twin-022:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id025
     - small
@@ -876,6 +935,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-022.yml
   bpm-022:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id025
     depends_on:
@@ -889,6 +949,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-022.yml
   bpm-twin-023:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id026
     - small
@@ -904,6 +965,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-023.yml
   bpm-023:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id026
     depends_on:
@@ -917,6 +979,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-023.yml
   bpm-twin-024:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id027
     - small
@@ -932,6 +995,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-024.yml
   bpm-024:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id027
     depends_on:
@@ -945,6 +1009,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-024.yml
   bpm-twin-025:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id028
     - small
@@ -960,6 +1025,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-025.yml
   bpm-025:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id028
     depends_on:
@@ -973,6 +1039,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-025.yml
   bpm-twin-026:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id029
     - small
@@ -988,6 +1055,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-026.yml
   bpm-026:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id029
     depends_on:
@@ -1001,6 +1069,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-026.yml
   bpm-twin-027:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id030
     - small
@@ -1016,6 +1085,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-027.yml
   bpm-027:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id030
     depends_on:
@@ -1029,6 +1099,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-027.yml
   bpm-twin-028:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id031
     - small
@@ -1044,6 +1115,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-028.yml
   bpm-028:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id031
     depends_on:
@@ -1057,6 +1129,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-028.yml
   bpm-twin-029:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id032
     - small
@@ -1072,6 +1145,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-029.yml
   bpm-029:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id032
     depends_on:
@@ -1085,6 +1159,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-029.yml
   bpm-twin-030:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id033
     - small
@@ -1100,6 +1175,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-030.yml
   bpm-030:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id033
     depends_on:
@@ -1113,6 +1189,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-030.yml
   bpm-twin-031:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id034
     - small
@@ -1128,6 +1205,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-031.yml
   bpm-031:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id034
     depends_on:
@@ -1141,6 +1219,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-031.yml
   bpm-twin-032:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id035
     - small
@@ -1156,6 +1235,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-032.yml
   bpm-032:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id035
     depends_on:
@@ -1169,6 +1249,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-032.yml
   bpm-twin-033:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id036
     - small
@@ -1184,6 +1265,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-033.yml
   bpm-033:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id036
     depends_on:
@@ -1197,6 +1279,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-033.yml
   bpm-twin-034:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id037
     - small
@@ -1212,6 +1295,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-034.yml
   bpm-034:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id037
     depends_on:
@@ -1225,6 +1309,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-034.yml
   bpm-twin-035:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id038
     - small
@@ -1240,6 +1325,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-035.yml
   bpm-035:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id038
     depends_on:
@@ -1253,6 +1339,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-035.yml
   bpm-twin-036:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id039
     - medium
@@ -1267,6 +1354,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-036.yml
   bpm-036:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id039
     depends_on:
@@ -1280,6 +1368,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-036.yml
   bpm-twin-037:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id040
     - medium
@@ -1294,6 +1383,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-037.yml
   bpm-037:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id040
     depends_on:
@@ -1307,6 +1397,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-037.yml
   bpm-twin-038:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id041
     - medium
@@ -1321,6 +1412,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-038.yml
   bpm-038:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id041
     depends_on:
@@ -1334,6 +1426,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-038.yml
   bpm-twin-039:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id042
     - medium
@@ -1348,6 +1441,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-039.yml
   bpm-039:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id042
     depends_on:
@@ -1361,6 +1455,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-039.yml
   bpm-twin-040:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id043
     - medium
@@ -1375,6 +1470,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-040.yml
   bpm-040:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id043
     depends_on:
@@ -1388,6 +1484,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-040.yml
   bpm-twin-041:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id044
     - medium
@@ -1402,6 +1499,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-041.yml
   bpm-041:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id044
     depends_on:
@@ -1415,6 +1513,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-041.yml
   bpm-twin-042:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id045
     - medium
@@ -1429,6 +1528,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-042.yml
   bpm-042:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id045
     depends_on:
@@ -1442,6 +1542,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-042.yml
   bpm-twin-043:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id046
     - medium
@@ -1456,6 +1557,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-043.yml
   bpm-043:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id046
     depends_on:
@@ -1469,6 +1571,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-043.yml
   bpm-twin-044:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id047
     - medium
@@ -1483,6 +1586,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-044.yml
   bpm-044:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id047
     depends_on:
@@ -1496,6 +1600,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-044.yml
   bpm-twin-045:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id048
     - medium
@@ -1510,6 +1615,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-045.yml
   bpm-045:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id048
     depends_on:
@@ -1523,6 +1629,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-045.yml
   bpm-twin-046:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id049
     - medium
@@ -1537,6 +1644,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-046.yml
   bpm-046:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id049
     depends_on:
@@ -1550,6 +1658,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-046.yml
   bpm-twin-047:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id050
     - medium
@@ -1564,6 +1673,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-047.yml
   bpm-047:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id050
     depends_on:
@@ -1577,6 +1687,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-047.yml
   bpm-twin-048:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id051
     - large
@@ -1590,6 +1701,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-048.yml
   bpm-048:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id051
     depends_on:
@@ -1603,6 +1715,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-048.yml
   bpm-twin-049:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id052
     - large
@@ -1616,6 +1729,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-049.yml
   bpm-049:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id052
     depends_on:
@@ -1629,6 +1743,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-049.yml
   bpm-twin-050:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id053
     - large
@@ -1642,6 +1757,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-050.yml
   bpm-050:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id053
     depends_on:
@@ -1655,6 +1771,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-050.yml
   bpm-twin-051:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id054
     - large
@@ -1668,6 +1785,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-051.yml
   bpm-051:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id054
     depends_on:
@@ -1681,6 +1799,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-051.yml
   bpm-twin-052:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id055
     - large
@@ -1694,6 +1813,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-052.yml
   bpm-052:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id055
     depends_on:
@@ -1707,6 +1827,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-052.yml
   bpm-twin-053:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id056
     - large
@@ -1720,6 +1841,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-053.yml
   bpm-053:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id056
     depends_on:
@@ -1733,6 +1855,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-053.yml
   bpm-twin-054:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id057
     - large
@@ -1746,6 +1869,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-054.yml
   bpm-054:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id057
     depends_on:
@@ -1759,6 +1883,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-054.yml
   bpm-twin-055:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id058
     - large
@@ -1772,6 +1897,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-055.yml
   bpm-055:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id058
     depends_on:
@@ -1785,6 +1911,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-055.yml
   bpm-twin-056:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id059
     - large
@@ -1798,6 +1925,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-056.yml
   bpm-056:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id059
     depends_on:
@@ -1811,6 +1939,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-056.yml
   bpm-twin-057:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id060
     - large
@@ -1824,6 +1953,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-057.yml
   bpm-057:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id060
     depends_on:
@@ -1837,6 +1967,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-057.yml
   bpm-twin-058:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id061
     - large
@@ -1850,6 +1981,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-058.yml
   bpm-058:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id061
     depends_on:
@@ -1863,6 +1995,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-058.yml
   bpm-twin-059:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id062
     - large
@@ -1876,6 +2009,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-059.yml
   bpm-059:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id062
     depends_on:
@@ -1889,6 +2023,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-059.yml
   bpm-twin-060:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id063
     - full
@@ -1901,6 +2036,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-060.yml
   bpm-060:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id063
     depends_on:
@@ -1914,6 +2050,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-060.yml
   bpm-twin-061:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id064
     - full
@@ -1926,6 +2063,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-061.yml
   bpm-061:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id064
     depends_on:
@@ -1939,6 +2077,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-061.yml
   bpm-twin-062:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id065
     - full
@@ -1951,6 +2090,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-062.yml
   bpm-062:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id065
     depends_on:
@@ -1964,6 +2104,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-062.yml
   bpm-twin-063:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id066
     - full
@@ -1976,6 +2117,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-063.yml
   bpm-063:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id066
     depends_on:
@@ -1989,6 +2131,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-063.yml
   bpm-twin-064:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id067
     - full
@@ -2001,6 +2144,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-064.yml
   bpm-064:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id067
     depends_on:
@@ -2014,6 +2158,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-064.yml
   bpm-twin-065:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id068
     - full
@@ -2026,6 +2171,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-065.yml
   bpm-065:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id068
     depends_on:
@@ -2039,6 +2185,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-065.yml
   bpm-twin-066:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id069
     - full
@@ -2051,6 +2198,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-066.yml
   bpm-066:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id069
     depends_on:
@@ -2064,6 +2212,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-066.yml
   bpm-twin-067:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id070
     - full
@@ -2076,6 +2225,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-067.yml
   bpm-067:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id070
     depends_on:
@@ -2089,6 +2239,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-067.yml
   bpm-twin-068:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id071
     - full
@@ -2101,6 +2252,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-068.yml
   bpm-068:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id071
     depends_on:
@@ -2114,6 +2266,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-068.yml
   bpm-twin-069:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id072
     - full
@@ -2126,6 +2279,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-069.yml
   bpm-069:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id072
     depends_on:
@@ -2139,6 +2293,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-069.yml
   bpm-twin-070:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id073
     - full
@@ -2151,6 +2306,7 @@ services:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-070.yml
   bpm-070:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id073
     depends_on:
@@ -2164,6 +2320,7 @@ services:
     - /bpm
     - /etc/adapters/system/bpm/bpm-070.yml
   blm-twin-001:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id074
     - tiny
@@ -2180,6 +2337,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-001.yml
   blm-001:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id074
     depends_on:
@@ -2193,6 +2351,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-001.yml
   blm-twin-002:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id075
     - tiny
@@ -2209,6 +2368,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-002.yml
   blm-002:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id075
     depends_on:
@@ -2222,6 +2382,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-002.yml
   blm-twin-003:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id076
     - tiny
@@ -2238,6 +2399,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-003.yml
   blm-003:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id076
     depends_on:
@@ -2251,6 +2413,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-003.yml
   blm-twin-004:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id077
     - tiny
@@ -2267,6 +2430,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-004.yml
   blm-004:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id077
     depends_on:
@@ -2280,6 +2444,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-004.yml
   blm-twin-005:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id078
     - tiny
@@ -2296,6 +2461,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-005.yml
   blm-005:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id078
     depends_on:
@@ -2309,6 +2475,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-005.yml
   blm-twin-006:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id079
     - tiny
@@ -2325,6 +2492,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-006.yml
   blm-006:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id079
     depends_on:
@@ -2338,6 +2506,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-006.yml
   blm-twin-007:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id080
     - tiny
@@ -2354,6 +2523,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-007.yml
   blm-007:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id080
     depends_on:
@@ -2367,6 +2537,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-007.yml
   blm-twin-008:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id081
     - tiny
@@ -2383,6 +2554,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-008.yml
   blm-008:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id081
     depends_on:
@@ -2396,6 +2568,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-008.yml
   blm-twin-009:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id082
     - tiny
@@ -2412,6 +2585,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-009.yml
   blm-009:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id082
     depends_on:
@@ -2425,6 +2599,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-009.yml
   blm-twin-010:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id083
     - tiny
@@ -2441,6 +2616,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-010.yml
   blm-010:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id083
     depends_on:
@@ -2454,6 +2630,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-010.yml
   blm-twin-011:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id084
     - small
@@ -2469,6 +2646,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-011.yml
   blm-011:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id084
     depends_on:
@@ -2482,6 +2660,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-011.yml
   blm-twin-012:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id085
     - small
@@ -2497,6 +2676,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-012.yml
   blm-012:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id085
     depends_on:
@@ -2510,6 +2690,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-012.yml
   blm-twin-013:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id086
     - small
@@ -2525,6 +2706,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-013.yml
   blm-013:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id086
     depends_on:
@@ -2538,6 +2720,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-013.yml
   blm-twin-014:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id087
     - small
@@ -2553,6 +2736,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-014.yml
   blm-014:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id087
     depends_on:
@@ -2566,6 +2750,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-014.yml
   blm-twin-015:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id088
     - small
@@ -2581,6 +2766,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-015.yml
   blm-015:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id088
     depends_on:
@@ -2594,6 +2780,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-015.yml
   blm-twin-016:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id089
     - small
@@ -2609,6 +2796,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-016.yml
   blm-016:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id089
     depends_on:
@@ -2622,6 +2810,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-016.yml
   blm-twin-017:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id090
     - small
@@ -2637,6 +2826,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-017.yml
   blm-017:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id090
     depends_on:
@@ -2650,6 +2840,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-017.yml
   blm-twin-018:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id091
     - small
@@ -2665,6 +2856,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-018.yml
   blm-018:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id091
     depends_on:
@@ -2678,6 +2870,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-018.yml
   blm-twin-019:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id092
     - small
@@ -2693,6 +2886,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-019.yml
   blm-019:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id092
     depends_on:
@@ -2706,6 +2900,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-019.yml
   blm-twin-020:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id093
     - small
@@ -2721,6 +2916,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-020.yml
   blm-020:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id093
     depends_on:
@@ -2734,6 +2930,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-020.yml
   blm-twin-021:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id094
     - small
@@ -2749,6 +2946,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-021.yml
   blm-021:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id094
     depends_on:
@@ -2762,6 +2960,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-021.yml
   blm-twin-022:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id095
     - small
@@ -2777,6 +2976,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-022.yml
   blm-022:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id095
     depends_on:
@@ -2790,6 +2990,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-022.yml
   blm-twin-023:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id096
     - small
@@ -2805,6 +3006,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-023.yml
   blm-023:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id096
     depends_on:
@@ -2818,6 +3020,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-023.yml
   blm-twin-024:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id097
     - small
@@ -2833,6 +3036,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-024.yml
   blm-024:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id097
     depends_on:
@@ -2846,6 +3050,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-024.yml
   blm-twin-025:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id098
     - small
@@ -2861,6 +3066,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-025.yml
   blm-025:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id098
     depends_on:
@@ -2874,6 +3080,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-025.yml
   blm-twin-026:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id099
     - small
@@ -2889,6 +3096,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-026.yml
   blm-026:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id099
     depends_on:
@@ -2902,6 +3110,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-026.yml
   blm-twin-027:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id100
     - small
@@ -2917,6 +3126,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-027.yml
   blm-027:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id100
     depends_on:
@@ -2930,6 +3140,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-027.yml
   blm-twin-028:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id101
     - small
@@ -2945,6 +3156,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-028.yml
   blm-028:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id101
     depends_on:
@@ -2958,6 +3170,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-028.yml
   blm-twin-029:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id102
     - small
@@ -2973,6 +3186,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-029.yml
   blm-029:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id102
     depends_on:
@@ -2986,6 +3200,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-029.yml
   blm-twin-030:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id103
     - small
@@ -3001,6 +3216,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-030.yml
   blm-030:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id103
     depends_on:
@@ -3014,6 +3230,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-030.yml
   blm-twin-031:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id104
     - small
@@ -3029,6 +3246,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-031.yml
   blm-031:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id104
     depends_on:
@@ -3042,6 +3260,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-031.yml
   blm-twin-032:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id105
     - small
@@ -3057,6 +3276,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-032.yml
   blm-032:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id105
     depends_on:
@@ -3070,6 +3290,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-032.yml
   blm-twin-033:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id106
     - small
@@ -3085,6 +3306,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-033.yml
   blm-033:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id106
     depends_on:
@@ -3098,6 +3320,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-033.yml
   blm-twin-034:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id107
     - small
@@ -3113,6 +3336,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-034.yml
   blm-034:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id107
     depends_on:
@@ -3126,6 +3350,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-034.yml
   blm-twin-035:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id108
     - small
@@ -3141,6 +3366,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-035.yml
   blm-035:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id108
     depends_on:
@@ -3154,6 +3380,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-035.yml
   blm-twin-036:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id109
     - small
@@ -3169,6 +3396,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-036.yml
   blm-036:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id109
     depends_on:
@@ -3182,6 +3410,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-036.yml
   blm-twin-037:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id110
     - small
@@ -3197,6 +3426,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-037.yml
   blm-037:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id110
     depends_on:
@@ -3210,6 +3440,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-037.yml
   blm-twin-038:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id111
     - small
@@ -3225,6 +3456,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-038.yml
   blm-038:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id111
     depends_on:
@@ -3238,6 +3470,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-038.yml
   blm-twin-039:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id112
     - small
@@ -3253,6 +3486,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-039.yml
   blm-039:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id112
     depends_on:
@@ -3266,6 +3500,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-039.yml
   blm-twin-040:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id113
     - small
@@ -3281,6 +3516,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-040.yml
   blm-040:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id113
     depends_on:
@@ -3294,6 +3530,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-040.yml
   blm-twin-041:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id114
     - small
@@ -3309,6 +3546,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-041.yml
   blm-041:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id114
     depends_on:
@@ -3322,6 +3560,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-041.yml
   blm-twin-042:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id115
     - small
@@ -3337,6 +3576,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-042.yml
   blm-042:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id115
     depends_on:
@@ -3350,6 +3590,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-042.yml
   blm-twin-043:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id116
     - small
@@ -3365,6 +3606,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-043.yml
   blm-043:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id116
     depends_on:
@@ -3378,6 +3620,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-043.yml
   blm-twin-044:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id117
     - small
@@ -3393,6 +3636,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-044.yml
   blm-044:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id117
     depends_on:
@@ -3406,6 +3650,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-044.yml
   blm-twin-045:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id118
     - small
@@ -3421,6 +3666,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-045.yml
   blm-045:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id118
     depends_on:
@@ -3434,6 +3680,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-045.yml
   blm-twin-046:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id119
     - small
@@ -3449,6 +3696,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-046.yml
   blm-046:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id119
     depends_on:
@@ -3462,6 +3710,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-046.yml
   blm-twin-047:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id120
     - small
@@ -3477,6 +3726,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-047.yml
   blm-047:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id120
     depends_on:
@@ -3490,6 +3740,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-047.yml
   blm-twin-048:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id121
     - small
@@ -3505,6 +3756,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-048.yml
   blm-048:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id121
     depends_on:
@@ -3518,6 +3770,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-048.yml
   blm-twin-049:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id122
     - small
@@ -3533,6 +3786,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-049.yml
   blm-049:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id122
     depends_on:
@@ -3546,6 +3800,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-049.yml
   blm-twin-050:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id123
     - small
@@ -3561,6 +3816,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-050.yml
   blm-050:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id123
     depends_on:
@@ -3574,6 +3830,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-050.yml
   blm-twin-051:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id124
     - small
@@ -3589,6 +3846,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-051.yml
   blm-051:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id124
     depends_on:
@@ -3602,6 +3860,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-051.yml
   blm-twin-052:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id125
     - small
@@ -3617,6 +3876,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-052.yml
   blm-052:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id125
     depends_on:
@@ -3630,6 +3890,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-052.yml
   blm-twin-053:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id126
     - small
@@ -3645,6 +3906,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-053.yml
   blm-053:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id126
     depends_on:
@@ -3658,6 +3920,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-053.yml
   blm-twin-054:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id127
     - small
@@ -3673,6 +3936,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-054.yml
   blm-054:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id127
     depends_on:
@@ -3686,6 +3950,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-054.yml
   blm-twin-055:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id128
     - small
@@ -3701,6 +3966,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-055.yml
   blm-055:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id128
     depends_on:
@@ -3714,6 +3980,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-055.yml
   blm-twin-056:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id129
     - small
@@ -3729,6 +3996,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-056.yml
   blm-056:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id129
     depends_on:
@@ -3742,6 +4010,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-056.yml
   blm-twin-057:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id130
     - small
@@ -3757,6 +4026,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-057.yml
   blm-057:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id130
     depends_on:
@@ -3770,6 +4040,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-057.yml
   blm-twin-058:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id131
     - small
@@ -3785,6 +4056,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-058.yml
   blm-058:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id131
     depends_on:
@@ -3798,6 +4070,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-058.yml
   blm-twin-059:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id132
     - small
@@ -3813,6 +4086,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-059.yml
   blm-059:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id132
     depends_on:
@@ -3826,6 +4100,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-059.yml
   blm-twin-060:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id133
     - small
@@ -3841,6 +4116,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-060.yml
   blm-060:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id133
     depends_on:
@@ -3854,6 +4130,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-060.yml
   blm-twin-061:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id134
     - small
@@ -3869,6 +4146,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-061.yml
   blm-061:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id134
     depends_on:
@@ -3882,6 +4160,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-061.yml
   blm-twin-062:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id135
     - small
@@ -3897,6 +4176,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-062.yml
   blm-062:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id135
     depends_on:
@@ -3910,6 +4190,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-062.yml
   blm-twin-063:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id136
     - small
@@ -3925,6 +4206,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-063.yml
   blm-063:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id136
     depends_on:
@@ -3938,6 +4220,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-063.yml
   blm-twin-064:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id137
     - small
@@ -3953,6 +4236,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-064.yml
   blm-064:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id137
     depends_on:
@@ -3966,6 +4250,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-064.yml
   blm-twin-065:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id138
     - small
@@ -3981,6 +4266,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-065.yml
   blm-065:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id138
     depends_on:
@@ -3994,6 +4280,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-065.yml
   blm-twin-066:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id139
     - medium
@@ -4008,6 +4295,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-066.yml
   blm-066:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id139
     depends_on:
@@ -4021,6 +4309,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-066.yml
   blm-twin-067:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id140
     - medium
@@ -4035,6 +4324,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-067.yml
   blm-067:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id140
     depends_on:
@@ -4048,6 +4338,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-067.yml
   blm-twin-068:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id141
     - medium
@@ -4062,6 +4353,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-068.yml
   blm-068:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id141
     depends_on:
@@ -4075,6 +4367,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-068.yml
   blm-twin-069:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id142
     - medium
@@ -4089,6 +4382,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-069.yml
   blm-069:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id142
     depends_on:
@@ -4102,6 +4396,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-069.yml
   blm-twin-070:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id143
     - medium
@@ -4116,6 +4411,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-070.yml
   blm-070:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id143
     depends_on:
@@ -4129,6 +4425,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-070.yml
   blm-twin-071:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id144
     - medium
@@ -4143,6 +4440,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-071.yml
   blm-071:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id144
     depends_on:
@@ -4156,6 +4454,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-071.yml
   blm-twin-072:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id145
     - medium
@@ -4170,6 +4469,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-072.yml
   blm-072:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id145
     depends_on:
@@ -4183,6 +4483,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-072.yml
   blm-twin-073:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id146
     - medium
@@ -4197,6 +4498,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-073.yml
   blm-073:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id146
     depends_on:
@@ -4210,6 +4512,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-073.yml
   blm-twin-074:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id147
     - medium
@@ -4224,6 +4527,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-074.yml
   blm-074:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id147
     depends_on:
@@ -4237,6 +4541,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-074.yml
   blm-twin-075:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id148
     - medium
@@ -4251,6 +4556,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-075.yml
   blm-075:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id148
     depends_on:
@@ -4264,6 +4570,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-075.yml
   blm-twin-076:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id149
     - medium
@@ -4278,6 +4585,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-076.yml
   blm-076:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id149
     depends_on:
@@ -4291,6 +4599,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-076.yml
   blm-twin-077:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id150
     - medium
@@ -4305,6 +4614,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-077.yml
   blm-077:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id150
     depends_on:
@@ -4318,6 +4628,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-077.yml
   blm-twin-078:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id151
     - medium
@@ -4332,6 +4643,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-078.yml
   blm-078:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id151
     depends_on:
@@ -4345,6 +4657,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-078.yml
   blm-twin-079:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id152
     - medium
@@ -4359,6 +4672,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-079.yml
   blm-079:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id152
     depends_on:
@@ -4372,6 +4686,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-079.yml
   blm-twin-080:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id153
     - medium
@@ -4386,6 +4701,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-080.yml
   blm-080:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id153
     depends_on:
@@ -4399,6 +4715,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-080.yml
   blm-twin-081:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id154
     - medium
@@ -4413,6 +4730,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-081.yml
   blm-081:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id154
     depends_on:
@@ -4426,6 +4744,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-081.yml
   blm-twin-082:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id155
     - medium
@@ -4440,6 +4759,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-082.yml
   blm-082:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id155
     depends_on:
@@ -4453,6 +4773,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-082.yml
   blm-twin-083:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id156
     - medium
@@ -4467,6 +4788,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-083.yml
   blm-083:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id156
     depends_on:
@@ -4480,6 +4802,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-083.yml
   blm-twin-084:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id157
     - medium
@@ -4494,6 +4817,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-084.yml
   blm-084:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id157
     depends_on:
@@ -4507,6 +4831,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-084.yml
   blm-twin-085:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id158
     - medium
@@ -4521,6 +4846,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-085.yml
   blm-085:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id158
     depends_on:
@@ -4534,6 +4860,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-085.yml
   blm-twin-086:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id159
     - medium
@@ -4548,6 +4875,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-086.yml
   blm-086:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id159
     depends_on:
@@ -4561,6 +4889,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-086.yml
   blm-twin-087:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id160
     - medium
@@ -4575,6 +4904,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-087.yml
   blm-087:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id160
     depends_on:
@@ -4588,6 +4918,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-087.yml
   blm-twin-088:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id161
     - large
@@ -4601,6 +4932,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-088.yml
   blm-088:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id161
     depends_on:
@@ -4614,6 +4946,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-088.yml
   blm-twin-089:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id162
     - large
@@ -4627,6 +4960,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-089.yml
   blm-089:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id162
     depends_on:
@@ -4640,6 +4974,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-089.yml
   blm-twin-090:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id163
     - large
@@ -4653,6 +4988,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-090.yml
   blm-090:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id163
     depends_on:
@@ -4666,6 +5002,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-090.yml
   blm-twin-091:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id164
     - large
@@ -4679,6 +5016,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-091.yml
   blm-091:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id164
     depends_on:
@@ -4692,6 +5030,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-091.yml
   blm-twin-092:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id165
     - large
@@ -4705,6 +5044,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-092.yml
   blm-092:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id165
     depends_on:
@@ -4718,6 +5058,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-092.yml
   blm-twin-093:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id166
     - large
@@ -4731,6 +5072,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-093.yml
   blm-093:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id166
     depends_on:
@@ -4744,6 +5086,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-093.yml
   blm-twin-094:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id167
     - large
@@ -4757,6 +5100,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-094.yml
   blm-094:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id167
     depends_on:
@@ -4770,6 +5114,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-094.yml
   blm-twin-095:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id168
     - large
@@ -4783,6 +5128,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-095.yml
   blm-095:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id168
     depends_on:
@@ -4796,6 +5142,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-095.yml
   blm-twin-096:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id169
     - large
@@ -4809,6 +5156,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-096.yml
   blm-096:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id169
     depends_on:
@@ -4822,6 +5170,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-096.yml
   blm-twin-097:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id170
     - large
@@ -4835,6 +5184,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-097.yml
   blm-097:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id170
     depends_on:
@@ -4848,6 +5198,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-097.yml
   blm-twin-098:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id171
     - large
@@ -4861,6 +5212,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-098.yml
   blm-098:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id171
     depends_on:
@@ -4874,6 +5226,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-098.yml
   blm-twin-099:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id172
     - large
@@ -4887,6 +5240,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-099.yml
   blm-099:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id172
     depends_on:
@@ -4900,6 +5254,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-099.yml
   blm-twin-100:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id173
     - large
@@ -4913,6 +5268,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-100.yml
   blm-100:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id173
     depends_on:
@@ -4926,6 +5282,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-100.yml
   blm-twin-101:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id174
     - large
@@ -4939,6 +5296,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-101.yml
   blm-101:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id174
     depends_on:
@@ -4952,6 +5310,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-101.yml
   blm-twin-102:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id175
     - large
@@ -4965,6 +5324,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-102.yml
   blm-102:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id175
     depends_on:
@@ -4978,6 +5338,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-102.yml
   blm-twin-103:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id176
     - large
@@ -4991,6 +5352,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-103.yml
   blm-103:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id176
     depends_on:
@@ -5004,6 +5366,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-103.yml
   blm-twin-104:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id177
     - large
@@ -5017,6 +5380,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-104.yml
   blm-104:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id177
     depends_on:
@@ -5030,6 +5394,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-104.yml
   blm-twin-105:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id178
     - large
@@ -5043,6 +5408,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-105.yml
   blm-105:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id178
     depends_on:
@@ -5056,6 +5422,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-105.yml
   blm-twin-106:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id179
     - large
@@ -5069,6 +5436,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-106.yml
   blm-106:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id179
     depends_on:
@@ -5082,6 +5450,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-106.yml
   blm-twin-107:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id180
     - large
@@ -5095,6 +5464,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-107.yml
   blm-107:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id180
     depends_on:
@@ -5108,6 +5478,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-107.yml
   blm-twin-108:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id181
     - large
@@ -5121,6 +5492,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-108.yml
   blm-108:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id181
     depends_on:
@@ -5134,6 +5506,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-108.yml
   blm-twin-109:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id182
     - large
@@ -5147,6 +5520,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-109.yml
   blm-109:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id182
     depends_on:
@@ -5160,6 +5534,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-109.yml
   blm-twin-110:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id183
     - full
@@ -5172,6 +5547,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-110.yml
   blm-110:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id183
     depends_on:
@@ -5185,6 +5561,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-110.yml
   blm-twin-111:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id184
     - full
@@ -5197,6 +5574,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-111.yml
   blm-111:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id184
     depends_on:
@@ -5210,6 +5588,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-111.yml
   blm-twin-112:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id185
     - full
@@ -5222,6 +5601,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-112.yml
   blm-112:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id185
     depends_on:
@@ -5235,6 +5615,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-112.yml
   blm-twin-113:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id186
     - full
@@ -5247,6 +5628,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-113.yml
   blm-113:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id186
     depends_on:
@@ -5260,6 +5642,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-113.yml
   blm-twin-114:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id187
     - full
@@ -5272,6 +5655,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-114.yml
   blm-114:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id187
     depends_on:
@@ -5285,6 +5669,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-114.yml
   blm-twin-115:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id188
     - full
@@ -5297,6 +5682,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-115.yml
   blm-115:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id188
     depends_on:
@@ -5310,6 +5696,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-115.yml
   blm-twin-116:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id189
     - full
@@ -5322,6 +5709,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-116.yml
   blm-116:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id189
     depends_on:
@@ -5335,6 +5723,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-116.yml
   blm-twin-117:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id190
     - full
@@ -5347,6 +5736,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-117.yml
   blm-117:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id190
     depends_on:
@@ -5360,6 +5750,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-117.yml
   blm-twin-118:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id191
     - full
@@ -5372,6 +5763,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-118.yml
   blm-118:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id191
     depends_on:
@@ -5385,6 +5777,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-118.yml
   blm-twin-119:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id192
     - full
@@ -5397,6 +5790,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-119.yml
   blm-119:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id192
     depends_on:
@@ -5410,6 +5804,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-119.yml
   blm-twin-120:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id193
     - full
@@ -5422,6 +5817,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-120.yml
   blm-120:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id193
     depends_on:
@@ -5435,6 +5831,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-120.yml
   blm-twin-121:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id194
     - full
@@ -5447,6 +5844,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-121.yml
   blm-121:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id194
     depends_on:
@@ -5460,6 +5858,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-121.yml
   blm-twin-122:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id195
     - full
@@ -5472,6 +5871,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-122.yml
   blm-122:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id195
     depends_on:
@@ -5485,6 +5885,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-122.yml
   blm-twin-123:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id196
     - full
@@ -5497,6 +5898,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-123.yml
   blm-123:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id196
     depends_on:
@@ -5510,6 +5912,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-123.yml
   blm-twin-124:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id197
     - full
@@ -5522,6 +5925,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-124.yml
   blm-124:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id197
     depends_on:
@@ -5535,6 +5939,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-124.yml
   blm-twin-125:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id198
     - full
@@ -5547,6 +5952,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-125.yml
   blm-125:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id198
     depends_on:
@@ -5560,6 +5966,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-125.yml
   blm-twin-126:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id199
     - full
@@ -5572,6 +5979,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-126.yml
   blm-126:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id199
     depends_on:
@@ -5585,6 +5993,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-126.yml
   blm-twin-127:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id200
     - full
@@ -5597,6 +6006,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-127.yml
   blm-127:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id200
     depends_on:
@@ -5610,6 +6020,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-127.yml
   blm-twin-128:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id201
     - full
@@ -5622,6 +6033,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-128.yml
   blm-128:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id201
     depends_on:
@@ -5635,6 +6047,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-128.yml
   blm-twin-129:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id202
     - full
@@ -5647,6 +6060,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-129.yml
   blm-129:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id202
     depends_on:
@@ -5660,6 +6074,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-129.yml
   blm-twin-130:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id203
     - full
@@ -5672,6 +6087,7 @@ services:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-130.yml
   blm-130:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id203
     depends_on:
@@ -5685,6 +6101,7 @@ services:
     - /blm
     - /etc/adapters/system/blm/blm-130.yml
   bcm-twin-01:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id204
     - tiny
@@ -5701,6 +6118,7 @@ services:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-01.yml
   bcm-01:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id204
     depends_on:
@@ -5714,6 +6132,7 @@ services:
     - /bcm
     - /etc/adapters/system/bcm/bcm-01.yml
   bcm-twin-02:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id205
     - tiny
@@ -5730,6 +6149,7 @@ services:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-02.yml
   bcm-02:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id205
     depends_on:
@@ -5743,6 +6163,7 @@ services:
     - /bcm
     - /etc/adapters/system/bcm/bcm-02.yml
   bcm-twin-03:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id206
     - tiny
@@ -5759,6 +6180,7 @@ services:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-03.yml
   bcm-03:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id206
     depends_on:
@@ -5772,6 +6194,7 @@ services:
     - /bcm
     - /etc/adapters/system/bcm/bcm-03.yml
   bcm-twin-04:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id207
     - tiny
@@ -5788,6 +6211,7 @@ services:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-04.yml
   bcm-04:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id207
     depends_on:
@@ -5801,6 +6225,7 @@ services:
     - /bcm
     - /etc/adapters/system/bcm/bcm-04.yml
   bcm-twin-05:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id208
     - tiny
@@ -5817,6 +6242,7 @@ services:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-05.yml
   bcm-05:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id208
     depends_on:
@@ -5830,6 +6256,7 @@ services:
     - /bcm
     - /etc/adapters/system/bcm/bcm-05.yml
   bcm-twin-06:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id209
     - small
@@ -5845,6 +6272,7 @@ services:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-06.yml
   bcm-06:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id209
     depends_on:
@@ -5858,6 +6286,7 @@ services:
     - /bcm
     - /etc/adapters/system/bcm/bcm-06.yml
   bcm-twin-07:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id210
     - small
@@ -5873,6 +6302,7 @@ services:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-07.yml
   bcm-07:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id210
     depends_on:
@@ -5886,6 +6316,7 @@ services:
     - /bcm
     - /etc/adapters/system/bcm/bcm-07.yml
   bcm-twin-08:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id211
     - small
@@ -5901,6 +6332,7 @@ services:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-08.yml
   bcm-08:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id211
     depends_on:
@@ -5914,6 +6346,7 @@ services:
     - /bcm
     - /etc/adapters/system/bcm/bcm-08.yml
   bcm-twin-09:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id212
     - small
@@ -5929,6 +6362,7 @@ services:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-09.yml
   bcm-09:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id212
     depends_on:
@@ -5942,6 +6376,7 @@ services:
     - /bcm
     - /etc/adapters/system/bcm/bcm-09.yml
   bcm-twin-10:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id213
     - small
@@ -5957,6 +6392,7 @@ services:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-10.yml
   bcm-10:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id213
     depends_on:
@@ -5970,6 +6406,7 @@ services:
     - /bcm
     - /etc/adapters/system/bcm/bcm-10.yml
   bcm-twin-11:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id214
     - medium
@@ -5984,6 +6421,7 @@ services:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-11.yml
   bcm-11:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id214
     depends_on:
@@ -5997,6 +6435,7 @@ services:
     - /bcm
     - /etc/adapters/system/bcm/bcm-11.yml
   bcm-twin-12:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id215
     - medium
@@ -6011,6 +6450,7 @@ services:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-12.yml
   bcm-12:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id215
     depends_on:
@@ -6024,6 +6464,7 @@ services:
     - /bcm
     - /etc/adapters/system/bcm/bcm-12.yml
   bcm-twin-13:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id216
     - medium
@@ -6038,6 +6479,7 @@ services:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-13.yml
   bcm-13:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id216
     depends_on:
@@ -6051,6 +6493,7 @@ services:
     - /bcm
     - /etc/adapters/system/bcm/bcm-13.yml
   bcm-twin-14:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id217
     - medium
@@ -6065,6 +6508,7 @@ services:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-14.yml
   bcm-14:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id217
     depends_on:
@@ -6078,6 +6522,7 @@ services:
     - /bcm
     - /etc/adapters/system/bcm/bcm-14.yml
   bcm-twin-15:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id218
     - large
@@ -6091,6 +6536,7 @@ services:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-15.yml
   bcm-15:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id218
     depends_on:
@@ -6104,6 +6550,7 @@ services:
     - /bcm
     - /etc/adapters/system/bcm/bcm-15.yml
   bcm-twin-16:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id219
     - large
@@ -6117,6 +6564,7 @@ services:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-16.yml
   bcm-16:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id219
     depends_on:
@@ -6130,6 +6578,7 @@ services:
     - /bcm
     - /etc/adapters/system/bcm/bcm-16.yml
   bcm-twin-17:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id220
     - large
@@ -6143,6 +6592,7 @@ services:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-17.yml
   bcm-17:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id220
     depends_on:
@@ -6156,6 +6606,7 @@ services:
     - /bcm
     - /etc/adapters/system/bcm/bcm-17.yml
   bcm-twin-18:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id221
     - full
@@ -6168,6 +6619,7 @@ services:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-18.yml
   bcm-18:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id221
     depends_on:
@@ -6181,6 +6633,7 @@ services:
     - /bcm
     - /etc/adapters/system/bcm/bcm-18.yml
   bcm-twin-19:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id222
     - full
@@ -6193,6 +6646,7 @@ services:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-19.yml
   bcm-19:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id222
     depends_on:
@@ -6206,6 +6660,7 @@ services:
     - /bcm
     - /etc/adapters/system/bcm/bcm-19.yml
   bcm-twin-20:
+    image: redis-adapter:latest
     build: *id003
     profiles: &id223
     - full
@@ -6218,6 +6673,7 @@ services:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-20.yml
   bcm-20:
+    image: redis-adapter:latest
     build: *id003
     profiles: *id223
     depends_on:

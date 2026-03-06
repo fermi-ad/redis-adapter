@@ -23,3 +23,6 @@ Testing/
 
 # Rust
 **/target/
+
+# Docker image tarballs
+*.tar
