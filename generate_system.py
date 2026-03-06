@@ -463,6 +463,34 @@ def gen_compose(bpm_instances, blm_instances, bcm_instances):
         svc["profiles"] = profiles
         services[redis_name] = svc
 
+    # Generate per-profile hosts files and add inst-tui services
+    build_block = {"context": ".", "dockerfile": "Dockerfile"}
+    for profile in ["tiny", "small", "medium", "large"]:
+        profile_hosts = sorted(
+            name for name, profs in redis_profiles.items()
+            if profile in profs
+        )
+        hosts_file = os.path.join(OUT_DIR, f"inst-tui-hosts-{profile}.txt")
+        with open(hosts_file, "w") as hf:
+            for h in profile_hosts:
+                hf.write(f"{h}\n")
+
+        svc_name = f"inst-tui-{profile}"
+        # Depend on all Redis nodes for this profile
+        depends = {h: {"condition": "service_healthy"} for h in profile_hosts}
+        services[svc_name] = {
+            "build": build_block,
+            "profiles": [profile],
+            "depends_on": depends,
+            "stdin_open": True,
+            "tty": True,
+            "volumes": [
+                f"./system-configs/inst-tui-hosts-{profile}.txt:"
+                f"/etc/inst-tui/hosts.txt:ro",
+            ],
+            "command": ["/inst-tui", "--config", "/etc/inst-tui/hosts.txt"],
+        }
+
     return {"services": services}, len(redis_profiles)
 
 

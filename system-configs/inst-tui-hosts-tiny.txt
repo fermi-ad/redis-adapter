@@ -1,0 +1,14 @@
+redis-bcm-01
+redis-bcm-02
+redis-blm-01
+redis-blm-02
+redis-bpm-001
+redis-bpm-002
+redis-bpm-003
+redis-bpm-004
+redis-bpm-005
+redis-bpm-006
+redis-bpm-007
+redis-bpm-008
+redis-bpm-009
+redis-bpm-010
