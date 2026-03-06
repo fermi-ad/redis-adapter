@@ -184,6 +184,43 @@ RAL_Time RedisAdapterLite::addAttrs(const std::string& subKey, const Attrs& data
 }
 
 //===========================================================================
+//  Batch add blobs (pipelined)
+//===========================================================================
+
+std::vector<RAL_Time> RedisAdapterLite::addBlobBatch(const std::vector<BlobEntry>& entries)
+{
+  std::vector<HiredisConnection::PipelineEntry> pipe;
+  pipe.reserve(entries.size());
+
+  for (auto& e : entries)
+  {
+    pipe.push_back({
+      build_key(e.subKey),
+      e.args.time.id_or_now(),
+      static_cast<const char*>(e.data),
+      e.size,
+      e.args.trim
+    });
+  }
+
+  auto ids = _redis.addBlobPipeline(pipe);
+
+  std::vector<RAL_Time> result;
+  result.reserve(ids.size());
+  for (auto& id : ids)
+  {
+    if (id.empty())
+    {
+      check_reconnect(0);
+      result.emplace_back();
+    }
+    else
+      result.emplace_back(id);
+  }
+  return result;
+}
+
+//===========================================================================
 //  Get single value (most recent at or before maxTime)
 //===========================================================================
 

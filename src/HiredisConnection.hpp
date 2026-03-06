@@ -71,6 +71,16 @@ public:
   int32_t hexpire(const std::string& key, const std::string& field, uint32_t seconds);
   std::vector<std::string> hkeys(const std::string& key);
 
+  //--- Pipeline batch XADD (single-field "_" blobs) ---
+  struct PipelineEntry {
+    std::string key;
+    std::string id;
+    const char* data;
+    size_t size;
+    uint32_t maxlen;
+  };
+  std::vector<std::string> addBlobPipeline(const std::vector<PipelineEntry>& entries);
+
   //--- Pub/sub ---
   int64_t publish(const std::string& channel, const std::string& message);
 

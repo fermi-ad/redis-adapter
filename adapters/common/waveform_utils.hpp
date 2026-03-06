@@ -99,6 +99,109 @@ inline std::vector<double> deserializeWaveform(
     return out;
 }
 
+// ---- WriteBatch: accumulate serialized writes, flush via pipeline ----
+//
+//  Reuses a shared float buffer for float32 serialization and pipelines
+//  all XADD commands in a single Redis round-trip.
+
+class WriteBatch
+{
+public:
+  void add(const std::string& subKey, const std::vector<double>& data,
+           DataType dt, RAL_Time sourceTime = RAL_Time())
+  {
+    Entry e;
+    e.subKey = subKey;
+    e.args.time = sourceTime;
+
+    switch (dt)
+    {
+    case DataType::Float32:
+    {
+      size_t n = data.size();
+      if (_floatBuf.size() < n) _floatBuf.resize(n);
+      for (size_t i = 0; i < n; ++i)
+        _floatBuf[i] = static_cast<float>(data[i]);
+      e.serialized.resize(n * sizeof(float));
+      std::memcpy(e.serialized.data(), _floatBuf.data(), e.serialized.size());
+      break;
+    }
+    case DataType::Float64:
+      e.serialized.resize(data.size() * sizeof(double));
+      std::memcpy(e.serialized.data(), data.data(), e.serialized.size());
+      break;
+    case DataType::Int32:
+    {
+      size_t n = data.size();
+      e.serialized.resize(n * sizeof(int32_t));
+      auto* dst = reinterpret_cast<int32_t*>(e.serialized.data());
+      for (size_t i = 0; i < n; ++i)
+        dst[i] = static_cast<int32_t>(std::round(data[i]));
+      break;
+    }
+    case DataType::Uint16:
+    {
+      size_t n = data.size();
+      e.serialized.resize(n * sizeof(uint16_t));
+      auto* dst = reinterpret_cast<uint16_t*>(e.serialized.data());
+      for (size_t i = 0; i < n; ++i)
+      {
+        double v = std::round(data[i]);
+        if (v < 0.0)     v = 0.0;
+        if (v > 65535.0)  v = 65535.0;
+        dst[i] = static_cast<uint16_t>(v);
+      }
+      break;
+    }
+    }
+
+    _entries.push_back(std::move(e));
+  }
+
+  void addDouble(const std::string& subKey, double value,
+                 RAL_Time sourceTime = RAL_Time())
+  {
+    Entry e;
+    e.subKey = subKey;
+    e.args.time = sourceTime;
+    e.serialized.resize(sizeof(double));
+    std::memcpy(e.serialized.data(), &value, sizeof(double));
+    _entries.push_back(std::move(e));
+  }
+
+  std::vector<RAL_Time> flush(RedisAdapterLite& redis)
+  {
+    if (_entries.empty()) return {};
+
+    std::vector<RedisAdapterLite::BlobEntry> batch;
+    batch.reserve(_entries.size());
+    for (auto& e : _entries)
+    {
+      batch.push_back({
+        e.subKey,
+        e.serialized.data(),
+        e.serialized.size(),
+        e.args
+      });
+    }
+    auto result = redis.addBlobBatch(batch);
+    _entries.clear();
+    return result;
+  }
+
+  void clear() { _entries.clear(); }
+  size_t size() const { return _entries.size(); }
+
+private:
+  struct Entry {
+    std::string subKey;
+    std::vector<char> serialized;
+    RAL_AddArgs args;
+  };
+  std::vector<Entry> _entries;
+  std::vector<float> _floatBuf;  // shared serialization buffer for float32
+};
+
 // ---- Serialization: vector<double> → addBlob ----
 //
 //  Both overloads write with the same stream field ("_").

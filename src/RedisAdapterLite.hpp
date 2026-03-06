@@ -46,6 +46,15 @@ public:
   RAL_Time addAttrs(const std::string& subKey, const Attrs& data,
                     const RAL_AddArgs& args = {});
 
+  //--- Batch add blobs (pipelined, single round-trip) ---
+  struct BlobEntry {
+    std::string subKey;
+    const void* data;
+    size_t size;
+    RAL_AddArgs args;
+  };
+  std::vector<RAL_Time> addBlobBatch(const std::vector<BlobEntry>& entries);
+
   //--- Get single value (most recent at or before maxTime) ---
   RAL_Time getString(const std::string& subKey, std::string& dest,
                      const RAL_GetArgs& args = {});

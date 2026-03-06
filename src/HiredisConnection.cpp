@@ -446,6 +446,64 @@ std::vector<std::string> HiredisConnection::hkeys(const std::string& key)
   return result;
 }
 
+//--- Pipeline batch XADD ---
+
+std::vector<std::string> HiredisConnection::addBlobPipeline(
+    const std::vector<PipelineEntry>& entries)
+{
+  std::lock_guard<std::mutex> lk(_mutex);
+  std::vector<std::string> ids;
+  if (!_ctx || entries.empty()) return ids;
+
+  ids.reserve(entries.size());
+  static constexpr const char FIELD[] = "_";
+
+  // Append all commands without reading replies
+  for (auto& e : entries)
+  {
+    std::string maxlen_str = std::to_string(e.maxlen);
+
+    if (e.maxlen > 0)
+    {
+      const char* argv[8]    = { "XADD", e.key.c_str(), "MAXLEN", "~",
+                                  maxlen_str.c_str(), e.id.c_str(), FIELD, e.data };
+      size_t      argvlen[8] = { 4,      e.key.size(),  6,         1,
+                                  maxlen_str.size(),  e.id.size(),  1,     e.size };
+      redisAppendCommandArgv(_ctx, 8, argv, argvlen);
+    }
+    else
+    {
+      const char* argv[5]    = { "XADD", e.key.c_str(), e.id.c_str(), FIELD, e.data };
+      size_t      argvlen[5] = { 4,      e.key.size(),  e.id.size(),  1,     e.size };
+      redisAppendCommandArgv(_ctx, 5, argv, argvlen);
+    }
+  }
+
+  // Read all replies
+  for (size_t i = 0; i < entries.size(); ++i)
+  {
+    redisReply* r = nullptr;
+    if (redisGetReply(_ctx, reinterpret_cast<void**>(&r)) != REDIS_OK)
+    {
+      syslog(LOG_ERR, "HiredisConnection::addBlobPipeline reply %zu failed", i);
+      if (r) freeReplyObject(r);
+      break;
+    }
+
+    if (r && r->type == REDIS_REPLY_STRING)
+      ids.emplace_back(r->str, r->len);
+    else
+    {
+      if (r && r->type == REDIS_REPLY_ERROR)
+        syslog(LOG_ERR, "HiredisConnection::addBlobPipeline %s", r->str);
+      ids.emplace_back();
+    }
+    freeReplyObject(r);
+  }
+
+  return ids;
+}
+
 //--- Pub/Sub ---
 
 int64_t HiredisConnection::publish(const std::string& channel, const std::string& message)

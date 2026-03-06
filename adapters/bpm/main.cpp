@@ -376,6 +376,14 @@ int main(int argc, char* argv[])
 
     uint64_t processCount = 0;
 
+    // Pre-allocate working buffers (reused every callback)
+    std::vector<std::vector<double>> iCh(nCh), qCh(nCh);
+    std::vector<std::vector<double>> mag(nCh), phase(nCh);
+    std::vector<double> pos, inten, diff;
+    std::vector<double> fMag, fPh;
+    std::vector<std::complex<double>> fftBuf;
+    WriteBatch batch;
+
     redis.addReader(cfg.inputKey,
         [&](const std::string&, const std::string&, const TimeAttrsList& data)
     {
@@ -389,8 +397,7 @@ int main(int argc, char* argv[])
             size_t perChannel  = samples.size() / muxWidth;
             if (perChannel == 0) continue;
 
-            // ---- Stage 1: Demux ----
-            std::vector<std::vector<double>> iCh(nCh), qCh(nCh);
+            // ---- Stage 1: Demux (pre-allocated buffers) ----
             for (size_t ch = 0; ch < nCh; ++ch)
             {
                 iCh[ch].resize(perChannel);
@@ -407,7 +414,6 @@ int main(int argc, char* argv[])
             }
 
             // ---- Stage 2: Magnitude + Phase per channel ----
-            std::vector<std::vector<double>> mag(nCh), phase(nCh);
             for (size_t ch = 0; ch < nCh; ++ch)
             {
                 mag[ch].resize(perChannel);
@@ -420,9 +426,9 @@ int main(int argc, char* argv[])
                     phase[ch][i] = std::atan2(qv, iv);
                 }
 
-                serializeAndWrite(redis, cfg.magKeys[ch], mag[ch], cfg.dataTypeOut, time);
+                batch.add(cfg.magKeys[ch], mag[ch], cfg.dataTypeOut, time);
                 if (!cfg.phaseKeys[ch].empty())
-                    serializeAndWrite(redis, cfg.phaseKeys[ch], phase[ch], cfg.dataTypeOut, time);
+                    batch.add(cfg.phaseKeys[ch], phase[ch], cfg.dataTypeOut, time);
             }
 
             // ---- Stage 3a: Per-channel optional processing ----
@@ -438,38 +444,39 @@ int main(int argc, char* argv[])
                     double a = co.filterCoeff;
                     for (size_t i = 0; i < perChannel; ++i)
                         co.filterState[i] = a * mag[ch][i] + (1.0 - a) * co.filterState[i];
-                    serializeAndWrite(redis, co.filterKey, co.filterState, cfg.dataTypeOut, time);
+                    batch.add(co.filterKey, co.filterState, cfg.dataTypeOut, time);
                 }
 
                 // FFT
                 if (!co.fftMagKey.empty())
                 {
                     size_t N = nextPow2(perChannel);
-                    std::vector<std::complex<double>> buf(N, {0.0, 0.0});
+                    fftBuf.assign(N, {0.0, 0.0});
                     for (size_t i = 0; i < perChannel; ++i)
-                        buf[i] = {mag[ch][i], 0.0};
-                    fftTransform(buf);
+                        fftBuf[i] = {mag[ch][i], 0.0};
+                    fftTransform(fftBuf);
 
                     size_t nBins = N / 2 + 1;
-                    std::vector<double> fMag(nBins), fPh(nBins);
+                    fMag.resize(nBins);
+                    fPh.resize(nBins);
                     for (size_t i = 0; i < nBins; ++i)
                     {
-                        fMag[i] = std::abs(buf[i]);
-                        fPh[i]  = std::arg(buf[i]);
+                        fMag[i] = std::abs(fftBuf[i]);
+                        fPh[i]  = std::arg(fftBuf[i]);
                     }
-                    serializeAndWrite(redis, co.fftMagKey, fMag, cfg.dataTypeOut, time);
+                    batch.add(co.fftMagKey, fMag, cfg.dataTypeOut, time);
                     if (!co.fftPhaseKey.empty())
-                        serializeAndWrite(redis, co.fftPhaseKey, fPh, cfg.dataTypeOut, time);
+                        batch.add(co.fftPhaseKey, fPh, cfg.dataTypeOut, time);
                 }
 
                 // Baseline subtract
                 if (!co.baselineSubKey.empty() && co.baselineChIdx < nCh)
                 {
                     auto& ref = mag[co.baselineChIdx];
-                    std::vector<double> diff(perChannel);
+                    diff.resize(perChannel);
                     for (size_t i = 0; i < perChannel; ++i)
                         diff[i] = mag[ch][i] - (i < ref.size() ? ref[i] : 0.0);
-                    serializeAndWrite(redis, co.baselineSubKey, diff, cfg.dataTypeOut, time);
+                    batch.add(co.baselineSubKey, diff, cfg.dataTypeOut, time);
                 }
             }
 
@@ -478,7 +485,8 @@ int main(int argc, char* argv[])
             {
                 auto& a = mag[pp.chA];
                 auto& b = mag[pp.chB];
-                std::vector<double> pos(perChannel), inten(perChannel);
+                pos.resize(perChannel);
+                inten.resize(perChannel);
                 for (size_t i = 0; i < perChannel; ++i)
                 {
                     double av = a[i];
@@ -487,11 +495,11 @@ int main(int argc, char* argv[])
                     pos[i]   = (sum != 0.0) ? pp.positionScale * (av - bv) / sum : 0.0;
                     inten[i] = pp.intensityScale * sum;
                 }
-                serializeAndWrite(redis, pp.posKey, pos, cfg.dataTypeOut, time);
-                serializeAndWrite(redis, pp.intKey, inten, cfg.dataTypeOut, time);
+                batch.add(pp.posKey, pos, cfg.dataTypeOut, time);
+                batch.add(pp.intKey, inten, cfg.dataTypeOut, time);
             }
 
-            // ---- Stage 3c: Integrate ----
+            // ---- Stage 3c: Integrate (scalars go in the batch too) ----
             if (!cfg.windows.empty() &&
                 cfg.integChannel < nCh &&
                 cfg.integBaselineChannel < nCh)
@@ -511,9 +519,7 @@ int main(int argc, char* argv[])
                     for (size_t i = iStart; i < iEnd; ++i)
                         sum += a[i] - (i < b.size() ? b[i] : 0.0);
 
-                    RAL_AddArgs tArgs;
-                    tArgs.time = time;
-                    redis.addDouble(win.outputKey, sum, tArgs);
+                    batch.addDouble(win.outputKey, sum, time);
 
                     if (!win.avgKey.empty())
                     {
@@ -523,7 +529,7 @@ int main(int argc, char* argv[])
                             tNow - win.avgStart).count();
                         if (elapsed >= win.avgSeconds)
                         {
-                            redis.addDouble(win.avgKey,
+                            batch.addDouble(win.avgKey,
                                 win.avgSum / static_cast<double>(win.avgCount));
                             win.avgSum   = 0.0;
                             win.avgCount = 0;
@@ -532,6 +538,9 @@ int main(int argc, char* argv[])
                     }
                 }
             }
+
+            // Flush all writes in a single pipeline round-trip
+            batch.flush(redis);
 
             if (++processCount % 200 == 0)
                 printf("[bpm] processed %lu triggers\n",
