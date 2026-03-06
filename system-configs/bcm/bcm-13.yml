@@ -1,6 +1,6 @@
 Device:
   DeviceName: BCM:0013
-  RedisHost: redis
+  RedisHost: redis-bcm-04
   InputKeyRaw: RAW_BCM_WF
   InputKeyBkg: BKG_BCM_WF
   DataTypeIn: float32

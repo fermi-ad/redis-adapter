@@ -7,13 +7,19 @@ Generate system-level configs and docker-compose for full accelerator simulation
     15 pairs × 4 IQ channels =  60 channels ( 15 BPMs)
 
   130 BLMs (single channel each) via 130 twin+adapter pairs
+    8 BLMs per digitizer → 17 Redis nodes
 
   20 BCMs (4 channels each) via 20 twin+adapter pairs
+    4 BCMs per digitizer → 5 Redis nodes
 
-  Total: 220 twin containers + 220 adapter containers + 1 redis = 441 services
+  Each digitizer gets its own Redis instance.
+  Grouping: 1 BPM pair per digitizer, 8 BLMs per digitizer, 4 BCMs per digitizer
+
+  Total: 92 Redis + 220 twins + 220 adapters = 532 services
 """
 
 import os
+import math
 import yaml
 
 OUT_DIR = "system-configs"
@@ -23,16 +29,19 @@ COMPOSE_FILE = "docker-compose.system.yml"
 NUM_BPM_8CH = 55   # 8 IQ channels each (2 BPMs worth)
 NUM_BPM_4CH = 15   # 4 IQ channels each (1 BPM)
 BPM_SAMPLES = 10000
+BPM_PER_DIGITIZER = 1  # each twin pair is already 1 digitizer
 
 # --- BLM ---
 NUM_BLM = 130
 BLM_CHANNELS = 1
 BLM_SAMPLES = 10000
+BLM_PER_DIGITIZER = 8
 
 # --- BCM ---
 NUM_BCM = 20
 BCM_CHANNELS = 4
 BCM_SAMPLES = 10000
+BCM_PER_DIGITIZER = 4
 
 
 def ensure_dir(path):
@@ -45,15 +54,33 @@ def write_yaml(path, data):
 
 
 # ============================================================
+# Redis service helper
+# ============================================================
+
+def gen_redis_service():
+    """Generate a per-digitizer Redis service definition."""
+    return {
+        "image": "redis:7.4",
+        "command": "redis-server --appendonly no --save \"\" --bind 0.0.0.0 --protected-mode no",
+        "healthcheck": {
+            "test": ["CMD", "redis-cli", "ping"],
+            "interval": "2s",
+            "timeout": "3s",
+            "retries": 5,
+        },
+    }
+
+
+# ============================================================
 # BPM config generators
 # ============================================================
 
-def gen_bpm_twin_config(idx, num_channels):
+def gen_bpm_twin_config(idx, num_channels, redis_host):
     dev_name = f"BPM:{idx:04d}"
     return {
         "Device": {
             "DeviceName": dev_name,
-            "RedisHost": "redis",
+            "RedisHost": redis_host,
             "OutputKeyIQ": "RAW_MUX_WF",
             "OutputKeyADC": "RAW_ADC",
             "Mode": 0,
@@ -75,7 +102,7 @@ def gen_bpm_twin_config(idx, num_channels):
     }
 
 
-def gen_bpm_adapter_config(idx, num_channels):
+def gen_bpm_adapter_config(idx, num_channels, redis_host):
     dev_name = f"BPM:{idx:04d}"
     channels = []
     for ch in range(num_channels):
@@ -90,7 +117,6 @@ def gen_bpm_adapter_config(idx, num_channels):
         channels.append(entry)
 
     positions = []
-    # Generate H/V pairs for every group of 4 channels
     for base in range(0, num_channels, 4):
         if base + 3 < num_channels:
             positions.append({
@@ -109,7 +135,7 @@ def gen_bpm_adapter_config(idx, num_channels):
     return {
         "Device": {
             "DeviceName": dev_name,
-            "RedisHost": "redis",
+            "RedisHost": redis_host,
             "InputKey": "RAW_MUX_WF",
             "DataTypeIn": "float32",
             "DataTypeOut": "float32",
@@ -134,12 +160,12 @@ def gen_bpm_adapter_config(idx, num_channels):
 # BLM config generators
 # ============================================================
 
-def gen_blm_twin_config(idx):
+def gen_blm_twin_config(idx, redis_host):
     dev_name = f"BLM:{idx:04d}"
     return {
         "Device": {
             "DeviceName": dev_name,
-            "RedisHost": "redis",
+            "RedisHost": redis_host,
             "OutputKey": "RAW_BLM_WF",
             "UpdateIntervalMs": 50,
             "SamplesPerChannel": BLM_SAMPLES,
@@ -155,12 +181,12 @@ def gen_blm_twin_config(idx):
     }
 
 
-def gen_blm_adapter_config(idx):
+def gen_blm_adapter_config(idx, redis_host):
     dev_name = f"BLM:{idx:04d}"
     return {
         "Device": {
             "DeviceName": dev_name,
-            "RedisHost": "redis",
+            "RedisHost": redis_host,
             "InputKey": "RAW_BLM_WF",
             "DataTypeIn": "float32",
             "DataTypeOut": "float32",
@@ -206,12 +232,12 @@ def gen_blm_adapter_config(idx):
 # BCM config generators
 # ============================================================
 
-def gen_bcm_twin_config(idx):
+def gen_bcm_twin_config(idx, redis_host):
     dev_name = f"BCM:{idx:04d}"
     return {
         "Device": {
             "DeviceName": dev_name,
-            "RedisHost": "redis",
+            "RedisHost": redis_host,
             "OutputKeyRaw": "RAW_BCM_WF",
             "OutputKeyBkg": "BKG_BCM_WF",
             "UpdateIntervalMs": 50,
@@ -229,7 +255,7 @@ def gen_bcm_twin_config(idx):
     }
 
 
-def gen_bcm_adapter_config(idx):
+def gen_bcm_adapter_config(idx, redis_host):
     dev_name = f"BCM:{idx:04d}"
     channels = []
     for ch in range(BCM_CHANNELS):
@@ -250,7 +276,7 @@ def gen_bcm_adapter_config(idx):
     return {
         "Device": {
             "DeviceName": dev_name,
-            "RedisHost": "redis",
+            "RedisHost": redis_host,
             "InputKeyRaw": "RAW_BCM_WF",
             "InputKeyBkg": "BKG_BCM_WF",
             "DataTypeIn": "float32",
@@ -270,96 +296,101 @@ def gen_bcm_adapter_config(idx):
 def gen_compose(bpm_instances, blm_instances, bcm_instances):
     services = {}
 
-    # Redis
-    services["redis"] = {
-        "image": "redis:7.4",
-        "ports": ["6379:6379"],
-        "command": "redis-server --appendonly no --save \"\" --bind 0.0.0.0 --protected-mode no",
-        "healthcheck": {
-            "test": ["CMD", "redis-cli", "ping"],
-            "interval": "2s",
-            "timeout": "3s",
-            "retries": 5,
-        },
-    }
-
     build_block = {"context": ".", "dockerfile": "Dockerfile"}
+    redis_services = set()
 
-    redis_healthy = {"redis": {"condition": "service_healthy"}}
-
-    # BPM twins + adapters
+    # BPM twins + adapters — 1 Redis per BPM digitizer (per twin pair)
     for idx, nch in bpm_instances:
         tag = f"{idx:03d}"
+        redis_name = f"redis-bpm-{tag}"
         twin_name = f"bpm-twin-{tag}"
         adap_name = f"bpm-{tag}"
         twin_cfg = f"/etc/adapters/system/bpm-twin/bpm-twin-{tag}.yml"
         adap_cfg = f"/etc/adapters/system/bpm/bpm-{tag}.yml"
 
+        if redis_name not in redis_services:
+            services[redis_name] = gen_redis_service()
+            redis_services.add(redis_name)
+
         services[twin_name] = {
             "build": build_block,
-            "depends_on": redis_healthy,
-            "volumes": [f"./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro"],
+            "depends_on": {redis_name: {"condition": "service_healthy"}},
+            "volumes": ["./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro"],
             "command": ["/bpm-twin", twin_cfg],
         }
         services[adap_name] = {
             "build": build_block,
             "depends_on": {
-                **redis_healthy,
+                redis_name: {"condition": "service_healthy"},
                 twin_name: {"condition": "service_started"},
             },
-            "volumes": [f"./system-configs/bpm:/etc/adapters/system/bpm:ro"],
+            "volumes": ["./system-configs/bpm:/etc/adapters/system/bpm:ro"],
             "command": ["/bpm", adap_cfg],
         }
 
-    # BLM twins + adapters
-    for idx in blm_instances:
+    # BLM twins + adapters — 8 BLMs per digitizer/Redis
+    num_blm_digitizers = math.ceil(len(blm_instances) / BLM_PER_DIGITIZER)
+    for i, idx in enumerate(blm_instances):
+        dig = (i // BLM_PER_DIGITIZER) + 1
         tag = f"{idx:03d}"
+        redis_name = f"redis-blm-{dig:02d}"
         twin_name = f"blm-twin-{tag}"
         adap_name = f"blm-{tag}"
         twin_cfg = f"/etc/adapters/system/blm-twin/blm-twin-{tag}.yml"
         adap_cfg = f"/etc/adapters/system/blm/blm-{tag}.yml"
 
+        if redis_name not in redis_services:
+            services[redis_name] = gen_redis_service()
+            redis_services.add(redis_name)
+
         services[twin_name] = {
             "build": build_block,
-            "depends_on": redis_healthy,
-            "volumes": [f"./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro"],
+            "depends_on": {redis_name: {"condition": "service_healthy"}},
+            "volumes": ["./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro"],
             "command": ["/blm-twin", twin_cfg],
         }
         services[adap_name] = {
             "build": build_block,
             "depends_on": {
-                **redis_healthy,
+                redis_name: {"condition": "service_healthy"},
                 twin_name: {"condition": "service_started"},
             },
-            "volumes": [f"./system-configs/blm:/etc/adapters/system/blm:ro"],
+            "volumes": ["./system-configs/blm:/etc/adapters/system/blm:ro"],
             "command": ["/blm", adap_cfg],
         }
 
-    # BCM twins + adapters
-    for idx in bcm_instances:
+    # BCM twins + adapters — 4 BCMs per digitizer/Redis
+    num_bcm_digitizers = math.ceil(len(bcm_instances) / BCM_PER_DIGITIZER)
+    for i, idx in enumerate(bcm_instances):
+        dig = (i // BCM_PER_DIGITIZER) + 1
         tag = f"{idx:02d}"
+        redis_name = f"redis-bcm-{dig:02d}"
         twin_name = f"bcm-twin-{tag}"
         adap_name = f"bcm-{tag}"
         twin_cfg = f"/etc/adapters/system/bcm-twin/bcm-twin-{tag}.yml"
         adap_cfg = f"/etc/adapters/system/bcm/bcm-{tag}.yml"
 
+        if redis_name not in redis_services:
+            services[redis_name] = gen_redis_service()
+            redis_services.add(redis_name)
+
         services[twin_name] = {
             "build": build_block,
-            "depends_on": redis_healthy,
-            "volumes": [f"./system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro"],
+            "depends_on": {redis_name: {"condition": "service_healthy"}},
+            "volumes": ["./system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro"],
             "command": ["/bcm-twin", twin_cfg],
         }
         services[adap_name] = {
             "build": build_block,
             "depends_on": {
-                **redis_healthy,
+                redis_name: {"condition": "service_healthy"},
                 twin_name: {"condition": "service_started"},
             },
-            "volumes": [f"./system-configs/bcm:/etc/adapters/system/bcm:ro"],
+            "volumes": ["./system-configs/bcm:/etc/adapters/system/bcm:ro"],
             "command": ["/bcm", adap_cfg],
         }
 
-    return {"services": services}
+    return {"services": services}, len(redis_services)
 
 
 # ============================================================
@@ -378,16 +409,18 @@ def main():
     # 55 × 8-channel (2 BPMs worth each)
     for i in range(NUM_BPM_8CH):
         tag = f"{idx:03d}"
-        write_yaml(f"{OUT_DIR}/bpm-twin/bpm-twin-{tag}.yml", gen_bpm_twin_config(idx, 8))
-        write_yaml(f"{OUT_DIR}/bpm/bpm-{tag}.yml", gen_bpm_adapter_config(idx, 8))
+        redis_host = f"redis-bpm-{tag}"
+        write_yaml(f"{OUT_DIR}/bpm-twin/bpm-twin-{tag}.yml", gen_bpm_twin_config(idx, 8, redis_host))
+        write_yaml(f"{OUT_DIR}/bpm/bpm-{tag}.yml", gen_bpm_adapter_config(idx, 8, redis_host))
         bpm_instances.append((idx, 8))
         idx += 1
 
     # 15 × 4-channel (1 BPM each)
     for i in range(NUM_BPM_4CH):
         tag = f"{idx:03d}"
-        write_yaml(f"{OUT_DIR}/bpm-twin/bpm-twin-{tag}.yml", gen_bpm_twin_config(idx, 4))
-        write_yaml(f"{OUT_DIR}/bpm/bpm-{tag}.yml", gen_bpm_adapter_config(idx, 4))
+        redis_host = f"redis-bpm-{tag}"
+        write_yaml(f"{OUT_DIR}/bpm-twin/bpm-twin-{tag}.yml", gen_bpm_twin_config(idx, 4, redis_host))
+        write_yaml(f"{OUT_DIR}/bpm/bpm-{tag}.yml", gen_bpm_adapter_config(idx, 4, redis_host))
         bpm_instances.append((idx, 4))
         idx += 1
 
@@ -398,8 +431,10 @@ def main():
     for i in range(NUM_BLM):
         idx_blm = i + 1
         tag = f"{idx_blm:03d}"
-        write_yaml(f"{OUT_DIR}/blm-twin/blm-twin-{tag}.yml", gen_blm_twin_config(idx_blm))
-        write_yaml(f"{OUT_DIR}/blm/blm-{tag}.yml", gen_blm_adapter_config(idx_blm))
+        dig = (i // BLM_PER_DIGITIZER) + 1
+        redis_host = f"redis-blm-{dig:02d}"
+        write_yaml(f"{OUT_DIR}/blm-twin/blm-twin-{tag}.yml", gen_blm_twin_config(idx_blm, redis_host))
+        write_yaml(f"{OUT_DIR}/blm/blm-{tag}.yml", gen_blm_adapter_config(idx_blm, redis_host))
         blm_instances.append(idx_blm)
 
     # --- BCM instances ---
@@ -407,12 +442,21 @@ def main():
     for i in range(NUM_BCM):
         idx_bcm = i + 1
         tag = f"{idx_bcm:02d}"
-        write_yaml(f"{OUT_DIR}/bcm-twin/bcm-twin-{tag}.yml", gen_bcm_twin_config(idx_bcm))
-        write_yaml(f"{OUT_DIR}/bcm/bcm-{tag}.yml", gen_bcm_adapter_config(idx_bcm))
+        dig = (i // BCM_PER_DIGITIZER) + 1
+        redis_host = f"redis-bcm-{dig:02d}"
+        write_yaml(f"{OUT_DIR}/bcm-twin/bcm-twin-{tag}.yml", gen_bcm_twin_config(idx_bcm, redis_host))
+        write_yaml(f"{OUT_DIR}/bcm/bcm-{tag}.yml", gen_bcm_adapter_config(idx_bcm, redis_host))
         bcm_instances.append(idx_bcm)
 
     # --- Compose ---
-    compose = gen_compose(bpm_instances, blm_instances, bcm_instances)
+    compose, num_redis = gen_compose(bpm_instances, blm_instances, bcm_instances)
+
+    n_twins = len(bpm_instances) + NUM_BLM + NUM_BCM
+    n_services = num_redis + 2 * n_twins
+
+    num_blm_digitizers = math.ceil(NUM_BLM / BLM_PER_DIGITIZER)
+    num_bcm_digitizers = math.ceil(NUM_BCM / BCM_PER_DIGITIZER)
+    num_bpm_digitizers = len(bpm_instances)
 
     with open(COMPOSE_FILE, "w") as f:
         f.write("#\n")
@@ -420,12 +464,13 @@ def main():
         f.write("#\n")
         f.write(f"#  125 BPMs ({total_bpm_channels} channels) via {len(bpm_instances)} twin+adapter pairs\n")
         f.write(f"#    {NUM_BPM_8CH} × 8ch + {NUM_BPM_4CH} × 4ch = {total_bpm_channels} channels\n")
+        f.write(f"#    1 digitizer per pair → {num_bpm_digitizers} Redis nodes\n")
         f.write(f"#  {NUM_BLM} BLMs ({BLM_CHANNELS} channel each) via {NUM_BLM} twin+adapter pairs\n")
+        f.write(f"#    {BLM_PER_DIGITIZER} BLMs per digitizer → {num_blm_digitizers} Redis nodes\n")
         f.write(f"#  {NUM_BCM} BCMs ({BCM_CHANNELS} channels each) via {NUM_BCM} twin+adapter pairs\n")
+        f.write(f"#    {BCM_PER_DIGITIZER} BCMs per digitizer → {num_bcm_digitizers} Redis nodes\n")
         f.write("#\n")
-        f.write(f"#  Total: {len(bpm_instances) + NUM_BLM + NUM_BCM} twins + "
-                f"{len(bpm_instances) + NUM_BLM + NUM_BCM} adapters + 1 redis = "
-                f"{2 * (len(bpm_instances) + NUM_BLM + NUM_BCM) + 1} services\n")
+        f.write(f"#  Total: {num_redis} Redis + {n_twins} twins + {n_twins} adapters = {n_services} services\n")
         f.write("#\n")
         f.write("#  Generated by generate_system.py\n")
         f.write("#\n")
@@ -438,13 +483,13 @@ def main():
         yaml.dump(compose, f, default_flow_style=False, sort_keys=False)
 
     # Summary
-    n_total = len(bpm_instances) + NUM_BLM + NUM_BCM
     print(f"Generated system configs in {OUT_DIR}/")
-    print(f"  BPM: {len(bpm_instances)} pairs ({total_bpm_channels} channels)")
+    print(f"  BPM: {len(bpm_instances)} digitizers ({total_bpm_channels} channels)")
     print(f"    {NUM_BPM_8CH} × 8ch + {NUM_BPM_4CH} × 4ch")
-    print(f"  BLM: {NUM_BLM} pairs ({NUM_BLM * BLM_CHANNELS} channels)")
-    print(f"  BCM: {NUM_BCM} pairs ({NUM_BCM * BCM_CHANNELS} channels)")
-    print(f"  Total: {n_total} twins + {n_total} adapters + 1 redis = {2 * n_total + 1} services")
+    print(f"  BLM: {num_blm_digitizers} digitizers ({NUM_BLM} BLMs, {BLM_PER_DIGITIZER} per digitizer)")
+    print(f"  BCM: {num_bcm_digitizers} digitizers ({NUM_BCM} BCMs, {BCM_PER_DIGITIZER} per digitizer)")
+    print(f"  Redis: {num_redis} instances")
+    print(f"  Total: {n_services} services")
     print(f"Generated {COMPOSE_FILE}")
 
 

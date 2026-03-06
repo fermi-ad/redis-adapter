@@ -1,6 +1,6 @@
 Device:
   DeviceName: BLM:0021
-  RedisHost: redis
+  RedisHost: redis-blm-03
   InputKey: RAW_BLM_WF
   DataTypeIn: float32
   DataTypeOut: float32

@@ -1,6 +1,6 @@
 Device:
   DeviceName: BPM:0022
-  RedisHost: redis
+  RedisHost: redis-bpm-022
   InputKey: RAW_MUX_WF
   DataTypeIn: float32
   DataTypeOut: float32

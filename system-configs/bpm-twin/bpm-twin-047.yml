@@ -1,6 +1,6 @@
 Device:
   DeviceName: BPM:0047
-  RedisHost: redis
+  RedisHost: redis-bpm-047
   OutputKeyIQ: RAW_MUX_WF
   OutputKeyADC: RAW_ADC
   Mode: 0

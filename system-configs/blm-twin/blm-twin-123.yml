@@ -1,6 +1,6 @@
 Device:
   DeviceName: BLM:0123
-  RedisHost: redis
+  RedisHost: redis-blm-16
   OutputKey: RAW_BLM_WF
   UpdateIntervalMs: 50
   SamplesPerChannel: 10000

@@ -1,6 +1,6 @@
 Device:
   DeviceName: BCM:0006
-  RedisHost: redis
+  RedisHost: redis-bcm-02
   OutputKeyRaw: RAW_BCM_WF
   OutputKeyBkg: BKG_BCM_WF
   UpdateIntervalMs: 50
