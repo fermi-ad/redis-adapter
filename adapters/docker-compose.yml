@@ -25,8 +25,7 @@
 #    docker compose --profile bpm-demo up -d
 #    docker compose --profile tiny up -d
 #    docker compose --profile tui run --rm inst-tui
-#    docker compose --profile tui run --rm inst-tui /inst-tui --config /etc/inst-tui/inst-tui-hosts-tiny.txt
-#    docker compose --profile tui run --rm redis-tui /redis-tui redis-bpm-001:6379
+#    docker compose --profile tui run --rm redis-tui
 #    docker compose --profile tiny down
 #
 
@@ -263,10 +262,10 @@ services:
     - tui
     stdin_open: true
     tty: true
-    volumes:
-    - ./system-configs:/etc/inst-tui:ro
     command:
     - /inst-tui
+    - --config
+    - /etc/inst-tui/inst-tui-hosts-full.txt
   redis-tui:
     image: redis-adapter:latest
     build: *id002
@@ -276,6 +275,8 @@ services:
     tty: true
     command:
     - /redis-tui
+    - --hosts-file
+    - /etc/redis-tui/redis-tui-hosts-full.txt
   bpm-twin-001:
     image: redis-adapter:latest
     build: &id003
@@ -6698,7 +6699,13 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id004
+    profiles:
+    - tiny
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-002:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -6711,7 +6718,13 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id005
+    profiles:
+    - tiny
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-003:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -6724,7 +6737,13 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id006
+    profiles:
+    - tiny
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-004:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -6737,7 +6756,13 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id007
+    profiles:
+    - tiny
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-005:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -6750,7 +6775,13 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id008
+    profiles:
+    - tiny
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-006:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -6763,7 +6794,13 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id009
+    profiles:
+    - tiny
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-007:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -6776,7 +6813,13 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id010
+    profiles:
+    - tiny
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-008:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -6789,7 +6832,13 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id011
+    profiles:
+    - tiny
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-009:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -6802,7 +6851,13 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id012
+    profiles:
+    - tiny
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-010:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -6815,7 +6870,13 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id013
+    profiles:
+    - tiny
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-011:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -6828,7 +6889,12 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id014
+    profiles:
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-012:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -6841,7 +6907,12 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id015
+    profiles:
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-013:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -6854,7 +6925,12 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id016
+    profiles:
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-014:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -6867,7 +6943,12 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id017
+    profiles:
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-015:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -6880,7 +6961,12 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id018
+    profiles:
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-016:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -6893,7 +6979,12 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id019
+    profiles:
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-017:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -6906,7 +6997,12 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id020
+    profiles:
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-018:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -6919,7 +7015,12 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id021
+    profiles:
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-019:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -6932,7 +7033,12 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id022
+    profiles:
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-020:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -6945,7 +7051,12 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id023
+    profiles:
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-021:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -6958,7 +7069,12 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id024
+    profiles:
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-022:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -6971,7 +7087,12 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id025
+    profiles:
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-023:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -6984,7 +7105,12 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id026
+    profiles:
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-024:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -6997,7 +7123,12 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id027
+    profiles:
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-025:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7010,7 +7141,12 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id028
+    profiles:
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-026:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7023,7 +7159,12 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id029
+    profiles:
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-027:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7036,7 +7177,12 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id030
+    profiles:
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-028:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7049,7 +7195,12 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id031
+    profiles:
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-029:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7062,7 +7213,12 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id032
+    profiles:
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-030:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7075,7 +7231,12 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id033
+    profiles:
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-031:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7088,7 +7249,12 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id034
+    profiles:
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-032:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7101,7 +7267,12 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id035
+    profiles:
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-033:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7114,7 +7285,12 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id036
+    profiles:
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-034:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7127,7 +7303,12 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id037
+    profiles:
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-035:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7140,7 +7321,12 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id038
+    profiles:
+    - small
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-036:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7153,7 +7339,11 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id039
+    profiles:
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-037:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7166,7 +7356,11 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id040
+    profiles:
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-038:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7179,7 +7373,11 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id041
+    profiles:
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-039:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7192,7 +7390,11 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id042
+    profiles:
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-040:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7205,7 +7407,11 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id043
+    profiles:
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-041:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7218,7 +7424,11 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id044
+    profiles:
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-042:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7231,7 +7441,11 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id045
+    profiles:
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-043:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7244,7 +7458,11 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id046
+    profiles:
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-044:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7257,7 +7475,11 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id047
+    profiles:
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-045:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7270,7 +7492,11 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id048
+    profiles:
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-046:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7283,7 +7509,11 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id049
+    profiles:
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-047:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7296,7 +7526,11 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id050
+    profiles:
+    - medium
+    - large
+    - full
+    - tui
   redis-bpm-048:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7309,7 +7543,10 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id051
+    profiles:
+    - large
+    - full
+    - tui
   redis-bpm-049:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7322,7 +7559,10 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id052
+    profiles:
+    - large
+    - full
+    - tui
   redis-bpm-050:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7335,7 +7575,10 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id053
+    profiles:
+    - large
+    - full
+    - tui
   redis-bpm-051:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7348,7 +7591,10 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id054
+    profiles:
+    - large
+    - full
+    - tui
   redis-bpm-052:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7361,7 +7607,10 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id055
+    profiles:
+    - large
+    - full
+    - tui
   redis-bpm-053:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7374,7 +7623,10 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id056
+    profiles:
+    - large
+    - full
+    - tui
   redis-bpm-054:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7387,7 +7639,10 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id057
+    profiles:
+    - large
+    - full
+    - tui
   redis-bpm-055:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7400,7 +7655,10 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id058
+    profiles:
+    - large
+    - full
+    - tui
   redis-bpm-056:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7413,7 +7671,10 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id059
+    profiles:
+    - large
+    - full
+    - tui
   redis-bpm-057:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7426,7 +7687,10 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id060
+    profiles:
+    - large
+    - full
+    - tui
   redis-bpm-058:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7439,7 +7703,10 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id061
+    profiles:
+    - large
+    - full
+    - tui
   redis-bpm-059:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7452,7 +7719,10 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id062
+    profiles:
+    - large
+    - full
+    - tui
   redis-bpm-060:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7465,7 +7735,9 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id063
+    profiles:
+    - full
+    - tui
   redis-bpm-061:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7478,7 +7750,9 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id064
+    profiles:
+    - full
+    - tui
   redis-bpm-062:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7491,7 +7765,9 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id065
+    profiles:
+    - full
+    - tui
   redis-bpm-063:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7504,7 +7780,9 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id066
+    profiles:
+    - full
+    - tui
   redis-bpm-064:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7517,7 +7795,9 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id067
+    profiles:
+    - full
+    - tui
   redis-bpm-065:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7530,7 +7810,9 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id068
+    profiles:
+    - full
+    - tui
   redis-bpm-066:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7543,7 +7825,9 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id069
+    profiles:
+    - full
+    - tui
   redis-bpm-067:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7556,7 +7840,9 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id070
+    profiles:
+    - full
+    - tui
   redis-bpm-068:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7569,7 +7855,9 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id071
+    profiles:
+    - full
+    - tui
   redis-bpm-069:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7582,7 +7870,9 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id072
+    profiles:
+    - full
+    - tui
   redis-bpm-070:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7595,7 +7885,9 @@ services:
       interval: 2s
       timeout: 3s
       retries: 5
-    profiles: *id073
+    profiles:
+    - full
+    - tui
   redis-blm-01:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7614,6 +7906,7 @@ services:
     - medium
     - large
     - full
+    - tui
   redis-blm-02:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7632,6 +7925,7 @@ services:
     - medium
     - large
     - full
+    - tui
   redis-blm-03:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7649,6 +7943,7 @@ services:
     - medium
     - large
     - full
+    - tui
   redis-blm-04:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7666,6 +7961,7 @@ services:
     - medium
     - large
     - full
+    - tui
   redis-blm-05:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7683,6 +7979,7 @@ services:
     - medium
     - large
     - full
+    - tui
   redis-blm-06:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7700,6 +7997,7 @@ services:
     - medium
     - large
     - full
+    - tui
   redis-blm-07:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7717,6 +8015,7 @@ services:
     - medium
     - large
     - full
+    - tui
   redis-blm-08:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7734,6 +8033,7 @@ services:
     - medium
     - large
     - full
+    - tui
   redis-blm-09:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7751,6 +8051,7 @@ services:
     - medium
     - large
     - full
+    - tui
   redis-blm-10:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7767,6 +8068,7 @@ services:
     - medium
     - large
     - full
+    - tui
   redis-blm-11:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7783,6 +8085,7 @@ services:
     - medium
     - large
     - full
+    - tui
   redis-blm-12:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7798,6 +8101,7 @@ services:
     profiles:
     - large
     - full
+    - tui
   redis-blm-13:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7813,6 +8117,7 @@ services:
     profiles:
     - large
     - full
+    - tui
   redis-blm-14:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7828,6 +8133,7 @@ services:
     profiles:
     - large
     - full
+    - tui
   redis-blm-15:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7842,6 +8148,7 @@ services:
       retries: 5
     profiles:
     - full
+    - tui
   redis-blm-16:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7856,6 +8163,7 @@ services:
       retries: 5
     profiles:
     - full
+    - tui
   redis-blm-17:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7870,6 +8178,7 @@ services:
       retries: 5
     profiles:
     - full
+    - tui
   redis-bcm-01:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7888,6 +8197,7 @@ services:
     - medium
     - large
     - full
+    - tui
   redis-bcm-02:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7906,6 +8216,7 @@ services:
     - medium
     - large
     - full
+    - tui
   redis-bcm-03:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7923,6 +8234,7 @@ services:
     - medium
     - large
     - full
+    - tui
   redis-bcm-04:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7939,6 +8251,7 @@ services:
     - medium
     - large
     - full
+    - tui
   redis-bcm-05:
     image: redis:7.4
     command: redis-server --appendonly no --save "" --bind 0.0.0.0 --protected-mode
@@ -7954,3 +8267,4 @@ services:
     profiles:
     - large
     - full
+    - tui

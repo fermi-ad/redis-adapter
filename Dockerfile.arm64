@@ -1,0 +1,112 @@
+# Cross-compile for arm64 from an amd64 host
+# Usage: docker buildx build --platform linux/arm64 -f Dockerfile.arm64 -t redis-adapter:latest .
+
+# ---- C++ adapters (cross-compiled) ----
+FROM --platform=linux/amd64 ubuntu:24.04 AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential cmake git ca-certificates \
+    gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+COPY . .
+
+RUN git submodule update --init --recursive 2>/dev/null || true
+
+RUN cmake -S . -B build \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_SYSTEM_NAME=Linux \
+      -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+      -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc \
+      -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ \
+      -DCMAKE_C_FLAGS="-O2" \
+      -DCMAKE_CXX_FLAGS="-O2" \
+      -DCMAKE_EXE_LINKER_FLAGS="-static" \
+      -DCMAKE_FIND_ROOT_PATH=/usr/aarch64-linux-gnu \
+      -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
+      -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
+      -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
+      -DRAL_BUILD_ADAPTERS=ON \
+    && cmake --build build -j$(nproc) \
+    && aarch64-linux-gnu-strip build/adapters/device-twin/device-twin \
+    && aarch64-linux-gnu-strip build/adapters/baseline-subtract/baseline-subtract \
+    && aarch64-linux-gnu-strip build/adapters/integrate/integrate \
+    && aarch64-linux-gnu-strip build/adapters/filter/filter \
+    && aarch64-linux-gnu-strip build/adapters/magnitude/magnitude \
+    && aarch64-linux-gnu-strip build/adapters/position-intensity/position-intensity \
+    && aarch64-linux-gnu-strip build/adapters/demux/demux \
+    && aarch64-linux-gnu-strip build/adapters/fft/fft \
+    && aarch64-linux-gnu-strip build/adapters/bpm/bpm \
+    && aarch64-linux-gnu-strip build/adapters/bpm-twin/bpm-twin \
+    && aarch64-linux-gnu-strip build/adapters/blm/blm \
+    && aarch64-linux-gnu-strip build/adapters/blm-twin/blm-twin \
+    && aarch64-linux-gnu-strip build/adapters/bcm/bcm \
+    && aarch64-linux-gnu-strip build/adapters/bcm-twin/bcm-twin
+
+# ---- Redis TUI (Rust cross-compiled) ----
+FROM --platform=linux/amd64 rust:latest AS tui-builder
+
+RUN apt-get update && apt-get install -y musl-tools gcc-aarch64-linux-gnu && rm -rf /var/lib/apt/lists/*
+RUN rustup target add aarch64-unknown-linux-musl
+
+ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc
+ENV CC_aarch64_unknown_linux_musl=aarch64-linux-gnu-gcc
+
+WORKDIR /app
+RUN git clone --depth 1 https://github.com/bigsamich/redis-tui.git . \
+    && cargo build --release --target aarch64-unknown-linux-musl \
+    && aarch64-linux-gnu-strip target/aarch64-unknown-linux-musl/release/redis-tui
+
+# ---- Instrument TUI (Rust cross-compiled) ----
+FROM --platform=linux/amd64 rust:latest AS inst-tui-builder
+
+RUN apt-get update && apt-get install -y musl-tools gcc-aarch64-linux-gnu && rm -rf /var/lib/apt/lists/*
+RUN rustup target add aarch64-unknown-linux-musl
+
+ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc
+ENV CC_aarch64_unknown_linux_musl=aarch64-linux-gnu-gcc
+
+WORKDIR /app
+COPY adapters/inst-tui/ .
+RUN cargo build --release --target aarch64-unknown-linux-musl \
+    && aarch64-linux-gnu-strip target/aarch64-unknown-linux-musl/release/inst-tui
+
+# ---- Runtime image (arm64) ----
+FROM --platform=linux/arm64 scratch
+
+COPY --from=builder /src/build/adapters/device-twin/device-twin /device-twin
+COPY --from=builder /src/build/adapters/baseline-subtract/baseline-subtract /baseline-subtract
+COPY --from=builder /src/build/adapters/integrate/integrate /integrate
+COPY --from=builder /src/build/adapters/filter/filter /filter
+COPY --from=builder /src/build/adapters/magnitude/magnitude /magnitude
+COPY --from=builder /src/build/adapters/position-intensity/position-intensity /position-intensity
+COPY --from=builder /src/build/adapters/demux/demux /demux
+COPY --from=builder /src/build/adapters/fft/fft /fft
+COPY --from=builder /src/build/adapters/bpm/bpm /bpm
+COPY --from=builder /src/build/adapters/bpm-twin/bpm-twin /bpm-twin
+COPY --from=builder /src/build/adapters/blm/blm /blm
+COPY --from=builder /src/build/adapters/blm-twin/blm-twin /blm-twin
+COPY --from=builder /src/build/adapters/bcm/bcm /bcm
+COPY --from=builder /src/build/adapters/bcm-twin/bcm-twin /bcm-twin
+COPY --from=tui-builder /app/target/aarch64-unknown-linux-musl/release/redis-tui /redis-tui
+COPY --from=inst-tui-builder /app/target/aarch64-unknown-linux-musl/release/inst-tui /inst-tui
+
+COPY adapters/device-twin/configs/ /etc/adapters/device-twin/
+COPY adapters/baseline-subtract/configs/ /etc/adapters/baseline-subtract/
+COPY adapters/integrate/configs/ /etc/adapters/integrate/
+COPY adapters/filter/configs/ /etc/adapters/filter/
+COPY adapters/magnitude/configs/ /etc/adapters/magnitude/
+COPY adapters/position-intensity/configs/ /etc/adapters/position-intensity/
+COPY adapters/demux/configs/ /etc/adapters/demux/
+COPY adapters/fft/configs/ /etc/adapters/fft/
+COPY adapters/bpm/configs/ /etc/adapters/bpm/
+COPY adapters/bpm-twin/configs/ /etc/adapters/bpm-twin/
+COPY adapters/blm/configs/ /etc/adapters/blm/
+COPY adapters/blm-twin/configs/ /etc/adapters/blm-twin/
+COPY adapters/bcm/configs/ /etc/adapters/bcm/
+COPY adapters/bcm-twin/configs/ /etc/adapters/bcm-twin/
+COPY adapters/system-configs/inst-tui-hosts-*.txt /etc/inst-tui/
+COPY adapters/system-configs/redis-tui-hosts-*.txt /etc/redis-tui/
+
+CMD ["/device-twin", "/etc/adapters/device-twin/acct-example.yml"]

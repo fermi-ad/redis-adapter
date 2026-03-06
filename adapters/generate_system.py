@@ -231,8 +231,7 @@ def gen_tui_services():
             "profiles": ["tui"],
             "stdin_open": True,
             "tty": True,
-            "volumes": ["./system-configs:/etc/inst-tui:ro"],
-            "command": ["/inst-tui"],
+            "command": ["/inst-tui", "--config", "/etc/inst-tui/inst-tui-hosts-full.txt"],
         },
         "redis-tui": {
             "image": IMAGE_NAME,
@@ -240,7 +239,7 @@ def gen_tui_services():
             "profiles": ["tui"],
             "stdin_open": True,
             "tty": True,
-            "command": ["/redis-tui"],
+            "command": ["/redis-tui", "--hosts-file", "/etc/redis-tui/redis-tui-hosts-full.txt"],
         },
     }
 
@@ -605,10 +604,10 @@ def gen_system_services(bpm_instances, blm_instances, bcm_instances):
             "command": ["/bcm", adap_cfg],
         }
 
-    # Add Redis services with broadened profiles
+    # Add Redis services with broadened profiles (+ tui so TUIs can connect)
     for redis_name, profiles in redis_profiles.items():
         svc = gen_redis_service()
-        svc["profiles"] = profiles
+        svc["profiles"] = profiles if "tui" in profiles else profiles + ["tui"]
         services[redis_name] = svc
 
     # Generate per-profile hosts files
@@ -752,8 +751,7 @@ def main():
         f.write("#    docker compose --profile bpm-demo up -d\n")
         f.write("#    docker compose --profile tiny up -d\n")
         f.write("#    docker compose --profile tui run --rm inst-tui\n")
-        f.write("#    docker compose --profile tui run --rm inst-tui /inst-tui --config /etc/inst-tui/inst-tui-hosts-tiny.txt\n")
-        f.write("#    docker compose --profile tui run --rm redis-tui /redis-tui redis-bpm-001:6379\n")
+        f.write("#    docker compose --profile tui run --rm redis-tui\n")
         f.write("#    docker compose --profile tiny down\n")
         f.write("#\n\n")
         yaml.dump(compose, f, default_flow_style=False, sort_keys=False)

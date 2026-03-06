@@ -91,5 +91,7 @@ COPY adapters/blm/configs/ /etc/adapters/blm/
 COPY adapters/blm-twin/configs/ /etc/adapters/blm-twin/
 COPY adapters/bcm/configs/ /etc/adapters/bcm/
 COPY adapters/bcm-twin/configs/ /etc/adapters/bcm-twin/
+COPY adapters/system-configs/inst-tui-hosts-*.txt /etc/inst-tui/
+COPY adapters/system-configs/redis-tui-hosts-*.txt /etc/redis-tui/
 
 CMD ["/device-twin", "/etc/adapters/device-twin/acct-example.yml"]
