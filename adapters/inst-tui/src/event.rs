@@ -36,30 +36,49 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
         KeyCode::Char('q') => app.running = false,
 
         // Tab navigation
-        KeyCode::Tab => match app.screen {
-            Screen::Overview => app.overview_tab = app.overview_tab.next(),
-            Screen::DrillDown => app.drilldown_tab = app.drilldown_tab.next(),
-        },
-        KeyCode::BackTab => match app.screen {
-            Screen::Overview => app.overview_tab = app.overview_tab.prev(),
-            Screen::DrillDown => app.drilldown_tab = app.drilldown_tab.prev(),
-        },
+        KeyCode::Tab => {
+            match app.screen {
+                Screen::Overview => {
+                    app.overview_tab = app.overview_tab.next();
+                    app.device_scroll = 0;
+                }
+                Screen::DrillDown => app.drilldown_tab = app.drilldown_tab.next(),
+            }
+        }
+        KeyCode::BackTab => {
+            match app.screen {
+                Screen::Overview => {
+                    app.overview_tab = app.overview_tab.prev();
+                    app.device_scroll = 0;
+                }
+                Screen::DrillDown => app.drilldown_tab = app.drilldown_tab.prev(),
+            }
+        }
 
         // Direct tab selection
         KeyCode::Char('1') => match app.screen {
-            Screen::Overview => app.overview_tab = OverviewTab::BpmOrbit,
+            Screen::Overview => {
+                app.overview_tab = OverviewTab::BpmOrbit;
+                app.device_scroll = 0;
+            }
             Screen::DrillDown => app.drilldown_tab = DrillDownTab::Waveforms,
         },
         KeyCode::Char('2') => match app.screen {
-            Screen::Overview => app.overview_tab = OverviewTab::BlmLosses,
+            Screen::Overview => {
+                app.overview_tab = OverviewTab::BlmLosses;
+                app.device_scroll = 0;
+            }
             Screen::DrillDown => app.drilldown_tab = DrillDownTab::Fft,
         },
         KeyCode::Char('3') => match app.screen {
-            Screen::Overview => app.overview_tab = OverviewTab::BcmCurrents,
+            Screen::Overview => {
+                app.overview_tab = OverviewTab::BcmCurrents;
+                app.device_scroll = 0;
+            }
             Screen::DrillDown => app.drilldown_tab = DrillDownTab::Settings,
         },
 
-        // Device list navigation
+        // Device list navigation (uses device_scroll for filtered list position)
         KeyCode::Up | KeyCode::Char('k') => {
             if app.screen == Screen::DrillDown
                 && app.drilldown_tab == DrillDownTab::Waveforms
@@ -68,9 +87,9 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
             } else if app.screen == Screen::DrillDown
                 && app.drilldown_tab == DrillDownTab::Settings
             {
-                // Navigate controls list - not editing
+                // Navigate controls list
             } else {
-                app.selected_device = app.selected_device.saturating_sub(1);
+                app.device_scroll = app.device_scroll.saturating_sub(1);
             }
         }
         KeyCode::Down | KeyCode::Char('j') => {
@@ -89,8 +108,9 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
                     }
                 }
             } else {
-                if app.selected_device + 1 < snap.devices.len() {
-                    app.selected_device += 1;
+                let filtered = app.filtered_devices(&snap);
+                if !filtered.is_empty() && app.device_scroll + 1 < filtered.len() {
+                    app.device_scroll += 1;
                 }
             }
         }
@@ -98,13 +118,17 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
         // Enter drilldown
         KeyCode::Enter => {
             if app.screen == Screen::Overview {
-                app.screen = Screen::DrillDown;
-                app.drilldown_tab = DrillDownTab::Waveforms;
-                app.selected_channel = 0;
+                let snap = app.snapshot();
+                let filtered = app.filtered_devices(&snap);
+                if let Some(&(global_idx, _)) = filtered.get(app.device_scroll) {
+                    app.selected_device = global_idx;
+                    app.screen = Screen::DrillDown;
+                    app.drilldown_tab = DrillDownTab::Waveforms;
+                    app.selected_channel = 0;
+                }
             } else if app.screen == Screen::DrillDown
                 && app.drilldown_tab == DrillDownTab::Settings
             {
-                // Start editing selected control
                 let snap = app.snapshot();
                 if let Some(dev) = snap.devices.get(app.selected_device) {
                     if !dev.controls.is_empty() {
@@ -155,7 +179,6 @@ fn handle_edit_key(app: &mut App, key: KeyEvent) {
             app.edit_buffer.clear();
         }
         KeyCode::Enter => {
-            // Submit the value
             if let Ok(val) = app.edit_buffer.parse::<f64>() {
                 let snap = app.snapshot();
                 if let Some(dev) = snap.devices.get(app.selected_device) {

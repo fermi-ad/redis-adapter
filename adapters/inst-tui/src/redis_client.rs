@@ -46,52 +46,47 @@ impl RedisPool {
         self.connections.get_mut(&key)
     }
 
-    /// Scan all hosts for META keys and return discovered devices
-    pub fn discover_devices(&mut self) -> Vec<DeviceInfo> {
+    /// Scan a single host for META keys and return discovered devices
+    fn discover_on_host(&mut self, host: &str, port: u16) -> Vec<DeviceInfo> {
         let mut devices = Vec::new();
+        let conn = match self.get_or_connect(host, port) {
+            Some(c) => c,
+            None => return devices,
+        };
 
-        for (host, port) in self.hosts.clone() {
-            let conn = match self.get_or_connect(&host, port) {
-                Some(c) => c,
-                None => continue,
-            };
+        let keys: Vec<String> = match scan_keys(conn, "*:META") {
+            Ok(k) => k,
+            Err(_) => return devices,
+        };
 
-            // SCAN for keys matching *:META
-            let keys: Vec<String> = match scan_keys(conn, "*:META") {
-                Ok(k) => k,
-                Err(_) => continue,
-            };
+        for key in &keys {
+            let raw: RedisResult<Vec<(String, Vec<(String, redis::Value)>)>> =
+                redis::cmd("XREVRANGE")
+                    .arg(key)
+                    .arg("+")
+                    .arg("-")
+                    .arg("COUNT")
+                    .arg(1)
+                    .query(conn);
 
-            for key in &keys {
-                // Read latest entry from the META stream
-                let raw: RedisResult<Vec<(String, Vec<(String, redis::Value)>)>> =
-                    redis::cmd("XREVRANGE")
-                        .arg(key)
-                        .arg("+")
-                        .arg("-")
-                        .arg("COUNT")
-                        .arg(1)
-                        .query(conn);
-
-                if let Ok(entries) = raw {
-                    for (_id, fields) in entries {
-                        for (field, value) in fields {
-                            if field == "_" {
-                                if let redis::Value::BulkString(bytes) = value {
-                                    let json_str = String::from_utf8_lossy(&bytes);
-                                    if let Ok(meta) =
-                                        serde_json::from_str::<DeviceMetadata>(&json_str)
-                                    {
-                                        devices.push(DeviceInfo {
-                                            name: meta.device.clone(),
-                                            device_type: meta.device_type,
-                                            redis_host: host.clone(),
-                                            redis_port: port,
-                                            data_type: meta.data_type,
-                                            channels: meta.channels,
-                                            controls: meta.controls,
-                                        });
-                                    }
+            if let Ok(entries) = raw {
+                for (_id, fields) in entries {
+                    for (field, value) in fields {
+                        if field == "_" {
+                            if let redis::Value::BulkString(bytes) = value {
+                                let json_str = String::from_utf8_lossy(&bytes);
+                                if let Ok(meta) =
+                                    serde_json::from_str::<DeviceMetadata>(&json_str)
+                                {
+                                    devices.push(DeviceInfo {
+                                        name: meta.device.clone(),
+                                        device_type: meta.device_type,
+                                        redis_host: host.to_string(),
+                                        redis_port: port,
+                                        data_type: meta.data_type,
+                                        channels: meta.channels,
+                                        controls: meta.controls,
+                                    });
                                 }
                             }
                         }
@@ -100,76 +95,23 @@ impl RedisPool {
             }
         }
 
-        // Sort: BPMs first, then BLMs, then BCMs, by name within type
+        devices
+    }
+
+    /// Scan all hosts for META keys and return discovered devices
+    pub fn discover_devices(&mut self) -> Vec<DeviceInfo> {
+        let mut devices = Vec::new();
+
+        for (host, port) in self.hosts.clone() {
+            devices.extend(self.discover_on_host(&host, port));
+        }
+
         devices.sort_by(|a, b| {
             a.device_type
                 .cmp(&b.device_type)
                 .then(a.name.cmp(&b.name))
         });
         devices
-    }
-
-    /// Fetch latest scalar value from a stream key
-    pub fn fetch_scalar(&mut self, host: &str, port: u16, key: &str) -> Option<f64> {
-        let conn = self.get_or_connect(host, port)?;
-
-        let entries: RedisResult<Vec<(String, Vec<(String, redis::Value)>)>> =
-            redis::cmd("XREVRANGE")
-                .arg(key)
-                .arg("+")
-                .arg("-")
-                .arg("COUNT")
-                .arg(1)
-                .query(conn);
-
-        if let Ok(entries) = entries {
-            for (_id, fields) in entries {
-                for (field, value) in fields {
-                    if field == "_" {
-                        if let redis::Value::BulkString(bytes) = value {
-                            return deserialize_scalar(&bytes);
-                        }
-                    }
-                }
-            }
-        }
-        None
-    }
-
-    /// Fetch latest waveform from a stream key
-    pub fn fetch_waveform(
-        &mut self,
-        host: &str,
-        port: u16,
-        key: &str,
-        data_type: &str,
-    ) -> Option<Vec<f64>> {
-        let conn = self.get_or_connect(host, port)?;
-
-        let entries: RedisResult<Vec<(String, Vec<(String, redis::Value)>)>> =
-            redis::cmd("XREVRANGE")
-                .arg(key)
-                .arg("+")
-                .arg("-")
-                .arg("COUNT")
-                .arg(1)
-                .query(conn);
-
-        if let Ok(entries) = entries {
-            for (_id, fields) in entries {
-                for (field, value) in fields {
-                    if field == "_" {
-                        if let redis::Value::BulkString(bytes) = value {
-                            let wf = deserialize_waveform(&bytes, data_type);
-                            if !wf.is_empty() {
-                                return Some(wf);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        None
     }
 
     /// Write a control value to a device's setting stream
@@ -185,8 +127,6 @@ impl RedisPool {
             None => return false,
         };
 
-        // Write as string value to match twin's expected format:
-        // XADD {key} * v {value}
         let result: RedisResult<String> = redis::cmd("XADD")
             .arg(key)
             .arg("*")
@@ -236,79 +176,330 @@ impl Default for SharedState {
     }
 }
 
-/// Start background data fetcher thread
-pub fn start_fetcher(
-    hosts: Vec<(String, u16)>,
-    state: Arc<Mutex<SharedState>>,
-    refresh_ms: u64,
-) -> thread::JoinHandle<()> {
-    thread::spawn(move || {
-        let mut pool = RedisPool::new(hosts);
+/// Parse XREAD response from raw redis::Value
+/// Returns Vec<(stream_key, Vec<(entry_id, Vec<(field, value_bytes)>)>)>
+fn parse_xread_response(
+    val: &redis::Value,
+) -> Vec<(String, Vec<(String, Vec<(String, Vec<u8>)>)>)> {
+    let mut result = Vec::new();
 
-        // Initial discovery
-        let devices = pool.discover_devices();
-        {
-            let mut s = state.lock().unwrap();
-            s.devices = devices;
-            s.connected = true;
-        }
+    // XREAD returns: Array of [stream_key, entries] pairs
+    let streams = match val {
+        redis::Value::Array(arr) => arr,
+        redis::Value::Nil => return result,
+        _ => return result,
+    };
 
-        loop {
-            thread::sleep(Duration::from_millis(refresh_ms));
+    for stream in streams {
+        let pair = match stream {
+            redis::Value::Array(arr) if arr.len() == 2 => arr,
+            _ => continue,
+        };
 
-            // Re-discover periodically (every 30 refreshes)
-            static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-            let count = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            let should_rediscover = count % 30 == 0;
+        let stream_key = match &pair[0] {
+            redis::Value::BulkString(b) => String::from_utf8_lossy(b).to_string(),
+            _ => continue,
+        };
 
-            if should_rediscover {
-                let devices = pool.discover_devices();
-                let mut s = state.lock().unwrap();
-                s.devices = devices;
-            }
+        let entries_arr = match &pair[1] {
+            redis::Value::Array(arr) => arr,
+            _ => continue,
+        };
 
-            // Fetch data for all known devices
-            let devices = {
-                let s = state.lock().unwrap();
-                s.devices.clone()
+        let mut entries = Vec::new();
+        for entry in entries_arr {
+            let entry_pair = match entry {
+                redis::Value::Array(arr) if arr.len() == 2 => arr,
+                _ => continue,
             };
 
-            let mut all_data: HashMap<String, DeviceData> = HashMap::new();
+            let entry_id = match &entry_pair[0] {
+                redis::Value::BulkString(b) => String::from_utf8_lossy(b).to_string(),
+                _ => continue,
+            };
 
-            for dev in &devices {
-                let mut data = DeviceData::default();
+            let fields_arr = match &entry_pair[1] {
+                redis::Value::Array(arr) => arr,
+                _ => continue,
+            };
 
-                for ch in &dev.channels {
-                    let full_key = dev.stream_key(&ch.key);
+            let mut fields = Vec::new();
+            let mut i = 0;
+            while i + 1 < fields_arr.len() {
+                let field_name = match &fields_arr[i] {
+                    redis::Value::BulkString(b) => String::from_utf8_lossy(b).to_string(),
+                    _ => {
+                        i += 2;
+                        continue;
+                    }
+                };
+                let field_value = match &fields_arr[i + 1] {
+                    redis::Value::BulkString(b) => b.clone(),
+                    _ => Vec::new(),
+                };
+                fields.push((field_name, field_value));
+                i += 2;
+            }
 
-                    match ch.kind {
-                        DataKind::Scalar => {
-                            if let Some(val) =
-                                pool.fetch_scalar(&dev.redis_host, dev.redis_port, &full_key)
-                            {
-                                data.scalars.insert(ch.key.clone(), val);
-                            }
-                        }
-                        DataKind::Waveform => {
-                            if let Some(wf) = pool.fetch_waveform(
-                                &dev.redis_host,
-                                dev.redis_port,
-                                &full_key,
-                                &dev.data_type,
-                            ) {
-                                data.waveforms.insert(ch.key.clone(), wf);
+            entries.push((entry_id, fields));
+        }
+
+        result.push((stream_key, entries));
+    }
+
+    result
+}
+
+/// Seed initial data for all devices on a host using XREVRANGE
+fn seed_initial_data(
+    conn: &mut Connection,
+    devices: &[DeviceInfo],
+) -> (HashMap<String, DeviceData>, HashMap<String, String>) {
+    let mut all_data: HashMap<String, DeviceData> = HashMap::new();
+    let mut last_ids: HashMap<String, String> = HashMap::new();
+
+    for dev in devices {
+        let mut data = DeviceData::default();
+
+        for ch in &dev.channels {
+            let full_key = dev.stream_key(&ch.key);
+
+            let raw: RedisResult<Vec<(String, Vec<(String, redis::Value)>)>> =
+                redis::cmd("XREVRANGE")
+                    .arg(&full_key)
+                    .arg("+")
+                    .arg("-")
+                    .arg("COUNT")
+                    .arg(1)
+                    .query(conn);
+
+            if let Ok(entries) = raw {
+                for (id, fields) in entries {
+                    last_ids.insert(full_key.clone(), id);
+                    for (field, value) in fields {
+                        if field == "_" {
+                            if let redis::Value::BulkString(bytes) = value {
+                                match ch.kind {
+                                    DataKind::Scalar => {
+                                        if let Some(val) = deserialize_scalar(&bytes) {
+                                            data.scalars.insert(ch.key.clone(), val);
+                                        }
+                                    }
+                                    DataKind::Waveform => {
+                                        let wf =
+                                            deserialize_waveform(&bytes, &dev.data_type);
+                                        if !wf.is_empty() {
+                                            data.waveforms.insert(ch.key.clone(), wf);
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
-
-                all_data.insert(dev.name.clone(), data);
-            }
-
-            {
-                let mut s = state.lock().unwrap();
-                s.device_data = all_data;
             }
         }
-    })
+
+        all_data.insert(dev.name.clone(), data);
+    }
+
+    (all_data, last_ids)
+}
+
+/// Per-host XREAD streaming thread
+fn host_reader(
+    host: String,
+    port: u16,
+    state: Arc<Mutex<SharedState>>,
+    rediscover_interval: Duration,
+) {
+    let url = format!("redis://{}:{}/", host, port);
+    let client = match redis::Client::open(url.as_str()) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("Invalid Redis URL {}: {}", url, e);
+            return;
+        }
+    };
+
+    loop {
+        let mut conn = match client.get_connection_with_timeout(Duration::from_secs(5)) {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("Failed to connect to {}:{}: {}", host, port, e);
+                thread::sleep(Duration::from_secs(2));
+                continue;
+            }
+        };
+
+        // Discover devices on this host
+        let mut pool = RedisPool::new(vec![(host.clone(), port)]);
+        let devices = pool.discover_on_host(&host, port);
+
+        if devices.is_empty() {
+            thread::sleep(Duration::from_secs(2));
+            continue;
+        }
+
+        // Add devices to shared state
+        {
+            let mut s = state.lock().unwrap();
+            // Remove old devices from this host, add new ones
+            s.devices.retain(|d| d.redis_host != host || d.redis_port != port);
+            s.devices.extend(devices.clone());
+            s.devices.sort_by(|a, b| {
+                a.device_type
+                    .cmp(&b.device_type)
+                    .then(a.name.cmp(&b.name))
+            });
+            s.connected = true;
+        }
+
+        // Build stream key list and device map
+        let mut stream_keys: Vec<String> = Vec::new();
+        // Map from stream_key -> (device_name, channel_key, kind, data_type)
+        let mut key_map: HashMap<String, (String, String, DataKind, String)> = HashMap::new();
+
+        for dev in &devices {
+            for ch in &dev.channels {
+                let full_key = dev.stream_key(&ch.key);
+                stream_keys.push(full_key.clone());
+                key_map.insert(
+                    full_key,
+                    (
+                        dev.name.clone(),
+                        ch.key.clone(),
+                        ch.kind,
+                        dev.data_type.clone(),
+                    ),
+                );
+            }
+        }
+
+        if stream_keys.is_empty() {
+            thread::sleep(Duration::from_secs(2));
+            continue;
+        }
+
+        // Seed initial data with XREVRANGE
+        let (initial_data, mut last_ids) = seed_initial_data(&mut conn, &devices);
+        {
+            let mut s = state.lock().unwrap();
+            for (dev_name, data) in &initial_data {
+                let entry = s.device_data.entry(dev_name.clone()).or_default();
+                entry.scalars.extend(data.scalars.clone());
+                entry.waveforms.extend(data.waveforms.clone());
+            }
+        }
+
+        // For any keys without initial data, use "$" to get only new messages
+        for key in &stream_keys {
+            last_ids.entry(key.clone()).or_insert_with(|| "$".to_string());
+        }
+
+        let rediscover_start = std::time::Instant::now();
+
+        // XREAD loop
+        loop {
+            // Check if we should re-discover
+            if rediscover_start.elapsed() >= rediscover_interval {
+                break; // Break inner loop to re-discover
+            }
+
+            // Non-blocking XREAD to grab all pending entries across all streams
+            // We sleep manually after each cycle for rate control
+            let mut cmd = redis::cmd("XREAD");
+            cmd.arg("COUNT").arg(1).arg("STREAMS");
+
+            for key in &stream_keys {
+                cmd.arg(key);
+            }
+            for key in &stream_keys {
+                let id = last_ids.get(key).map(|s| s.as_str()).unwrap_or("$");
+                cmd.arg(id);
+            }
+
+            let response: RedisResult<redis::Value> = cmd.query(&mut conn);
+
+            match response {
+                Ok(ref val) => {
+                    let parsed = parse_xread_response(val);
+                    if parsed.is_empty() {
+                        // Non-blocking XREAD returned nothing, sleep briefly
+                        thread::sleep(Duration::from_millis(20));
+                        continue;
+                    }
+
+                    let mut s = state.lock().unwrap();
+
+                    for (stream_key, entries) in parsed {
+                        if let Some((dev_name, ch_key, kind, data_type)) =
+                            key_map.get(&stream_key)
+                        {
+                            let dev_data =
+                                s.device_data.entry(dev_name.clone()).or_default();
+
+                            for (entry_id, fields) in &entries {
+                                // Update last ID
+                                last_ids
+                                    .insert(stream_key.clone(), entry_id.clone());
+
+                                for (field_name, field_bytes) in fields {
+                                    if field_name == "_" {
+                                        match kind {
+                                            DataKind::Scalar => {
+                                                if let Some(val) =
+                                                    deserialize_scalar(field_bytes)
+                                                {
+                                                    dev_data.scalars.insert(
+                                                        ch_key.clone(),
+                                                        val,
+                                                    );
+                                                }
+                                            }
+                                            DataKind::Waveform => {
+                                                let wf = deserialize_waveform(
+                                                    field_bytes,
+                                                    data_type,
+                                                );
+                                                if !wf.is_empty() {
+                                                    dev_data.waveforms.insert(
+                                                        ch_key.clone(),
+                                                        wf,
+                                                    );
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[xread] ERROR on {}:{}: {}", host, port, e);
+                    break; // Reconnect
+                }
+            }
+        }
+    }
+}
+
+/// Start background data fetcher - one thread per Redis host
+pub fn start_fetcher(
+    hosts: Vec<(String, u16)>,
+    state: Arc<Mutex<SharedState>>,
+    _refresh_ms: u64,
+) -> Vec<thread::JoinHandle<()>> {
+    let mut handles = Vec::new();
+
+    for (host, port) in hosts {
+        let st = state.clone();
+        let h = thread::spawn(move || {
+            host_reader(host, port, st, Duration::from_secs(30));
+        });
+        handles.push(h);
+    }
+
+    handles
 }

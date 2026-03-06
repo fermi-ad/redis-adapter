@@ -84,8 +84,8 @@ fn main() -> io::Result<()> {
 
     let state = Arc::new(Mutex::new(SharedState::default()));
 
-    // Start background data fetcher
-    let _fetcher = redis_client::start_fetcher(hosts.clone(), state.clone(), args.refresh);
+    // Start background data fetchers (one per Redis host)
+    let _fetchers = redis_client::start_fetcher(hosts.clone(), state.clone(), args.refresh);
 
     // Wait briefly for initial discovery
     std::thread::sleep(Duration::from_millis(500));

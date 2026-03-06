@@ -26,13 +26,12 @@ fn render_device_list(f: &mut Frame, area: Rect, app: &App, snap: &SharedState) 
         OverviewTab::BcmCurrents => DeviceType::Bcm,
     };
 
-    let items: Vec<ListItem> = snap
-        .devices
+    let filtered = app.filtered_devices(snap);
+    let items: Vec<ListItem> = filtered
         .iter()
         .enumerate()
-        .filter(|(_, d)| d.device_type == dtype)
-        .map(|(i, d)| {
-            let style = if i == app.selected_device {
+        .map(|(i, (_, d))| {
+            let style = if i == app.device_scroll {
                 Style::default().fg(Color::Yellow).bold()
             } else {
                 Style::default()
@@ -45,7 +44,7 @@ fn render_device_list(f: &mut Frame, area: Rect, app: &App, snap: &SharedState) 
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(format!(" {} Devices ", dtype)),
+                .title(format!(" {} Devices ({}) ", dtype, filtered.len())),
         )
         .highlight_style(Style::default().fg(Color::Yellow));
 
@@ -181,7 +180,7 @@ fn render_bcm_currents(f: &mut Frame, area: Rect, app: &App, snap: &SharedState)
         let data: Vec<(f64, f64)> = ch_vals
             .iter()
             .enumerate()
-            .map(|(j, &v)| (j as f64, v))
+            .map(|(j, (_, v))| (j as f64, *v))
             .collect();
 
         render_line_chart(

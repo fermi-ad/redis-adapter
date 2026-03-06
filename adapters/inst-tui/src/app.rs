@@ -168,6 +168,7 @@ impl App {
     }
 
     /// Get BLM loss data: Vec<(device_name, total_loss)>
+    /// Uses metadata scalar channels - sums all INTEG scalar values
     pub fn blm_loss_data(&self, snap: &SharedState) -> Vec<(String, f64)> {
         let mut result = Vec::new();
         for dev in &snap.devices {
@@ -179,12 +180,28 @@ impl App {
                 None => continue,
             };
 
-            // Sum INTEG_50MS_CH* scalars for total loss
+            // Sum all scalar channels that look like integration outputs
             let mut total = 0.0;
-            for i in 0..8 {
-                let key = format!("INTEG_50MS_CH{}", i);
-                if let Some(&val) = data.scalars.get(&key) {
-                    total += val;
+            let mut found = false;
+            for ch in &dev.channels {
+                if ch.kind == DataKind::Scalar {
+                    if let Some(&val) = data.scalars.get(&ch.key) {
+                        // Prefer INTEG_FULL or INTEG keys for loss totals
+                        if ch.key.starts_with("INTEG_FULL_") || ch.key.starts_with("INTEG_50MS_") {
+                            total += val;
+                            found = true;
+                        }
+                    }
+                }
+            }
+            // If no INTEG keys found, sum all available scalars
+            if !found {
+                for ch in &dev.channels {
+                    if ch.kind == DataKind::Scalar {
+                        if let Some(&val) = data.scalars.get(&ch.key) {
+                            total += val;
+                        }
+                    }
                 }
             }
             result.push((dev.name.clone(), total));
@@ -192,8 +209,9 @@ impl App {
         result
     }
 
-    /// Get BCM current data: Vec<(device_name, Vec<channel_current>)>
-    pub fn bcm_current_data(&self, snap: &SharedState) -> Vec<(String, Vec<f64>)> {
+    /// Get BCM current data: Vec<(device_name, Vec<(label, current)>)>
+    /// Uses metadata scalar channels matching gated integration keys
+    pub fn bcm_current_data(&self, snap: &SharedState) -> Vec<(String, Vec<(String, f64)>)> {
         let mut result = Vec::new();
         for dev in &snap.devices {
             if dev.device_type != DeviceType::Bcm {
@@ -205,11 +223,15 @@ impl App {
             };
 
             let mut currents = Vec::new();
-            for i in 0..4 {
-                let key = format!("INTEG_GATED_CH{}", i);
-                currents.push(*data.scalars.get(&key).unwrap_or(&0.0));
+            for ch in &dev.channels {
+                if ch.kind == DataKind::Scalar && ch.key.starts_with("INTEG_GATED_") {
+                    let val = *data.scalars.get(&ch.key).unwrap_or(&0.0);
+                    currents.push((ch.label.clone(), val));
+                }
             }
-            result.push((dev.name.clone(), currents));
+            if !currents.is_empty() {
+                result.push((dev.name.clone(), currents));
+            }
         }
         result
     }

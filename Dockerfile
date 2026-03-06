@@ -35,23 +35,27 @@ RUN cmake -S . -B build \
 FROM rust:latest AS tui-builder
 
 RUN apt-get update && apt-get install -y musl-tools && rm -rf /var/lib/apt/lists/*
-RUN rustup target add x86_64-unknown-linux-musl
+RUN MUSL_TARGET="$(uname -m)-unknown-linux-musl" && rustup target add "$MUSL_TARGET"
 
 WORKDIR /app
-RUN git clone --depth 1 https://github.com/bigsamich/redis-tui.git . \
-    && cargo build --release --target x86_64-unknown-linux-musl \
-    && strip target/x86_64-unknown-linux-musl/release/redis-tui
+RUN MUSL_TARGET="$(uname -m)-unknown-linux-musl" \
+    && git clone --depth 1 https://github.com/bigsamich/redis-tui.git . \
+    && cargo build --release --target "$MUSL_TARGET" \
+    && strip target/$MUSL_TARGET/release/redis-tui \
+    && ln -s $MUSL_TARGET target/musl-release
 
 # ---- Instrument TUI (Rust) ----
 FROM rust:latest AS inst-tui-builder
 
 RUN apt-get update && apt-get install -y musl-tools && rm -rf /var/lib/apt/lists/*
-RUN rustup target add x86_64-unknown-linux-musl
+RUN MUSL_TARGET="$(uname -m)-unknown-linux-musl" && rustup target add "$MUSL_TARGET"
 
 WORKDIR /app
 COPY adapters/inst-tui/ .
-RUN cargo build --release --target x86_64-unknown-linux-musl \
-    && strip target/x86_64-unknown-linux-musl/release/inst-tui
+RUN MUSL_TARGET="$(uname -m)-unknown-linux-musl" \
+    && cargo build --release --target "$MUSL_TARGET" \
+    && strip target/$MUSL_TARGET/release/inst-tui \
+    && ln -s $MUSL_TARGET target/musl-release
 
 # ---- Runtime image ----
 FROM scratch
@@ -70,8 +74,8 @@ COPY --from=builder /src/build/adapters/blm/blm /blm
 COPY --from=builder /src/build/adapters/blm-twin/blm-twin /blm-twin
 COPY --from=builder /src/build/adapters/bcm/bcm /bcm
 COPY --from=builder /src/build/adapters/bcm-twin/bcm-twin /bcm-twin
-COPY --from=tui-builder /app/target/x86_64-unknown-linux-musl/release/redis-tui /redis-tui
-COPY --from=inst-tui-builder /app/target/x86_64-unknown-linux-musl/release/inst-tui /inst-tui
+COPY --from=tui-builder /app/target/musl-release/release/redis-tui /redis-tui
+COPY --from=inst-tui-builder /app/target/musl-release/release/inst-tui /inst-tui
 
 COPY adapters/device-twin/configs/ /etc/adapters/device-twin/
 COPY adapters/baseline-subtract/configs/ /etc/adapters/baseline-subtract/

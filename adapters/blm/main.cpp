@@ -243,9 +243,11 @@ int main(int argc, char* argv[])
             {
                 if (!win.outputKeys[i].empty())
                 {
-                    bool isSingleBin = (static_cast<size_t>(win.binSamples) >= 50000);
+                    // Mark as scalar if bin size covers the full waveform
+                    // (i.e., single-bin integration produces a scalar via addDouble)
+                    bool likelyScalar = (static_cast<size_t>(win.binSamples) >= 10000);
                     metaCh.push_back({win.outputKeys[i],
-                                      isSingleBin ? "scalar" : "waveform",
+                                      likelyScalar ? "scalar" : "waveform",
                                       win.name + " Ch" + std::to_string(i), ""});
                 }
                 if (!win.avgKeys[i].empty())
