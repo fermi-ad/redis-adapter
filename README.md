@@ -168,6 +168,7 @@ Three size profiles are available to run a subset of the system:
 
 | Profile | BPM | BLM | BCM | Services |
 |---------|-----|-----|-----|----------|
+| `tiny` | 10 | 10 | 5 | 64 |
 | `small` | 35 | 65 | 10 | 267 |
 | `medium` | 47 | 87 | 14 | 358 |
 | `large` | 70 | 130 | 20 | 532 |
@@ -175,7 +176,7 @@ Three size profiles are available to run a subset of the system:
 ```bash
 python3 generate_system.py
 docker compose -f docker-compose.system.yml build
-docker compose -f docker-compose.system.yml --profile small up -d
+docker compose -f docker-compose.system.yml --profile tiny up -d
 docker compose -f docker-compose.system.yml --profile large up -d
 ```
 
