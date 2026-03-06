@@ -686,6 +686,13 @@ def main():
     demo_services = gen_demo_services()
     tui_services = gen_tui_services()
 
+    # Collect all Redis service names so TUIs can depend on them
+    redis_svc_names = [name for name, svc in system_services.items()
+                       if svc.get("image", "").startswith("redis:")]
+    depends = {name: {"condition": "service_healthy"} for name in redis_svc_names}
+    for tui_svc in tui_services.values():
+        tui_svc["depends_on"] = depends
+
     all_services = {}
     all_services.update(demo_services)
     all_services.update(tui_services)
