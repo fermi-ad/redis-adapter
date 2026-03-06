@@ -18,18 +18,18 @@ services:
 
   device-twin:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
     depends_on:
       redis:
         condition: service_healthy
     volumes:
-      - ./adapters/device-twin/configs:/etc/adapters/device-twin:ro
+      - ../adapters/device-twin/configs:/etc/adapters/device-twin:ro
     command: ["/device-twin", "/etc/adapters/device-twin/acct-example.yml"]
 
   baseline-subtract:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
     depends_on:
       device-twin:
@@ -37,12 +37,12 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./adapters/baseline-subtract/configs:/etc/adapters/baseline-subtract:ro
+      - ../adapters/baseline-subtract/configs:/etc/adapters/baseline-subtract:ro
     command: ["/baseline-subtract", "/etc/adapters/baseline-subtract/baseline-subtract-example.yml"]
 
   integrate:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
     depends_on:
       device-twin:
@@ -50,12 +50,12 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./adapters/integrate/configs:/etc/adapters/integrate:ro
+      - ../adapters/integrate/configs:/etc/adapters/integrate:ro
     command: ["/integrate", "/etc/adapters/integrate/integrate-example.yml"]
 
   filter:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
     depends_on:
       device-twin:
@@ -63,12 +63,12 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./adapters/filter/configs:/etc/adapters/filter:ro
+      - ../adapters/filter/configs:/etc/adapters/filter:ro
     command: ["/filter", "/etc/adapters/filter/filter-example.yml"]
 
   magnitude:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
     depends_on:
       device-twin:
@@ -76,12 +76,12 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./adapters/magnitude/configs:/etc/adapters/magnitude:ro
+      - ../adapters/magnitude/configs:/etc/adapters/magnitude:ro
     command: ["/magnitude", "/etc/adapters/magnitude/magnitude-example.yml"]
 
   position-intensity:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
     depends_on:
       device-twin:
@@ -89,12 +89,12 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./adapters/position-intensity/configs:/etc/adapters/position-intensity:ro
+      - ../adapters/position-intensity/configs:/etc/adapters/position-intensity:ro
     command: ["/position-intensity", "/etc/adapters/position-intensity/position-intensity-example.yml"]
 
   demux:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
     depends_on:
       device-twin:
@@ -102,12 +102,12 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./adapters/demux/configs:/etc/adapters/demux:ro
+      - ../adapters/demux/configs:/etc/adapters/demux:ro
     command: ["/demux", "/etc/adapters/demux/demux-example.yml"]
 
   fft:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
     depends_on:
       device-twin:
@@ -115,5 +115,5 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./adapters/fft/configs:/etc/adapters/fft:ro
+      - ../adapters/fft/configs:/etc/adapters/fft:ro
     command: ["/fft", "/etc/adapters/fft/fft-example.yml"]

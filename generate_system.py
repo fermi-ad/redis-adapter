@@ -25,8 +25,8 @@ Generate system-level configs and docker-compose for full accelerator simulation
     full   — all devices
 
   Usage:
-    docker compose -f docker-compose.system.yml --profile small up -d
-    docker compose -f docker-compose.system.yml --profile large up -d
+    docker compose -f compose/docker-compose.system.yml --profile small up -d
+    docker compose -f compose/docker-compose.system.yml --profile large up -d
 """
 
 import os
@@ -34,7 +34,7 @@ import math
 import yaml
 
 OUT_DIR = "system-configs"
-COMPOSE_FILE = "docker-compose.system.yml"
+COMPOSE_FILE = "compose/docker-compose.system.yml"
 
 # --- BPM ---
 NUM_BPM_8CH = 55   # 8 IQ channels each (2 BPMs worth)

@@ -1,6 +1,6 @@
 # System Simulation Overview
 
-Full-scale accelerator simulation using `docker-compose.system.yml`. Each digitizer gets its own Redis 7.4 instance — the twin and adapter for that digitizer share it. Every device twin generates synthetic waveforms at 20 Hz; every adapter processes them and publishes derived results back to the same Redis.
+Full-scale accelerator simulation using `compose/docker-compose.system.yml`. Each digitizer gets its own Redis 7.4 instance — the twin and adapter for that digitizer share it. Every device twin generates synthetic waveforms at 20 Hz; every adapter processes them and publishes derived results back to the same Redis.
 
 Assumptions: **10,000 samples per channel**, **float32** (4 bytes), **20 Hz** trigger rate (50 ms interval), **trim=100** (5 seconds of history).
 
@@ -229,11 +229,11 @@ With 1 Redis per digitizer, the load is distributed across 92 independent instan
 
 | File | Description | Services |
 |------|-------------|----------|
-| `docker-compose.yml` | Single-device signal processing pipeline (1 BPM) | 9 |
-| `docker-compose.demo.yml` | BPM demo with composite adapter | 3 |
-| `docker-compose.blm-demo.yml` | BLM demo (twin + adapter) | 3 |
-| `docker-compose.bcm-demo.yml` | BCM demo (twin + adapter) | 3 |
-| `docker-compose.system.yml` | Full 532-service system simulation | 532 |
+| `compose/docker-compose.yml` | Single-device signal processing pipeline (1 BPM) | 9 |
+| `compose/docker-compose.demo.yml` | BPM demo with composite adapter | 3 |
+| `compose/docker-compose.blm-demo.yml` | BLM demo (twin + adapter) | 3 |
+| `compose/docker-compose.bcm-demo.yml` | BCM demo (twin + adapter) | 3 |
+| `compose/docker-compose.system.yml` | Full 532-service system simulation | 532 |
 
 ### Running the full system
 
@@ -242,17 +242,17 @@ With 1 Redis per digitizer, the load is distributed across 92 independent instan
 python3 generate_system.py
 
 # Build all images (shared Dockerfile, built once)
-docker compose -f docker-compose.system.yml build
+docker compose -f compose/docker-compose.system.yml build
 
 # Start all 532 services
-docker compose -f docker-compose.system.yml up -d
+docker compose -f compose/docker-compose.system.yml up -d
 
 # Monitor
-docker compose -f docker-compose.system.yml ps
+docker compose -f compose/docker-compose.system.yml ps
 # Connect to a specific digitizer's Redis:
-docker compose -f docker-compose.system.yml exec redis-bpm-001 redis-cli INFO memory
-docker compose -f docker-compose.system.yml exec redis-blm-01 redis-cli DBSIZE
+docker compose -f compose/docker-compose.system.yml exec redis-bpm-001 redis-cli INFO memory
+docker compose -f compose/docker-compose.system.yml exec redis-blm-01 redis-cli DBSIZE
 
 # Stop
-docker compose -f docker-compose.system.yml down
+docker compose -f compose/docker-compose.system.yml down
 ```

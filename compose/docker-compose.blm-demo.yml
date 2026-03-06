@@ -16,10 +16,10 @@
 #    redis-cli XADD BLM:0001:CH0_SCALE_S '*' v 0.5
 #
 #  Usage:
-#    docker compose -f docker-compose.blm-demo.yml build
-#    docker compose -f docker-compose.blm-demo.yml up -d
+#    docker compose -f compose/docker-compose.blm-demo.yml build
+#    docker compose -f compose/docker-compose.blm-demo.yml up -d
 #    redis-cli XREVRANGE BLM:0001:INTEG_50MS_CH0 + - COUNT 1
-#    docker compose -f docker-compose.blm-demo.yml down
+#    docker compose -f compose/docker-compose.blm-demo.yml down
 #
 
 services:
@@ -42,18 +42,18 @@ services:
 
   blm-twin:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
     depends_on:
       redis:
         condition: service_healthy
     volumes:
-      - ./adapters/blm-twin/configs:/etc/adapters/blm-twin:ro
+      - ../adapters/blm-twin/configs:/etc/adapters/blm-twin:ro
     command: ["/blm-twin", "/etc/adapters/blm-twin/blm-demo.yml"]
 
   blm:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
     depends_on:
       blm-twin:
@@ -61,5 +61,5 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./adapters/blm/configs:/etc/adapters/blm:ro
+      - ../adapters/blm/configs:/etc/adapters/blm:ro
     command: ["/blm", "/etc/adapters/blm/blm-demo.yml"]

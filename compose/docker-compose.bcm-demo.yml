@@ -14,10 +14,10 @@
 #    redis-cli XADD BCM:0001:CH0_GAIN_S '*' v 1.5
 #
 #  Usage:
-#    docker compose -f docker-compose.bcm-demo.yml build
-#    docker compose -f docker-compose.bcm-demo.yml up -d
+#    docker compose -f compose/docker-compose.bcm-demo.yml build
+#    docker compose -f compose/docker-compose.bcm-demo.yml up -d
 #    redis-cli XREVRANGE BCM:0001:INTEG_GATED_CH0 + - COUNT 1
-#    docker compose -f docker-compose.bcm-demo.yml down
+#    docker compose -f compose/docker-compose.bcm-demo.yml down
 #
 
 services:
@@ -40,18 +40,18 @@ services:
 
   bcm-twin:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
     depends_on:
       redis:
         condition: service_healthy
     volumes:
-      - ./adapters/bcm-twin/configs:/etc/adapters/bcm-twin:ro
+      - ../adapters/bcm-twin/configs:/etc/adapters/bcm-twin:ro
     command: ["/bcm-twin", "/etc/adapters/bcm-twin/bcm-demo.yml"]
 
   bcm:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
     depends_on:
       bcm-twin:
@@ -59,5 +59,5 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./adapters/bcm/configs:/etc/adapters/bcm:ro
+      - ../adapters/bcm/configs:/etc/adapters/bcm:ro
     command: ["/bcm", "/etc/adapters/bcm/bcm-demo.yml"]

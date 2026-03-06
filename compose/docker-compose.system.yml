@@ -22,18 +22,18 @@
 #
 #  Usage:
 #    python3 generate_system.py
-#    docker compose -f docker-compose.system.yml build
-#    docker compose -f docker-compose.system.yml --profile tiny up -d
-#    docker compose -f docker-compose.system.yml --profile small up -d
-#    docker compose -f docker-compose.system.yml --profile large up -d
-#    docker compose -f docker-compose.system.yml --profile full up -d
-#    docker compose -f docker-compose.system.yml --profile full down
+#    docker compose -f compose/docker-compose.system.yml build
+#    docker compose -f compose/docker-compose.system.yml --profile tiny up -d
+#    docker compose -f compose/docker-compose.system.yml --profile small up -d
+#    docker compose -f compose/docker-compose.system.yml --profile large up -d
+#    docker compose -f compose/docker-compose.system.yml --profile full up -d
+#    docker compose -f compose/docker-compose.system.yml --profile full down
 #
 
 services:
   bpm-twin-001:
     build: &id001
-      context: .
+      context: ..
       dockerfile: Dockerfile
     profiles: &id002
     - tiny
@@ -45,7 +45,7 @@ services:
       redis-bpm-001:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-001.yml
@@ -58,7 +58,7 @@ services:
       bpm-twin-001:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-001.yml
@@ -74,7 +74,7 @@ services:
       redis-bpm-002:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-002.yml
@@ -87,7 +87,7 @@ services:
       bpm-twin-002:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-002.yml
@@ -103,7 +103,7 @@ services:
       redis-bpm-003:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-003.yml
@@ -116,7 +116,7 @@ services:
       bpm-twin-003:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-003.yml
@@ -132,7 +132,7 @@ services:
       redis-bpm-004:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-004.yml
@@ -145,7 +145,7 @@ services:
       bpm-twin-004:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-004.yml
@@ -161,7 +161,7 @@ services:
       redis-bpm-005:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-005.yml
@@ -174,7 +174,7 @@ services:
       bpm-twin-005:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-005.yml
@@ -190,7 +190,7 @@ services:
       redis-bpm-006:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-006.yml
@@ -203,7 +203,7 @@ services:
       bpm-twin-006:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-006.yml
@@ -219,7 +219,7 @@ services:
       redis-bpm-007:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-007.yml
@@ -232,7 +232,7 @@ services:
       bpm-twin-007:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-007.yml
@@ -248,7 +248,7 @@ services:
       redis-bpm-008:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-008.yml
@@ -261,7 +261,7 @@ services:
       bpm-twin-008:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-008.yml
@@ -277,7 +277,7 @@ services:
       redis-bpm-009:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-009.yml
@@ -290,7 +290,7 @@ services:
       bpm-twin-009:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-009.yml
@@ -306,7 +306,7 @@ services:
       redis-bpm-010:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-010.yml
@@ -319,7 +319,7 @@ services:
       bpm-twin-010:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-010.yml
@@ -334,7 +334,7 @@ services:
       redis-bpm-011:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-011.yml
@@ -347,7 +347,7 @@ services:
       bpm-twin-011:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-011.yml
@@ -362,7 +362,7 @@ services:
       redis-bpm-012:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-012.yml
@@ -375,7 +375,7 @@ services:
       bpm-twin-012:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-012.yml
@@ -390,7 +390,7 @@ services:
       redis-bpm-013:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-013.yml
@@ -403,7 +403,7 @@ services:
       bpm-twin-013:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-013.yml
@@ -418,7 +418,7 @@ services:
       redis-bpm-014:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-014.yml
@@ -431,7 +431,7 @@ services:
       bpm-twin-014:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-014.yml
@@ -446,7 +446,7 @@ services:
       redis-bpm-015:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-015.yml
@@ -459,7 +459,7 @@ services:
       bpm-twin-015:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-015.yml
@@ -474,7 +474,7 @@ services:
       redis-bpm-016:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-016.yml
@@ -487,7 +487,7 @@ services:
       bpm-twin-016:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-016.yml
@@ -502,7 +502,7 @@ services:
       redis-bpm-017:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-017.yml
@@ -515,7 +515,7 @@ services:
       bpm-twin-017:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-017.yml
@@ -530,7 +530,7 @@ services:
       redis-bpm-018:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-018.yml
@@ -543,7 +543,7 @@ services:
       bpm-twin-018:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-018.yml
@@ -558,7 +558,7 @@ services:
       redis-bpm-019:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-019.yml
@@ -571,7 +571,7 @@ services:
       bpm-twin-019:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-019.yml
@@ -586,7 +586,7 @@ services:
       redis-bpm-020:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-020.yml
@@ -599,7 +599,7 @@ services:
       bpm-twin-020:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-020.yml
@@ -614,7 +614,7 @@ services:
       redis-bpm-021:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-021.yml
@@ -627,7 +627,7 @@ services:
       bpm-twin-021:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-021.yml
@@ -642,7 +642,7 @@ services:
       redis-bpm-022:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-022.yml
@@ -655,7 +655,7 @@ services:
       bpm-twin-022:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-022.yml
@@ -670,7 +670,7 @@ services:
       redis-bpm-023:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-023.yml
@@ -683,7 +683,7 @@ services:
       bpm-twin-023:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-023.yml
@@ -698,7 +698,7 @@ services:
       redis-bpm-024:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-024.yml
@@ -711,7 +711,7 @@ services:
       bpm-twin-024:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-024.yml
@@ -726,7 +726,7 @@ services:
       redis-bpm-025:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-025.yml
@@ -739,7 +739,7 @@ services:
       bpm-twin-025:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-025.yml
@@ -754,7 +754,7 @@ services:
       redis-bpm-026:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-026.yml
@@ -767,7 +767,7 @@ services:
       bpm-twin-026:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-026.yml
@@ -782,7 +782,7 @@ services:
       redis-bpm-027:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-027.yml
@@ -795,7 +795,7 @@ services:
       bpm-twin-027:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-027.yml
@@ -810,7 +810,7 @@ services:
       redis-bpm-028:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-028.yml
@@ -823,7 +823,7 @@ services:
       bpm-twin-028:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-028.yml
@@ -838,7 +838,7 @@ services:
       redis-bpm-029:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-029.yml
@@ -851,7 +851,7 @@ services:
       bpm-twin-029:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-029.yml
@@ -866,7 +866,7 @@ services:
       redis-bpm-030:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-030.yml
@@ -879,7 +879,7 @@ services:
       bpm-twin-030:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-030.yml
@@ -894,7 +894,7 @@ services:
       redis-bpm-031:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-031.yml
@@ -907,7 +907,7 @@ services:
       bpm-twin-031:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-031.yml
@@ -922,7 +922,7 @@ services:
       redis-bpm-032:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-032.yml
@@ -935,7 +935,7 @@ services:
       bpm-twin-032:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-032.yml
@@ -950,7 +950,7 @@ services:
       redis-bpm-033:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-033.yml
@@ -963,7 +963,7 @@ services:
       bpm-twin-033:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-033.yml
@@ -978,7 +978,7 @@ services:
       redis-bpm-034:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-034.yml
@@ -991,7 +991,7 @@ services:
       bpm-twin-034:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-034.yml
@@ -1006,7 +1006,7 @@ services:
       redis-bpm-035:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-035.yml
@@ -1019,7 +1019,7 @@ services:
       bpm-twin-035:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-035.yml
@@ -1033,7 +1033,7 @@ services:
       redis-bpm-036:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-036.yml
@@ -1046,7 +1046,7 @@ services:
       bpm-twin-036:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-036.yml
@@ -1060,7 +1060,7 @@ services:
       redis-bpm-037:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-037.yml
@@ -1073,7 +1073,7 @@ services:
       bpm-twin-037:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-037.yml
@@ -1087,7 +1087,7 @@ services:
       redis-bpm-038:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-038.yml
@@ -1100,7 +1100,7 @@ services:
       bpm-twin-038:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-038.yml
@@ -1114,7 +1114,7 @@ services:
       redis-bpm-039:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-039.yml
@@ -1127,7 +1127,7 @@ services:
       bpm-twin-039:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-039.yml
@@ -1141,7 +1141,7 @@ services:
       redis-bpm-040:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-040.yml
@@ -1154,7 +1154,7 @@ services:
       bpm-twin-040:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-040.yml
@@ -1168,7 +1168,7 @@ services:
       redis-bpm-041:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-041.yml
@@ -1181,7 +1181,7 @@ services:
       bpm-twin-041:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-041.yml
@@ -1195,7 +1195,7 @@ services:
       redis-bpm-042:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-042.yml
@@ -1208,7 +1208,7 @@ services:
       bpm-twin-042:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-042.yml
@@ -1222,7 +1222,7 @@ services:
       redis-bpm-043:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-043.yml
@@ -1235,7 +1235,7 @@ services:
       bpm-twin-043:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-043.yml
@@ -1249,7 +1249,7 @@ services:
       redis-bpm-044:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-044.yml
@@ -1262,7 +1262,7 @@ services:
       bpm-twin-044:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-044.yml
@@ -1276,7 +1276,7 @@ services:
       redis-bpm-045:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-045.yml
@@ -1289,7 +1289,7 @@ services:
       bpm-twin-045:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-045.yml
@@ -1303,7 +1303,7 @@ services:
       redis-bpm-046:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-046.yml
@@ -1316,7 +1316,7 @@ services:
       bpm-twin-046:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-046.yml
@@ -1330,7 +1330,7 @@ services:
       redis-bpm-047:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-047.yml
@@ -1343,7 +1343,7 @@ services:
       bpm-twin-047:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-047.yml
@@ -1356,7 +1356,7 @@ services:
       redis-bpm-048:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-048.yml
@@ -1369,7 +1369,7 @@ services:
       bpm-twin-048:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-048.yml
@@ -1382,7 +1382,7 @@ services:
       redis-bpm-049:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-049.yml
@@ -1395,7 +1395,7 @@ services:
       bpm-twin-049:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-049.yml
@@ -1408,7 +1408,7 @@ services:
       redis-bpm-050:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-050.yml
@@ -1421,7 +1421,7 @@ services:
       bpm-twin-050:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-050.yml
@@ -1434,7 +1434,7 @@ services:
       redis-bpm-051:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-051.yml
@@ -1447,7 +1447,7 @@ services:
       bpm-twin-051:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-051.yml
@@ -1460,7 +1460,7 @@ services:
       redis-bpm-052:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-052.yml
@@ -1473,7 +1473,7 @@ services:
       bpm-twin-052:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-052.yml
@@ -1486,7 +1486,7 @@ services:
       redis-bpm-053:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-053.yml
@@ -1499,7 +1499,7 @@ services:
       bpm-twin-053:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-053.yml
@@ -1512,7 +1512,7 @@ services:
       redis-bpm-054:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-054.yml
@@ -1525,7 +1525,7 @@ services:
       bpm-twin-054:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-054.yml
@@ -1538,7 +1538,7 @@ services:
       redis-bpm-055:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-055.yml
@@ -1551,7 +1551,7 @@ services:
       bpm-twin-055:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-055.yml
@@ -1564,7 +1564,7 @@ services:
       redis-bpm-056:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-056.yml
@@ -1577,7 +1577,7 @@ services:
       bpm-twin-056:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-056.yml
@@ -1590,7 +1590,7 @@ services:
       redis-bpm-057:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-057.yml
@@ -1603,7 +1603,7 @@ services:
       bpm-twin-057:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-057.yml
@@ -1616,7 +1616,7 @@ services:
       redis-bpm-058:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-058.yml
@@ -1629,7 +1629,7 @@ services:
       bpm-twin-058:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-058.yml
@@ -1642,7 +1642,7 @@ services:
       redis-bpm-059:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-059.yml
@@ -1655,7 +1655,7 @@ services:
       bpm-twin-059:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-059.yml
@@ -1667,7 +1667,7 @@ services:
       redis-bpm-060:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-060.yml
@@ -1680,7 +1680,7 @@ services:
       bpm-twin-060:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-060.yml
@@ -1692,7 +1692,7 @@ services:
       redis-bpm-061:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-061.yml
@@ -1705,7 +1705,7 @@ services:
       bpm-twin-061:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-061.yml
@@ -1717,7 +1717,7 @@ services:
       redis-bpm-062:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-062.yml
@@ -1730,7 +1730,7 @@ services:
       bpm-twin-062:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-062.yml
@@ -1742,7 +1742,7 @@ services:
       redis-bpm-063:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-063.yml
@@ -1755,7 +1755,7 @@ services:
       bpm-twin-063:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-063.yml
@@ -1767,7 +1767,7 @@ services:
       redis-bpm-064:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-064.yml
@@ -1780,7 +1780,7 @@ services:
       bpm-twin-064:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-064.yml
@@ -1792,7 +1792,7 @@ services:
       redis-bpm-065:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-065.yml
@@ -1805,7 +1805,7 @@ services:
       bpm-twin-065:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-065.yml
@@ -1817,7 +1817,7 @@ services:
       redis-bpm-066:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-066.yml
@@ -1830,7 +1830,7 @@ services:
       bpm-twin-066:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-066.yml
@@ -1842,7 +1842,7 @@ services:
       redis-bpm-067:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-067.yml
@@ -1855,7 +1855,7 @@ services:
       bpm-twin-067:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-067.yml
@@ -1867,7 +1867,7 @@ services:
       redis-bpm-068:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-068.yml
@@ -1880,7 +1880,7 @@ services:
       bpm-twin-068:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-068.yml
@@ -1892,7 +1892,7 @@ services:
       redis-bpm-069:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-069.yml
@@ -1905,7 +1905,7 @@ services:
       bpm-twin-069:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-069.yml
@@ -1917,7 +1917,7 @@ services:
       redis-bpm-070:
         condition: service_healthy
     volumes:
-    - ./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
+    - ../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro
     command:
     - /bpm-twin
     - /etc/adapters/system/bpm-twin/bpm-twin-070.yml
@@ -1930,7 +1930,7 @@ services:
       bpm-twin-070:
         condition: service_started
     volumes:
-    - ./system-configs/bpm:/etc/adapters/system/bpm:ro
+    - ../system-configs/bpm:/etc/adapters/system/bpm:ro
     command:
     - /bpm
     - /etc/adapters/system/bpm/bpm-070.yml
@@ -1946,7 +1946,7 @@ services:
       redis-blm-01:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-001.yml
@@ -1959,7 +1959,7 @@ services:
       blm-twin-001:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-001.yml
@@ -1975,7 +1975,7 @@ services:
       redis-blm-01:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-002.yml
@@ -1988,7 +1988,7 @@ services:
       blm-twin-002:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-002.yml
@@ -2004,7 +2004,7 @@ services:
       redis-blm-01:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-003.yml
@@ -2017,7 +2017,7 @@ services:
       blm-twin-003:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-003.yml
@@ -2033,7 +2033,7 @@ services:
       redis-blm-01:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-004.yml
@@ -2046,7 +2046,7 @@ services:
       blm-twin-004:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-004.yml
@@ -2062,7 +2062,7 @@ services:
       redis-blm-01:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-005.yml
@@ -2075,7 +2075,7 @@ services:
       blm-twin-005:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-005.yml
@@ -2091,7 +2091,7 @@ services:
       redis-blm-01:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-006.yml
@@ -2104,7 +2104,7 @@ services:
       blm-twin-006:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-006.yml
@@ -2120,7 +2120,7 @@ services:
       redis-blm-01:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-007.yml
@@ -2133,7 +2133,7 @@ services:
       blm-twin-007:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-007.yml
@@ -2149,7 +2149,7 @@ services:
       redis-blm-01:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-008.yml
@@ -2162,7 +2162,7 @@ services:
       blm-twin-008:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-008.yml
@@ -2178,7 +2178,7 @@ services:
       redis-blm-02:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-009.yml
@@ -2191,7 +2191,7 @@ services:
       blm-twin-009:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-009.yml
@@ -2207,7 +2207,7 @@ services:
       redis-blm-02:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-010.yml
@@ -2220,7 +2220,7 @@ services:
       blm-twin-010:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-010.yml
@@ -2235,7 +2235,7 @@ services:
       redis-blm-02:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-011.yml
@@ -2248,7 +2248,7 @@ services:
       blm-twin-011:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-011.yml
@@ -2263,7 +2263,7 @@ services:
       redis-blm-02:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-012.yml
@@ -2276,7 +2276,7 @@ services:
       blm-twin-012:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-012.yml
@@ -2291,7 +2291,7 @@ services:
       redis-blm-02:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-013.yml
@@ -2304,7 +2304,7 @@ services:
       blm-twin-013:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-013.yml
@@ -2319,7 +2319,7 @@ services:
       redis-blm-02:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-014.yml
@@ -2332,7 +2332,7 @@ services:
       blm-twin-014:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-014.yml
@@ -2347,7 +2347,7 @@ services:
       redis-blm-02:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-015.yml
@@ -2360,7 +2360,7 @@ services:
       blm-twin-015:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-015.yml
@@ -2375,7 +2375,7 @@ services:
       redis-blm-02:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-016.yml
@@ -2388,7 +2388,7 @@ services:
       blm-twin-016:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-016.yml
@@ -2403,7 +2403,7 @@ services:
       redis-blm-03:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-017.yml
@@ -2416,7 +2416,7 @@ services:
       blm-twin-017:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-017.yml
@@ -2431,7 +2431,7 @@ services:
       redis-blm-03:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-018.yml
@@ -2444,7 +2444,7 @@ services:
       blm-twin-018:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-018.yml
@@ -2459,7 +2459,7 @@ services:
       redis-blm-03:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-019.yml
@@ -2472,7 +2472,7 @@ services:
       blm-twin-019:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-019.yml
@@ -2487,7 +2487,7 @@ services:
       redis-blm-03:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-020.yml
@@ -2500,7 +2500,7 @@ services:
       blm-twin-020:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-020.yml
@@ -2515,7 +2515,7 @@ services:
       redis-blm-03:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-021.yml
@@ -2528,7 +2528,7 @@ services:
       blm-twin-021:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-021.yml
@@ -2543,7 +2543,7 @@ services:
       redis-blm-03:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-022.yml
@@ -2556,7 +2556,7 @@ services:
       blm-twin-022:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-022.yml
@@ -2571,7 +2571,7 @@ services:
       redis-blm-03:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-023.yml
@@ -2584,7 +2584,7 @@ services:
       blm-twin-023:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-023.yml
@@ -2599,7 +2599,7 @@ services:
       redis-blm-03:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-024.yml
@@ -2612,7 +2612,7 @@ services:
       blm-twin-024:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-024.yml
@@ -2627,7 +2627,7 @@ services:
       redis-blm-04:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-025.yml
@@ -2640,7 +2640,7 @@ services:
       blm-twin-025:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-025.yml
@@ -2655,7 +2655,7 @@ services:
       redis-blm-04:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-026.yml
@@ -2668,7 +2668,7 @@ services:
       blm-twin-026:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-026.yml
@@ -2683,7 +2683,7 @@ services:
       redis-blm-04:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-027.yml
@@ -2696,7 +2696,7 @@ services:
       blm-twin-027:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-027.yml
@@ -2711,7 +2711,7 @@ services:
       redis-blm-04:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-028.yml
@@ -2724,7 +2724,7 @@ services:
       blm-twin-028:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-028.yml
@@ -2739,7 +2739,7 @@ services:
       redis-blm-04:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-029.yml
@@ -2752,7 +2752,7 @@ services:
       blm-twin-029:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-029.yml
@@ -2767,7 +2767,7 @@ services:
       redis-blm-04:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-030.yml
@@ -2780,7 +2780,7 @@ services:
       blm-twin-030:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-030.yml
@@ -2795,7 +2795,7 @@ services:
       redis-blm-04:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-031.yml
@@ -2808,7 +2808,7 @@ services:
       blm-twin-031:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-031.yml
@@ -2823,7 +2823,7 @@ services:
       redis-blm-04:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-032.yml
@@ -2836,7 +2836,7 @@ services:
       blm-twin-032:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-032.yml
@@ -2851,7 +2851,7 @@ services:
       redis-blm-05:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-033.yml
@@ -2864,7 +2864,7 @@ services:
       blm-twin-033:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-033.yml
@@ -2879,7 +2879,7 @@ services:
       redis-blm-05:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-034.yml
@@ -2892,7 +2892,7 @@ services:
       blm-twin-034:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-034.yml
@@ -2907,7 +2907,7 @@ services:
       redis-blm-05:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-035.yml
@@ -2920,7 +2920,7 @@ services:
       blm-twin-035:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-035.yml
@@ -2935,7 +2935,7 @@ services:
       redis-blm-05:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-036.yml
@@ -2948,7 +2948,7 @@ services:
       blm-twin-036:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-036.yml
@@ -2963,7 +2963,7 @@ services:
       redis-blm-05:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-037.yml
@@ -2976,7 +2976,7 @@ services:
       blm-twin-037:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-037.yml
@@ -2991,7 +2991,7 @@ services:
       redis-blm-05:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-038.yml
@@ -3004,7 +3004,7 @@ services:
       blm-twin-038:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-038.yml
@@ -3019,7 +3019,7 @@ services:
       redis-blm-05:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-039.yml
@@ -3032,7 +3032,7 @@ services:
       blm-twin-039:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-039.yml
@@ -3047,7 +3047,7 @@ services:
       redis-blm-05:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-040.yml
@@ -3060,7 +3060,7 @@ services:
       blm-twin-040:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-040.yml
@@ -3075,7 +3075,7 @@ services:
       redis-blm-06:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-041.yml
@@ -3088,7 +3088,7 @@ services:
       blm-twin-041:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-041.yml
@@ -3103,7 +3103,7 @@ services:
       redis-blm-06:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-042.yml
@@ -3116,7 +3116,7 @@ services:
       blm-twin-042:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-042.yml
@@ -3131,7 +3131,7 @@ services:
       redis-blm-06:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-043.yml
@@ -3144,7 +3144,7 @@ services:
       blm-twin-043:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-043.yml
@@ -3159,7 +3159,7 @@ services:
       redis-blm-06:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-044.yml
@@ -3172,7 +3172,7 @@ services:
       blm-twin-044:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-044.yml
@@ -3187,7 +3187,7 @@ services:
       redis-blm-06:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-045.yml
@@ -3200,7 +3200,7 @@ services:
       blm-twin-045:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-045.yml
@@ -3215,7 +3215,7 @@ services:
       redis-blm-06:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-046.yml
@@ -3228,7 +3228,7 @@ services:
       blm-twin-046:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-046.yml
@@ -3243,7 +3243,7 @@ services:
       redis-blm-06:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-047.yml
@@ -3256,7 +3256,7 @@ services:
       blm-twin-047:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-047.yml
@@ -3271,7 +3271,7 @@ services:
       redis-blm-06:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-048.yml
@@ -3284,7 +3284,7 @@ services:
       blm-twin-048:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-048.yml
@@ -3299,7 +3299,7 @@ services:
       redis-blm-07:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-049.yml
@@ -3312,7 +3312,7 @@ services:
       blm-twin-049:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-049.yml
@@ -3327,7 +3327,7 @@ services:
       redis-blm-07:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-050.yml
@@ -3340,7 +3340,7 @@ services:
       blm-twin-050:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-050.yml
@@ -3355,7 +3355,7 @@ services:
       redis-blm-07:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-051.yml
@@ -3368,7 +3368,7 @@ services:
       blm-twin-051:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-051.yml
@@ -3383,7 +3383,7 @@ services:
       redis-blm-07:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-052.yml
@@ -3396,7 +3396,7 @@ services:
       blm-twin-052:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-052.yml
@@ -3411,7 +3411,7 @@ services:
       redis-blm-07:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-053.yml
@@ -3424,7 +3424,7 @@ services:
       blm-twin-053:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-053.yml
@@ -3439,7 +3439,7 @@ services:
       redis-blm-07:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-054.yml
@@ -3452,7 +3452,7 @@ services:
       blm-twin-054:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-054.yml
@@ -3467,7 +3467,7 @@ services:
       redis-blm-07:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-055.yml
@@ -3480,7 +3480,7 @@ services:
       blm-twin-055:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-055.yml
@@ -3495,7 +3495,7 @@ services:
       redis-blm-07:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-056.yml
@@ -3508,7 +3508,7 @@ services:
       blm-twin-056:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-056.yml
@@ -3523,7 +3523,7 @@ services:
       redis-blm-08:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-057.yml
@@ -3536,7 +3536,7 @@ services:
       blm-twin-057:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-057.yml
@@ -3551,7 +3551,7 @@ services:
       redis-blm-08:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-058.yml
@@ -3564,7 +3564,7 @@ services:
       blm-twin-058:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-058.yml
@@ -3579,7 +3579,7 @@ services:
       redis-blm-08:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-059.yml
@@ -3592,7 +3592,7 @@ services:
       blm-twin-059:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-059.yml
@@ -3607,7 +3607,7 @@ services:
       redis-blm-08:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-060.yml
@@ -3620,7 +3620,7 @@ services:
       blm-twin-060:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-060.yml
@@ -3635,7 +3635,7 @@ services:
       redis-blm-08:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-061.yml
@@ -3648,7 +3648,7 @@ services:
       blm-twin-061:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-061.yml
@@ -3663,7 +3663,7 @@ services:
       redis-blm-08:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-062.yml
@@ -3676,7 +3676,7 @@ services:
       blm-twin-062:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-062.yml
@@ -3691,7 +3691,7 @@ services:
       redis-blm-08:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-063.yml
@@ -3704,7 +3704,7 @@ services:
       blm-twin-063:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-063.yml
@@ -3719,7 +3719,7 @@ services:
       redis-blm-08:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-064.yml
@@ -3732,7 +3732,7 @@ services:
       blm-twin-064:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-064.yml
@@ -3747,7 +3747,7 @@ services:
       redis-blm-09:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-065.yml
@@ -3760,7 +3760,7 @@ services:
       blm-twin-065:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-065.yml
@@ -3774,7 +3774,7 @@ services:
       redis-blm-09:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-066.yml
@@ -3787,7 +3787,7 @@ services:
       blm-twin-066:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-066.yml
@@ -3801,7 +3801,7 @@ services:
       redis-blm-09:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-067.yml
@@ -3814,7 +3814,7 @@ services:
       blm-twin-067:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-067.yml
@@ -3828,7 +3828,7 @@ services:
       redis-blm-09:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-068.yml
@@ -3841,7 +3841,7 @@ services:
       blm-twin-068:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-068.yml
@@ -3855,7 +3855,7 @@ services:
       redis-blm-09:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-069.yml
@@ -3868,7 +3868,7 @@ services:
       blm-twin-069:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-069.yml
@@ -3882,7 +3882,7 @@ services:
       redis-blm-09:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-070.yml
@@ -3895,7 +3895,7 @@ services:
       blm-twin-070:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-070.yml
@@ -3909,7 +3909,7 @@ services:
       redis-blm-09:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-071.yml
@@ -3922,7 +3922,7 @@ services:
       blm-twin-071:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-071.yml
@@ -3936,7 +3936,7 @@ services:
       redis-blm-09:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-072.yml
@@ -3949,7 +3949,7 @@ services:
       blm-twin-072:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-072.yml
@@ -3963,7 +3963,7 @@ services:
       redis-blm-10:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-073.yml
@@ -3976,7 +3976,7 @@ services:
       blm-twin-073:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-073.yml
@@ -3990,7 +3990,7 @@ services:
       redis-blm-10:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-074.yml
@@ -4003,7 +4003,7 @@ services:
       blm-twin-074:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-074.yml
@@ -4017,7 +4017,7 @@ services:
       redis-blm-10:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-075.yml
@@ -4030,7 +4030,7 @@ services:
       blm-twin-075:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-075.yml
@@ -4044,7 +4044,7 @@ services:
       redis-blm-10:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-076.yml
@@ -4057,7 +4057,7 @@ services:
       blm-twin-076:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-076.yml
@@ -4071,7 +4071,7 @@ services:
       redis-blm-10:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-077.yml
@@ -4084,7 +4084,7 @@ services:
       blm-twin-077:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-077.yml
@@ -4098,7 +4098,7 @@ services:
       redis-blm-10:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-078.yml
@@ -4111,7 +4111,7 @@ services:
       blm-twin-078:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-078.yml
@@ -4125,7 +4125,7 @@ services:
       redis-blm-10:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-079.yml
@@ -4138,7 +4138,7 @@ services:
       blm-twin-079:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-079.yml
@@ -4152,7 +4152,7 @@ services:
       redis-blm-10:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-080.yml
@@ -4165,7 +4165,7 @@ services:
       blm-twin-080:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-080.yml
@@ -4179,7 +4179,7 @@ services:
       redis-blm-11:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-081.yml
@@ -4192,7 +4192,7 @@ services:
       blm-twin-081:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-081.yml
@@ -4206,7 +4206,7 @@ services:
       redis-blm-11:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-082.yml
@@ -4219,7 +4219,7 @@ services:
       blm-twin-082:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-082.yml
@@ -4233,7 +4233,7 @@ services:
       redis-blm-11:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-083.yml
@@ -4246,7 +4246,7 @@ services:
       blm-twin-083:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-083.yml
@@ -4260,7 +4260,7 @@ services:
       redis-blm-11:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-084.yml
@@ -4273,7 +4273,7 @@ services:
       blm-twin-084:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-084.yml
@@ -4287,7 +4287,7 @@ services:
       redis-blm-11:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-085.yml
@@ -4300,7 +4300,7 @@ services:
       blm-twin-085:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-085.yml
@@ -4314,7 +4314,7 @@ services:
       redis-blm-11:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-086.yml
@@ -4327,7 +4327,7 @@ services:
       blm-twin-086:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-086.yml
@@ -4341,7 +4341,7 @@ services:
       redis-blm-11:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-087.yml
@@ -4354,7 +4354,7 @@ services:
       blm-twin-087:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-087.yml
@@ -4367,7 +4367,7 @@ services:
       redis-blm-11:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-088.yml
@@ -4380,7 +4380,7 @@ services:
       blm-twin-088:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-088.yml
@@ -4393,7 +4393,7 @@ services:
       redis-blm-12:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-089.yml
@@ -4406,7 +4406,7 @@ services:
       blm-twin-089:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-089.yml
@@ -4419,7 +4419,7 @@ services:
       redis-blm-12:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-090.yml
@@ -4432,7 +4432,7 @@ services:
       blm-twin-090:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-090.yml
@@ -4445,7 +4445,7 @@ services:
       redis-blm-12:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-091.yml
@@ -4458,7 +4458,7 @@ services:
       blm-twin-091:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-091.yml
@@ -4471,7 +4471,7 @@ services:
       redis-blm-12:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-092.yml
@@ -4484,7 +4484,7 @@ services:
       blm-twin-092:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-092.yml
@@ -4497,7 +4497,7 @@ services:
       redis-blm-12:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-093.yml
@@ -4510,7 +4510,7 @@ services:
       blm-twin-093:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-093.yml
@@ -4523,7 +4523,7 @@ services:
       redis-blm-12:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-094.yml
@@ -4536,7 +4536,7 @@ services:
       blm-twin-094:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-094.yml
@@ -4549,7 +4549,7 @@ services:
       redis-blm-12:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-095.yml
@@ -4562,7 +4562,7 @@ services:
       blm-twin-095:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-095.yml
@@ -4575,7 +4575,7 @@ services:
       redis-blm-12:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-096.yml
@@ -4588,7 +4588,7 @@ services:
       blm-twin-096:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-096.yml
@@ -4601,7 +4601,7 @@ services:
       redis-blm-13:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-097.yml
@@ -4614,7 +4614,7 @@ services:
       blm-twin-097:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-097.yml
@@ -4627,7 +4627,7 @@ services:
       redis-blm-13:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-098.yml
@@ -4640,7 +4640,7 @@ services:
       blm-twin-098:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-098.yml
@@ -4653,7 +4653,7 @@ services:
       redis-blm-13:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-099.yml
@@ -4666,7 +4666,7 @@ services:
       blm-twin-099:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-099.yml
@@ -4679,7 +4679,7 @@ services:
       redis-blm-13:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-100.yml
@@ -4692,7 +4692,7 @@ services:
       blm-twin-100:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-100.yml
@@ -4705,7 +4705,7 @@ services:
       redis-blm-13:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-101.yml
@@ -4718,7 +4718,7 @@ services:
       blm-twin-101:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-101.yml
@@ -4731,7 +4731,7 @@ services:
       redis-blm-13:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-102.yml
@@ -4744,7 +4744,7 @@ services:
       blm-twin-102:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-102.yml
@@ -4757,7 +4757,7 @@ services:
       redis-blm-13:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-103.yml
@@ -4770,7 +4770,7 @@ services:
       blm-twin-103:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-103.yml
@@ -4783,7 +4783,7 @@ services:
       redis-blm-13:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-104.yml
@@ -4796,7 +4796,7 @@ services:
       blm-twin-104:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-104.yml
@@ -4809,7 +4809,7 @@ services:
       redis-blm-14:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-105.yml
@@ -4822,7 +4822,7 @@ services:
       blm-twin-105:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-105.yml
@@ -4835,7 +4835,7 @@ services:
       redis-blm-14:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-106.yml
@@ -4848,7 +4848,7 @@ services:
       blm-twin-106:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-106.yml
@@ -4861,7 +4861,7 @@ services:
       redis-blm-14:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-107.yml
@@ -4874,7 +4874,7 @@ services:
       blm-twin-107:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-107.yml
@@ -4887,7 +4887,7 @@ services:
       redis-blm-14:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-108.yml
@@ -4900,7 +4900,7 @@ services:
       blm-twin-108:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-108.yml
@@ -4913,7 +4913,7 @@ services:
       redis-blm-14:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-109.yml
@@ -4926,7 +4926,7 @@ services:
       blm-twin-109:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-109.yml
@@ -4938,7 +4938,7 @@ services:
       redis-blm-14:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-110.yml
@@ -4951,7 +4951,7 @@ services:
       blm-twin-110:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-110.yml
@@ -4963,7 +4963,7 @@ services:
       redis-blm-14:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-111.yml
@@ -4976,7 +4976,7 @@ services:
       blm-twin-111:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-111.yml
@@ -4988,7 +4988,7 @@ services:
       redis-blm-14:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-112.yml
@@ -5001,7 +5001,7 @@ services:
       blm-twin-112:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-112.yml
@@ -5013,7 +5013,7 @@ services:
       redis-blm-15:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-113.yml
@@ -5026,7 +5026,7 @@ services:
       blm-twin-113:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-113.yml
@@ -5038,7 +5038,7 @@ services:
       redis-blm-15:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-114.yml
@@ -5051,7 +5051,7 @@ services:
       blm-twin-114:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-114.yml
@@ -5063,7 +5063,7 @@ services:
       redis-blm-15:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-115.yml
@@ -5076,7 +5076,7 @@ services:
       blm-twin-115:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-115.yml
@@ -5088,7 +5088,7 @@ services:
       redis-blm-15:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-116.yml
@@ -5101,7 +5101,7 @@ services:
       blm-twin-116:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-116.yml
@@ -5113,7 +5113,7 @@ services:
       redis-blm-15:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-117.yml
@@ -5126,7 +5126,7 @@ services:
       blm-twin-117:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-117.yml
@@ -5138,7 +5138,7 @@ services:
       redis-blm-15:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-118.yml
@@ -5151,7 +5151,7 @@ services:
       blm-twin-118:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-118.yml
@@ -5163,7 +5163,7 @@ services:
       redis-blm-15:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-119.yml
@@ -5176,7 +5176,7 @@ services:
       blm-twin-119:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-119.yml
@@ -5188,7 +5188,7 @@ services:
       redis-blm-15:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-120.yml
@@ -5201,7 +5201,7 @@ services:
       blm-twin-120:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-120.yml
@@ -5213,7 +5213,7 @@ services:
       redis-blm-16:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-121.yml
@@ -5226,7 +5226,7 @@ services:
       blm-twin-121:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-121.yml
@@ -5238,7 +5238,7 @@ services:
       redis-blm-16:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-122.yml
@@ -5251,7 +5251,7 @@ services:
       blm-twin-122:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-122.yml
@@ -5263,7 +5263,7 @@ services:
       redis-blm-16:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-123.yml
@@ -5276,7 +5276,7 @@ services:
       blm-twin-123:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-123.yml
@@ -5288,7 +5288,7 @@ services:
       redis-blm-16:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-124.yml
@@ -5301,7 +5301,7 @@ services:
       blm-twin-124:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-124.yml
@@ -5313,7 +5313,7 @@ services:
       redis-blm-16:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-125.yml
@@ -5326,7 +5326,7 @@ services:
       blm-twin-125:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-125.yml
@@ -5338,7 +5338,7 @@ services:
       redis-blm-16:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-126.yml
@@ -5351,7 +5351,7 @@ services:
       blm-twin-126:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-126.yml
@@ -5363,7 +5363,7 @@ services:
       redis-blm-16:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-127.yml
@@ -5376,7 +5376,7 @@ services:
       blm-twin-127:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-127.yml
@@ -5388,7 +5388,7 @@ services:
       redis-blm-16:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-128.yml
@@ -5401,7 +5401,7 @@ services:
       blm-twin-128:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-128.yml
@@ -5413,7 +5413,7 @@ services:
       redis-blm-17:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-129.yml
@@ -5426,7 +5426,7 @@ services:
       blm-twin-129:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-129.yml
@@ -5438,7 +5438,7 @@ services:
       redis-blm-17:
         condition: service_healthy
     volumes:
-    - ./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
+    - ../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro
     command:
     - /blm-twin
     - /etc/adapters/system/blm-twin/blm-twin-130.yml
@@ -5451,7 +5451,7 @@ services:
       blm-twin-130:
         condition: service_started
     volumes:
-    - ./system-configs/blm:/etc/adapters/system/blm:ro
+    - ../system-configs/blm:/etc/adapters/system/blm:ro
     command:
     - /blm
     - /etc/adapters/system/blm/blm-130.yml
@@ -5467,7 +5467,7 @@ services:
       redis-bcm-01:
         condition: service_healthy
     volumes:
-    - ./system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
+    - ../system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
     command:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-01.yml
@@ -5480,7 +5480,7 @@ services:
       bcm-twin-01:
         condition: service_started
     volumes:
-    - ./system-configs/bcm:/etc/adapters/system/bcm:ro
+    - ../system-configs/bcm:/etc/adapters/system/bcm:ro
     command:
     - /bcm
     - /etc/adapters/system/bcm/bcm-01.yml
@@ -5496,7 +5496,7 @@ services:
       redis-bcm-01:
         condition: service_healthy
     volumes:
-    - ./system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
+    - ../system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
     command:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-02.yml
@@ -5509,7 +5509,7 @@ services:
       bcm-twin-02:
         condition: service_started
     volumes:
-    - ./system-configs/bcm:/etc/adapters/system/bcm:ro
+    - ../system-configs/bcm:/etc/adapters/system/bcm:ro
     command:
     - /bcm
     - /etc/adapters/system/bcm/bcm-02.yml
@@ -5525,7 +5525,7 @@ services:
       redis-bcm-01:
         condition: service_healthy
     volumes:
-    - ./system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
+    - ../system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
     command:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-03.yml
@@ -5538,7 +5538,7 @@ services:
       bcm-twin-03:
         condition: service_started
     volumes:
-    - ./system-configs/bcm:/etc/adapters/system/bcm:ro
+    - ../system-configs/bcm:/etc/adapters/system/bcm:ro
     command:
     - /bcm
     - /etc/adapters/system/bcm/bcm-03.yml
@@ -5554,7 +5554,7 @@ services:
       redis-bcm-01:
         condition: service_healthy
     volumes:
-    - ./system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
+    - ../system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
     command:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-04.yml
@@ -5567,7 +5567,7 @@ services:
       bcm-twin-04:
         condition: service_started
     volumes:
-    - ./system-configs/bcm:/etc/adapters/system/bcm:ro
+    - ../system-configs/bcm:/etc/adapters/system/bcm:ro
     command:
     - /bcm
     - /etc/adapters/system/bcm/bcm-04.yml
@@ -5583,7 +5583,7 @@ services:
       redis-bcm-02:
         condition: service_healthy
     volumes:
-    - ./system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
+    - ../system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
     command:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-05.yml
@@ -5596,7 +5596,7 @@ services:
       bcm-twin-05:
         condition: service_started
     volumes:
-    - ./system-configs/bcm:/etc/adapters/system/bcm:ro
+    - ../system-configs/bcm:/etc/adapters/system/bcm:ro
     command:
     - /bcm
     - /etc/adapters/system/bcm/bcm-05.yml
@@ -5611,7 +5611,7 @@ services:
       redis-bcm-02:
         condition: service_healthy
     volumes:
-    - ./system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
+    - ../system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
     command:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-06.yml
@@ -5624,7 +5624,7 @@ services:
       bcm-twin-06:
         condition: service_started
     volumes:
-    - ./system-configs/bcm:/etc/adapters/system/bcm:ro
+    - ../system-configs/bcm:/etc/adapters/system/bcm:ro
     command:
     - /bcm
     - /etc/adapters/system/bcm/bcm-06.yml
@@ -5639,7 +5639,7 @@ services:
       redis-bcm-02:
         condition: service_healthy
     volumes:
-    - ./system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
+    - ../system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
     command:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-07.yml
@@ -5652,7 +5652,7 @@ services:
       bcm-twin-07:
         condition: service_started
     volumes:
-    - ./system-configs/bcm:/etc/adapters/system/bcm:ro
+    - ../system-configs/bcm:/etc/adapters/system/bcm:ro
     command:
     - /bcm
     - /etc/adapters/system/bcm/bcm-07.yml
@@ -5667,7 +5667,7 @@ services:
       redis-bcm-02:
         condition: service_healthy
     volumes:
-    - ./system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
+    - ../system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
     command:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-08.yml
@@ -5680,7 +5680,7 @@ services:
       bcm-twin-08:
         condition: service_started
     volumes:
-    - ./system-configs/bcm:/etc/adapters/system/bcm:ro
+    - ../system-configs/bcm:/etc/adapters/system/bcm:ro
     command:
     - /bcm
     - /etc/adapters/system/bcm/bcm-08.yml
@@ -5695,7 +5695,7 @@ services:
       redis-bcm-03:
         condition: service_healthy
     volumes:
-    - ./system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
+    - ../system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
     command:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-09.yml
@@ -5708,7 +5708,7 @@ services:
       bcm-twin-09:
         condition: service_started
     volumes:
-    - ./system-configs/bcm:/etc/adapters/system/bcm:ro
+    - ../system-configs/bcm:/etc/adapters/system/bcm:ro
     command:
     - /bcm
     - /etc/adapters/system/bcm/bcm-09.yml
@@ -5723,7 +5723,7 @@ services:
       redis-bcm-03:
         condition: service_healthy
     volumes:
-    - ./system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
+    - ../system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
     command:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-10.yml
@@ -5736,7 +5736,7 @@ services:
       bcm-twin-10:
         condition: service_started
     volumes:
-    - ./system-configs/bcm:/etc/adapters/system/bcm:ro
+    - ../system-configs/bcm:/etc/adapters/system/bcm:ro
     command:
     - /bcm
     - /etc/adapters/system/bcm/bcm-10.yml
@@ -5750,7 +5750,7 @@ services:
       redis-bcm-03:
         condition: service_healthy
     volumes:
-    - ./system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
+    - ../system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
     command:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-11.yml
@@ -5763,7 +5763,7 @@ services:
       bcm-twin-11:
         condition: service_started
     volumes:
-    - ./system-configs/bcm:/etc/adapters/system/bcm:ro
+    - ../system-configs/bcm:/etc/adapters/system/bcm:ro
     command:
     - /bcm
     - /etc/adapters/system/bcm/bcm-11.yml
@@ -5777,7 +5777,7 @@ services:
       redis-bcm-03:
         condition: service_healthy
     volumes:
-    - ./system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
+    - ../system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
     command:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-12.yml
@@ -5790,7 +5790,7 @@ services:
       bcm-twin-12:
         condition: service_started
     volumes:
-    - ./system-configs/bcm:/etc/adapters/system/bcm:ro
+    - ../system-configs/bcm:/etc/adapters/system/bcm:ro
     command:
     - /bcm
     - /etc/adapters/system/bcm/bcm-12.yml
@@ -5804,7 +5804,7 @@ services:
       redis-bcm-04:
         condition: service_healthy
     volumes:
-    - ./system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
+    - ../system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
     command:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-13.yml
@@ -5817,7 +5817,7 @@ services:
       bcm-twin-13:
         condition: service_started
     volumes:
-    - ./system-configs/bcm:/etc/adapters/system/bcm:ro
+    - ../system-configs/bcm:/etc/adapters/system/bcm:ro
     command:
     - /bcm
     - /etc/adapters/system/bcm/bcm-13.yml
@@ -5831,7 +5831,7 @@ services:
       redis-bcm-04:
         condition: service_healthy
     volumes:
-    - ./system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
+    - ../system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
     command:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-14.yml
@@ -5844,7 +5844,7 @@ services:
       bcm-twin-14:
         condition: service_started
     volumes:
-    - ./system-configs/bcm:/etc/adapters/system/bcm:ro
+    - ../system-configs/bcm:/etc/adapters/system/bcm:ro
     command:
     - /bcm
     - /etc/adapters/system/bcm/bcm-14.yml
@@ -5857,7 +5857,7 @@ services:
       redis-bcm-04:
         condition: service_healthy
     volumes:
-    - ./system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
+    - ../system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
     command:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-15.yml
@@ -5870,7 +5870,7 @@ services:
       bcm-twin-15:
         condition: service_started
     volumes:
-    - ./system-configs/bcm:/etc/adapters/system/bcm:ro
+    - ../system-configs/bcm:/etc/adapters/system/bcm:ro
     command:
     - /bcm
     - /etc/adapters/system/bcm/bcm-15.yml
@@ -5883,7 +5883,7 @@ services:
       redis-bcm-04:
         condition: service_healthy
     volumes:
-    - ./system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
+    - ../system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
     command:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-16.yml
@@ -5896,7 +5896,7 @@ services:
       bcm-twin-16:
         condition: service_started
     volumes:
-    - ./system-configs/bcm:/etc/adapters/system/bcm:ro
+    - ../system-configs/bcm:/etc/adapters/system/bcm:ro
     command:
     - /bcm
     - /etc/adapters/system/bcm/bcm-16.yml
@@ -5909,7 +5909,7 @@ services:
       redis-bcm-05:
         condition: service_healthy
     volumes:
-    - ./system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
+    - ../system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
     command:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-17.yml
@@ -5922,7 +5922,7 @@ services:
       bcm-twin-17:
         condition: service_started
     volumes:
-    - ./system-configs/bcm:/etc/adapters/system/bcm:ro
+    - ../system-configs/bcm:/etc/adapters/system/bcm:ro
     command:
     - /bcm
     - /etc/adapters/system/bcm/bcm-17.yml
@@ -5934,7 +5934,7 @@ services:
       redis-bcm-05:
         condition: service_healthy
     volumes:
-    - ./system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
+    - ../system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
     command:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-18.yml
@@ -5947,7 +5947,7 @@ services:
       bcm-twin-18:
         condition: service_started
     volumes:
-    - ./system-configs/bcm:/etc/adapters/system/bcm:ro
+    - ../system-configs/bcm:/etc/adapters/system/bcm:ro
     command:
     - /bcm
     - /etc/adapters/system/bcm/bcm-18.yml
@@ -5959,7 +5959,7 @@ services:
       redis-bcm-05:
         condition: service_healthy
     volumes:
-    - ./system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
+    - ../system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
     command:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-19.yml
@@ -5972,7 +5972,7 @@ services:
       bcm-twin-19:
         condition: service_started
     volumes:
-    - ./system-configs/bcm:/etc/adapters/system/bcm:ro
+    - ../system-configs/bcm:/etc/adapters/system/bcm:ro
     command:
     - /bcm
     - /etc/adapters/system/bcm/bcm-19.yml
@@ -5984,7 +5984,7 @@ services:
       redis-bcm-05:
         condition: service_healthy
     volumes:
-    - ./system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
+    - ../system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro
     command:
     - /bcm-twin
     - /etc/adapters/system/bcm-twin/bcm-twin-20.yml
@@ -5997,7 +5997,7 @@ services:
       bcm-twin-20:
         condition: service_started
     volumes:
-    - ./system-configs/bcm:/etc/adapters/system/bcm:ro
+    - ../system-configs/bcm:/etc/adapters/system/bcm:ro
     command:
     - /bcm
     - /etc/adapters/system/bcm/bcm-20.yml
