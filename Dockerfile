@@ -31,6 +31,28 @@ RUN cmake -S . -B build \
     && strip build/adapters/bcm/bcm \
     && strip build/adapters/bcm-twin/bcm-twin
 
+# ---- Redis TUI (Rust) ----
+FROM rust:latest AS tui-builder
+
+RUN apt-get update && apt-get install -y musl-tools && rm -rf /var/lib/apt/lists/*
+RUN rustup target add x86_64-unknown-linux-musl
+
+WORKDIR /app
+RUN git clone --depth 1 https://github.com/bigsamich/redis-tui.git . \
+    && cargo build --release --target x86_64-unknown-linux-musl \
+    && strip target/x86_64-unknown-linux-musl/release/redis-tui
+
+# ---- Instrument TUI (Rust) ----
+FROM rust:latest AS inst-tui-builder
+
+RUN apt-get update && apt-get install -y musl-tools && rm -rf /var/lib/apt/lists/*
+RUN rustup target add x86_64-unknown-linux-musl
+
+WORKDIR /app
+COPY adapters/inst-tui/ .
+RUN cargo build --release --target x86_64-unknown-linux-musl \
+    && strip target/x86_64-unknown-linux-musl/release/inst-tui
+
 # ---- Runtime image ----
 FROM scratch
 
@@ -48,6 +70,8 @@ COPY --from=builder /src/build/adapters/blm/blm /blm
 COPY --from=builder /src/build/adapters/blm-twin/blm-twin /blm-twin
 COPY --from=builder /src/build/adapters/bcm/bcm /bcm
 COPY --from=builder /src/build/adapters/bcm-twin/bcm-twin /bcm-twin
+COPY --from=tui-builder /app/target/x86_64-unknown-linux-musl/release/redis-tui /redis-tui
+COPY --from=inst-tui-builder /app/target/x86_64-unknown-linux-musl/release/inst-tui /inst-tui
 
 COPY adapters/device-twin/configs/ /etc/adapters/device-twin/
 COPY adapters/baseline-subtract/configs/ /etc/adapters/baseline-subtract/

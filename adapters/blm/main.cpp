@@ -27,6 +27,7 @@
 //
 
 #include "waveform_utils.hpp"
+#include "metadata.hpp"
 #include <yaml-cpp/yaml.h>
 
 #include <atomic>
@@ -224,6 +225,46 @@ int main(int argc, char* argv[])
     auto tNow = std::chrono::steady_clock::now();
     for (auto& w : cfg.windows)
         w.avgStart = tNow;
+
+    // ---- Publish metadata ----
+    {
+        std::vector<ChannelMetaEntry> metaCh;
+        for (size_t i = 0; i < nCh; ++i)
+        {
+            metaCh.push_back({cfg.channelOpts[i].rawKey, "waveform",
+                              "Ch" + std::to_string(i) + " Raw", ""});
+            if (!cfg.channelOpts[i].filterKey.empty())
+                metaCh.push_back({cfg.channelOpts[i].filterKey, "waveform",
+                                  "Ch" + std::to_string(i) + " Filtered", ""});
+        }
+        for (auto& win : cfg.windows)
+        {
+            for (size_t i = 0; i < nCh; ++i)
+            {
+                if (!win.outputKeys[i].empty())
+                {
+                    bool isSingleBin = (static_cast<size_t>(win.binSamples) >= 50000);
+                    metaCh.push_back({win.outputKeys[i],
+                                      isSingleBin ? "scalar" : "waveform",
+                                      win.name + " Ch" + std::to_string(i), ""});
+                }
+                if (!win.avgKeys[i].empty())
+                    metaCh.push_back({win.avgKeys[i], "scalar",
+                                      win.name + " Avg Ch" + std::to_string(i), ""});
+            }
+        }
+
+        std::vector<ControlMetaEntry> ctrls = {
+            {"LOSS_AMPLITUDE_S", "Loss Amplitude", 1.0},
+            {"LOSS_ENABLE_S",    "Loss Enable",    1.0},
+        };
+        for (size_t i = 0; i < nCh; ++i)
+            ctrls.push_back({"CH" + std::to_string(i) + "_SCALE_S",
+                             "Ch" + std::to_string(i) + " Scale", 1.0});
+
+        publishMetadata(redis, "blm", cfg.deviceName,
+                        dataTypeName(cfg.dataTypeOut), metaCh, ctrls);
+    }
 
     uint64_t processCount = 0;
 

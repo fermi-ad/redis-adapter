@@ -20,3 +20,6 @@ Testing/
 *.swp
 *.swo
 *~
+
+# Rust
+**/target/

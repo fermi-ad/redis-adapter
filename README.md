@@ -203,6 +203,7 @@ redis-adapter/
     magnitude/             IQ magnitude and phase (sqrt(I^2+Q^2))
     position-intensity/    Difference-over-sum beam position
     device-twin/           Generic ACCT device twin simulator
+    inst-tui/              Instrument TUI (Rust) for BPM/BLM/BCM monitoring
   system-configs/          Generated configs for full system simulation
   generate_system.py       System config + compose generator
   hiredis/                 hiredis submodule

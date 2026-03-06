@@ -25,6 +25,7 @@
 //
 
 #include "waveform_utils.hpp"
+#include "metadata.hpp"
 #include <yaml-cpp/yaml.h>
 
 #include <atomic>
@@ -223,6 +224,48 @@ int main(int argc, char* argv[])
         co.gatedAvg5m.start   = tNow;
         co.ungatedAvg1m.start = tNow;
         co.ungatedAvg5m.start = tNow;
+    }
+
+    // ---- Publish metadata ----
+    {
+        std::vector<ChannelMetaEntry> metaCh;
+        for (size_t i = 0; i < nCh; ++i)
+        {
+            metaCh.push_back({cfg.channelOpts[i].subKey, "waveform",
+                              "Ch" + std::to_string(i) + " Subtracted", ""});
+            if (!cfg.channelOpts[i].filterKey.empty())
+                metaCh.push_back({cfg.channelOpts[i].filterKey, "waveform",
+                                  "Ch" + std::to_string(i) + " Filtered", ""});
+            if (!cfg.channelOpts[i].gatedKey.empty())
+                metaCh.push_back({cfg.channelOpts[i].gatedKey, "scalar",
+                                  "Ch" + std::to_string(i) + " Gated", ""});
+            if (!cfg.channelOpts[i].gatedAvg1mKey.empty())
+                metaCh.push_back({cfg.channelOpts[i].gatedAvg1mKey, "scalar",
+                                  "Ch" + std::to_string(i) + " Gated 1m Avg", ""});
+            if (!cfg.channelOpts[i].gatedAvg5mKey.empty())
+                metaCh.push_back({cfg.channelOpts[i].gatedAvg5mKey, "scalar",
+                                  "Ch" + std::to_string(i) + " Gated 5m Avg", ""});
+            if (!cfg.channelOpts[i].ungatedKey.empty())
+                metaCh.push_back({cfg.channelOpts[i].ungatedKey, "scalar",
+                                  "Ch" + std::to_string(i) + " Ungated", ""});
+            if (!cfg.channelOpts[i].ungatedAvg1mKey.empty())
+                metaCh.push_back({cfg.channelOpts[i].ungatedAvg1mKey, "scalar",
+                                  "Ch" + std::to_string(i) + " Ungated 1m Avg", ""});
+            if (!cfg.channelOpts[i].ungatedAvg5mKey.empty())
+                metaCh.push_back({cfg.channelOpts[i].ungatedAvg5mKey, "scalar",
+                                  "Ch" + std::to_string(i) + " Ungated 5m Avg", ""});
+        }
+
+        std::vector<ControlMetaEntry> ctrls = {
+            {"BEAM_CURRENT_S", "Beam Current (mA)", 100.0},
+            {"GATE_ENABLE_S",  "Gate Enable",       1.0},
+        };
+        for (size_t i = 0; i < nCh; ++i)
+            ctrls.push_back({"CH" + std::to_string(i) + "_GAIN_S",
+                             "Ch" + std::to_string(i) + " Gain", 1.0});
+
+        publishMetadata(redis, "bcm", cfg.deviceName,
+                        dataTypeName(cfg.dataTypeOut), metaCh, ctrls);
     }
 
     uint64_t processCount = 0;

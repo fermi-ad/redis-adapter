@@ -21,6 +21,7 @@
 //
 
 #include "waveform_utils.hpp"
+#include "metadata.hpp"
 #include <yaml-cpp/yaml.h>
 
 #include <atomic>
@@ -322,6 +323,56 @@ int main(int argc, char* argv[])
     auto tNow = std::chrono::steady_clock::now();
     for (auto& w : cfg.windows)
         w.avgStart = tNow;
+
+    // ---- Publish metadata ----
+    {
+        std::vector<ChannelMetaEntry> metaCh;
+        for (size_t i = 0; i < nCh; ++i)
+        {
+            metaCh.push_back({cfg.magKeys[i], "waveform",
+                              "Ch" + std::to_string(i) + " Magnitude", ""});
+            if (!cfg.phaseKeys[i].empty())
+                metaCh.push_back({cfg.phaseKeys[i], "waveform",
+                                  "Ch" + std::to_string(i) + " Phase", "rad"});
+            if (!cfg.channelOpts[i].filterKey.empty())
+                metaCh.push_back({cfg.channelOpts[i].filterKey, "waveform",
+                                  "Ch" + std::to_string(i) + " Filtered", ""});
+            if (!cfg.channelOpts[i].fftMagKey.empty())
+                metaCh.push_back({cfg.channelOpts[i].fftMagKey, "waveform",
+                                  "FFT Magnitude", ""});
+            if (!cfg.channelOpts[i].fftPhaseKey.empty())
+                metaCh.push_back({cfg.channelOpts[i].fftPhaseKey, "waveform",
+                                  "FFT Phase", "rad"});
+            if (!cfg.channelOpts[i].baselineSubKey.empty())
+                metaCh.push_back({cfg.channelOpts[i].baselineSubKey, "waveform",
+                                  "Baseline Subtracted", ""});
+        }
+        for (auto& pp : cfg.positions)
+        {
+            metaCh.push_back({pp.posKey, "waveform", pp.posKey + " Position", "mm"});
+            metaCh.push_back({pp.intKey, "waveform", pp.intKey + " Intensity", ""});
+        }
+        for (auto& win : cfg.windows)
+        {
+            metaCh.push_back({win.outputKey, "scalar", win.outputKey + " Integral", ""});
+            if (!win.avgKey.empty())
+                metaCh.push_back({win.avgKey, "scalar", win.avgKey + " Avg", ""});
+        }
+
+        std::vector<ControlMetaEntry> ctrls = {
+            {"BEAM_X_S",        "Beam X (mm)",      2.0},
+            {"BEAM_Y_S",        "Beam Y (mm)",     -1.0},
+            {"BEAM_INTENSITY_S","Beam Intensity",    1.0},
+            {"NOISE_S",         "Noise",             0.02},
+            {"GATE_ENABLE_S",   "Gate Enable",       1.0},
+            {"GATE_START_S",    "Gate Start",        0.2},
+            {"GATE_WIDTH_S",    "Gate Width",        0.4},
+            {"MODE_CHANGE_S",   "Mode (0=IQ,1=ADC)",0.0},
+        };
+
+        publishMetadata(redis, "bpm", cfg.deviceName,
+                        dataTypeName(cfg.dataTypeOut), metaCh, ctrls);
+    }
 
     uint64_t processCount = 0;
 
