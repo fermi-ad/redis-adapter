@@ -4,10 +4,10 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CHART_DIR="$SCRIPT_DIR/redis-adapter"
-CONFIGS_SRC="$SCRIPT_DIR/../system-configs"
+CONFIGS_SRC="$SCRIPT_DIR/../adapters/system-configs"
 
 if [ ! -d "$CONFIGS_SRC" ]; then
-    echo "Error: system-configs/ not found. Run generate_system.py first."
+    echo "Error: adapters/system-configs/ not found. Run adapters/generate_system.py first."
     exit 1
 fi
 
