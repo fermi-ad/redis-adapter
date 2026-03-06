@@ -1,0 +1,14 @@
+redis://redis-bcm-01:6379
+redis://redis-bcm-02:6379
+redis://redis-blm-01:6379
+redis://redis-blm-02:6379
+redis://redis-bpm-001:6379
+redis://redis-bpm-002:6379
+redis://redis-bpm-003:6379
+redis://redis-bpm-004:6379
+redis://redis-bpm-005:6379
+redis://redis-bpm-006:6379
+redis://redis-bpm-007:6379
+redis://redis-bpm-008:6379
+redis://redis-bpm-009:6379
+redis://redis-bpm-010:6379

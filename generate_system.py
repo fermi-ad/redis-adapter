@@ -352,7 +352,7 @@ def gen_bcm_adapter_config(idx, redis_host):
 def gen_compose(bpm_instances, blm_instances, bcm_instances):
     services = {}
 
-    build_block = {"context": ".", "dockerfile": "Dockerfile"}
+    build_block = {"context": "..", "dockerfile": "Dockerfile"}
     # Track Redis services and their profiles (broadened across all users)
     redis_profiles = {}  # redis_name -> profile list
 
@@ -379,7 +379,7 @@ def gen_compose(bpm_instances, blm_instances, bcm_instances):
             "build": build_block,
             "profiles": profiles,
             "depends_on": {redis_name: {"condition": "service_healthy"}},
-            "volumes": ["./system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro"],
+            "volumes": ["../system-configs/bpm-twin:/etc/adapters/system/bpm-twin:ro"],
             "command": ["/bpm-twin", twin_cfg],
         }
         services[adap_name] = {
@@ -389,7 +389,7 @@ def gen_compose(bpm_instances, blm_instances, bcm_instances):
                 redis_name: {"condition": "service_healthy"},
                 twin_name: {"condition": "service_started"},
             },
-            "volumes": ["./system-configs/bpm:/etc/adapters/system/bpm:ro"],
+            "volumes": ["../system-configs/bpm:/etc/adapters/system/bpm:ro"],
             "command": ["/bpm", adap_cfg],
         }
 
@@ -414,7 +414,7 @@ def gen_compose(bpm_instances, blm_instances, bcm_instances):
             "build": build_block,
             "profiles": profiles,
             "depends_on": {redis_name: {"condition": "service_healthy"}},
-            "volumes": ["./system-configs/blm-twin:/etc/adapters/system/blm-twin:ro"],
+            "volumes": ["../system-configs/blm-twin:/etc/adapters/system/blm-twin:ro"],
             "command": ["/blm-twin", twin_cfg],
         }
         services[adap_name] = {
@@ -424,7 +424,7 @@ def gen_compose(bpm_instances, blm_instances, bcm_instances):
                 redis_name: {"condition": "service_healthy"},
                 twin_name: {"condition": "service_started"},
             },
-            "volumes": ["./system-configs/blm:/etc/adapters/system/blm:ro"],
+            "volumes": ["../system-configs/blm:/etc/adapters/system/blm:ro"],
             "command": ["/blm", adap_cfg],
         }
 
@@ -449,7 +449,7 @@ def gen_compose(bpm_instances, blm_instances, bcm_instances):
             "build": build_block,
             "profiles": profiles,
             "depends_on": {redis_name: {"condition": "service_healthy"}},
-            "volumes": ["./system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro"],
+            "volumes": ["../system-configs/bcm-twin:/etc/adapters/system/bcm-twin:ro"],
             "command": ["/bcm-twin", twin_cfg],
         }
         services[adap_name] = {
@@ -459,7 +459,7 @@ def gen_compose(bpm_instances, blm_instances, bcm_instances):
                 redis_name: {"condition": "service_healthy"},
                 twin_name: {"condition": "service_started"},
             },
-            "volumes": ["./system-configs/bcm:/etc/adapters/system/bcm:ro"],
+            "volumes": ["../system-configs/bcm:/etc/adapters/system/bcm:ro"],
             "command": ["/bcm", adap_cfg],
         }
 
@@ -469,7 +469,7 @@ def gen_compose(bpm_instances, blm_instances, bcm_instances):
         svc["profiles"] = profiles
         services[redis_name] = svc
 
-    # Generate per-profile hosts files (for on-demand inst-tui use)
+    # Generate per-profile hosts files (for on-demand inst-tui and redis-tui use)
     for profile in ["tiny", "small", "medium", "large", "full"]:
         profile_hosts = sorted(
             name for name, profs in redis_profiles.items()
@@ -479,6 +479,10 @@ def gen_compose(bpm_instances, blm_instances, bcm_instances):
         with open(hosts_file, "w") as hf:
             for h in profile_hosts:
                 hf.write(f"{h}\n")
+        redis_tui_file = os.path.join(OUT_DIR, f"redis-tui-hosts-{profile}.txt")
+        with open(redis_tui_file, "w") as hf:
+            for h in profile_hosts:
+                hf.write(f"redis://{h}:6379\n")
 
     return {"services": services}, len(redis_profiles)
 
