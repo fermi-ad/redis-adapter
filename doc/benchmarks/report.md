@@ -23,8 +23,10 @@ xychart-beta
     title "Serialization & Timestamp Helpers — Pure CPU (lower is better)"
     x-axis ["from_double", "to_double", "from_int", "to_int", "from_blob(64B)", "from_blob(1K)", "Time->ID", "ID->Time"]
     y-axis "Latency (ns)" 0 --> 70
-    bar [42.0, 1.9, 41.8, 2.0, 53.0, 68.1, 35.6, 29.9]
+    bar "Latency (ns)" [42.0, 1.9, 41.8, 2.0, 53.0, 68.1, 35.6, 29.9]
 ```
+
+> **Legend:** Single series — all values are pure CPU latency in nanoseconds.
 
 ---
 
@@ -33,14 +35,19 @@ xychart-beta
 Latency for individual add/get operations over TCP loopback. Redis 7.0.15 is consistently ~2x faster than 8.x for single-threaded operations.
 
 ```mermaid
+---
+config:
+    xyChart:
+        showLegend: true
+---
 xychart-beta
     title "Single Operation Latency — TCP (lower is better, us)"
     x-axis ["addDouble", "addInt", "addStr16", "getDouble", "getInt", "getStr16", "PING"]
     y-axis "Latency (us)" 0 --> 40
-    bar "7.0.15" [17.5, 16.1, 15.0, 16.6, 15.9, 13.6, 14.4]
-    bar "7.4.8" [16.5, 17.8, 15.5, 17.1, 17.3, 17.8, 15.3]
-    bar "8.0.2" [29.2, 31.4, 30.7, 34.8, 29.9, 31.8, 26.2]
-    bar "8.6.1" [28.3, 30.3, 32.6, 34.0, 34.2, 28.8, 27.5]
+    bar "Redis 7.0.15" [17.5, 16.1, 15.0, 16.6, 15.9, 13.6, 14.4]
+    bar "Redis 7.4.8" [16.5, 17.8, 15.5, 17.1, 17.3, 17.8, 15.3]
+    bar "Redis 8.0.2" [29.2, 31.4, 30.7, 34.8, 29.9, 31.8, 26.2]
+    bar "Redis 8.6.1" [28.3, 30.3, 32.6, 34.0, 34.2, 28.8, 27.5]
 ```
 
 | Operation | 7.0.15 | 7.4.8 | 8.0.2 | 8.6.1 |
@@ -60,14 +67,19 @@ xychart-beta
 Same operations over Unix domain socket. UDS reduces latency by 5-8us vs TCP on 7.0.15.
 
 ```mermaid
+---
+config:
+    xyChart:
+        showLegend: true
+---
 xychart-beta
     title "Single Operation Latency — UDS (lower is better, us)"
     x-axis ["addDouble", "addInt", "addStr16", "getDouble", "getInt", "getStr16", "PING"]
     y-axis "Latency (us)" 0 --> 35
-    bar "7.0.15" [11.6, 11.3, 9.7, 14.3, 11.2, 10.0, 10.7]
-    bar "7.4.8" [12.9, 11.3, 10.8, 13.7, 14.3, 16.6, 7.9]
-    bar "8.0.2" [26.2, 28.5, 28.2, 30.6, 29.6, 26.5, 25.9]
-    bar "8.6.1" [25.3, 26.7, 27.5, 31.3, 27.2, 28.8, 25.8]
+    bar "Redis 7.0.15" [11.6, 11.3, 9.7, 14.3, 11.2, 10.0, 10.7]
+    bar "Redis 7.4.8" [12.9, 11.3, 10.8, 13.7, 14.3, 16.6, 7.9]
+    bar "Redis 8.0.2" [26.2, 28.5, 28.2, 30.6, 29.6, 26.5, 25.9]
+    bar "Redis 8.6.1" [25.3, 26.7, 27.5, 31.3, 27.2, 28.8, 25.8]
 ```
 
 | Operation | 7.0.15 | 7.4.8 | 8.0.2 | 8.6.1 |
@@ -87,6 +99,11 @@ xychart-beta
 Direct transport comparison on the fastest Redis version. UDS wins by 1.3-1.9x on every operation.
 
 ```mermaid
+---
+config:
+    xyChart:
+        showLegend: true
+---
 xychart-beta
     title "TCP vs UDS — Redis 7.0.15 (lower is better, us)"
     x-axis ["addDouble", "getDouble", "PING", "Add+Get"]
@@ -111,27 +128,37 @@ Aggregate throughput with N concurrent writer threads. Redis 7.0.15+UDS peaks at
 ### TCP
 
 ```mermaid
+---
+config:
+    xyChart:
+        showLegend: true
+---
 xychart-beta
     title "Parallel Writers — TCP (higher is better, k ops/s)"
     x-axis ["1 thread", "2 threads", "4 threads", "8 threads"]
     y-axis "Throughput (k ops/s)" 0 --> 220
-    line "7.0.15" [59.8, 130.7, 190.5, 184.6]
-    line "7.4.8" [58.7, 120.5, 166.5, 174.7]
-    line "8.0.2" [31.2, 58.4, 113.5, 205.4]
-    line "8.6.1" [33.0, 60.8, 113.3, 197.0]
+    line "Redis 7.0.15" [59.8, 130.7, 190.5, 184.6]
+    line "Redis 7.4.8" [58.7, 120.5, 166.5, 174.7]
+    line "Redis 8.0.2" [31.2, 58.4, 113.5, 205.4]
+    line "Redis 8.6.1" [33.0, 60.8, 113.3, 197.0]
 ```
 
 ### UDS
 
 ```mermaid
+---
+config:
+    xyChart:
+        showLegend: true
+---
 xychart-beta
     title "Parallel Writers — UDS (higher is better, k ops/s)"
     x-axis ["1 thread", "2 threads", "4 threads", "8 threads"]
     y-axis "Throughput (k ops/s)" 0 --> 270
-    line "7.0.15" [75.8, 180.9, 248.5, 248.0]
-    line "7.4.8" [78.0, 211.1, 249.9, 246.8]
-    line "8.0.2" [38.3, 68.7, 126.5, 258.2]
-    line "8.6.1" [32.6, 74.2, 132.4, 254.0]
+    line "Redis 7.0.15" [75.8, 180.9, 248.5, 248.0]
+    line "Redis 7.4.8" [78.0, 211.1, 249.9, 246.8]
+    line "Redis 8.0.2" [38.3, 68.7, 126.5, 258.2]
+    line "Redis 8.6.1" [32.6, 74.2, 132.4, 254.0]
 ```
 
 | Writers | 7.0 TCP | 7.0 UDS | 8.0 TCP | 8.0 UDS |
@@ -150,27 +177,37 @@ Individual XADD calls in a loop. UDS advantage compounds linearly with batch siz
 ### TCP
 
 ```mermaid
+---
+config:
+    xyChart:
+        showLegend: true
+---
 xychart-beta
     title "Bulk Add — TCP (higher is better, k items/s)"
     x-axis ["Batch 10", "Batch 100", "Batch 1000"]
     y-axis "Throughput (k items/s)" 0 --> 170
-    bar "7.0.15" [155.6, 133.3, 110.6]
-    bar "7.4.8" [144.6, 134.6, 148.1]
-    bar "8.0.2" [104.0, 130.3, 106.2]
-    bar "8.6.1" [99.5, 97.5, 118.1]
+    bar "Redis 7.0.15" [155.6, 133.3, 110.6]
+    bar "Redis 7.4.8" [144.6, 134.6, 148.1]
+    bar "Redis 8.0.2" [104.0, 130.3, 106.2]
+    bar "Redis 8.6.1" [99.5, 97.5, 118.1]
 ```
 
 ### UDS
 
 ```mermaid
+---
+config:
+    xyChart:
+        showLegend: true
+---
 xychart-beta
     title "Bulk Add — UDS (higher is better, k items/s)"
     x-axis ["Batch 10", "Batch 100", "Batch 1000"]
     y-axis "Throughput (k items/s)" 0 --> 230
-    bar "7.0.15" [176.1, 176.1, 188.1]
-    bar "7.4.8" [224.8, 140.1, 128.2]
-    bar "8.0.2" [127.5, 125.7, 163.7]
-    bar "8.6.1" [110.4, 135.7, 144.4]
+    bar "Redis 7.0.15" [176.1, 176.1, 188.1]
+    bar "Redis 7.4.8" [224.8, 140.1, 128.2]
+    bar "Redis 8.0.2" [127.5, 125.7, 163.7]
+    bar "Redis 8.6.1" [110.4, 135.7, 144.4]
 ```
 
 ---
