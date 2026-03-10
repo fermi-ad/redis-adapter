@@ -1,3 +1,7 @@
 [submodule "hiredis"]
 	path = hiredis
 	url = git@github.com:redis/hiredis.git
+[submodule "general-epics-ioc"]
+	path = general-epics-ioc
+	url = git@github.com:fermi-ad/general-epics-ioc.git
+	branch = multi-config

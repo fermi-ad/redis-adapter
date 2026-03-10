@@ -1,0 +1,5 @@
+IOC:
+  IOCName: SPARK:INST
+  PVBase: SPARK:INST
+  RedisBase: SPARK:INST
+  AliveRHost: 127.0.0.1

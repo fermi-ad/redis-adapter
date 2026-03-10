@@ -1,0 +1,160 @@
+Device:
+  DeviceName: BCM:0008
+  RedisHost: redis-bcm-02
+  PVList:
+  - PVName: SUB_CH0
+    GetKey: SUB_CH0
+    ValType: Float32
+    ValCount: 10000
+  - PVName: SUB_CH1
+    GetKey: SUB_CH1
+    ValType: Float32
+    ValCount: 10000
+  - PVName: SUB_CH2
+    GetKey: SUB_CH2
+    ValType: Float32
+    ValCount: 10000
+  - PVName: SUB_CH3
+    GetKey: SUB_CH3
+    ValType: Float32
+    ValCount: 10000
+  - PVName: FILTERED_CH0
+    GetKey: FILTERED_CH0
+    ValType: Float32
+    ValCount: 10000
+  - PVName: INTEG_GATED_CH0
+    GetKey: INTEG_GATED_CH0
+    ValType: Float32
+  - PVName: GATED_AVG1M_CH0
+    GetKey: GATED_AVG1M_CH0
+    ValType: Float32
+  - PVName: GATED_AVG5M_CH0
+    GetKey: GATED_AVG5M_CH0
+    ValType: Float32
+  - PVName: INTEG_UNGATED_CH0
+    GetKey: INTEG_UNGATED_CH0
+    ValType: Float32
+  - PVName: UNGATED_AVG1M_CH0
+    GetKey: UNGATED_AVG1M_CH0
+    ValType: Float32
+  - PVName: UNGATED_AVG5M_CH0
+    GetKey: UNGATED_AVG5M_CH0
+    ValType: Float32
+  - PVName: INTEG_GATED_CH1
+    GetKey: INTEG_GATED_CH1
+    ValType: Float32
+  - PVName: GATED_AVG1M_CH1
+    GetKey: GATED_AVG1M_CH1
+    ValType: Float32
+  - PVName: GATED_AVG5M_CH1
+    GetKey: GATED_AVG5M_CH1
+    ValType: Float32
+  - PVName: INTEG_UNGATED_CH1
+    GetKey: INTEG_UNGATED_CH1
+    ValType: Float32
+  - PVName: UNGATED_AVG1M_CH1
+    GetKey: UNGATED_AVG1M_CH1
+    ValType: Float32
+  - PVName: UNGATED_AVG5M_CH1
+    GetKey: UNGATED_AVG5M_CH1
+    ValType: Float32
+  - PVName: INTEG_GATED_CH2
+    GetKey: INTEG_GATED_CH2
+    ValType: Float32
+  - PVName: GATED_AVG1M_CH2
+    GetKey: GATED_AVG1M_CH2
+    ValType: Float32
+  - PVName: GATED_AVG5M_CH2
+    GetKey: GATED_AVG5M_CH2
+    ValType: Float32
+  - PVName: INTEG_UNGATED_CH2
+    GetKey: INTEG_UNGATED_CH2
+    ValType: Float32
+  - PVName: UNGATED_AVG1M_CH2
+    GetKey: UNGATED_AVG1M_CH2
+    ValType: Float32
+  - PVName: UNGATED_AVG5M_CH2
+    GetKey: UNGATED_AVG5M_CH2
+    ValType: Float32
+  - PVName: INTEG_GATED_CH3
+    GetKey: INTEG_GATED_CH3
+    ValType: Float32
+  - PVName: GATED_AVG1M_CH3
+    GetKey: GATED_AVG1M_CH3
+    ValType: Float32
+  - PVName: GATED_AVG5M_CH3
+    GetKey: GATED_AVG5M_CH3
+    ValType: Float32
+  - PVName: INTEG_UNGATED_CH3
+    GetKey: INTEG_UNGATED_CH3
+    ValType: Float32
+  - PVName: UNGATED_AVG1M_CH3
+    GetKey: UNGATED_AVG1M_CH3
+    ValType: Float32
+  - PVName: UNGATED_AVG5M_CH3
+    GetKey: UNGATED_AVG5M_CH3
+    ValType: Float32
+  - PVName: RAW_BCM_WF
+    GetKey: RAW_BCM_WF
+    ValType: Float32
+    ValCount: 40000
+  - PVName: BKG_BCM_WF
+    GetKey: BKG_BCM_WF
+    ValType: Float32
+    ValCount: 40000
+  - PVName: BEAM_CURRENT
+    GetKey: BEAM_CURRENT
+    PutKey: BEAM_CURRENT_S
+    ValType: Float64
+  - PVName: BASELINE
+    GetKey: BASELINE
+    PutKey: BASELINE_S
+    ValType: Float64
+  - PVName: NOISE
+    GetKey: NOISE
+    PutKey: NOISE_S
+    ValType: Float64
+  - PVName: CARRIER_FREQ
+    GetKey: CARRIER_FREQ
+    PutKey: CARRIER_FREQ_S
+    ValType: Float64
+  - PVName: CARRIER_PHASE
+    GetKey: CARRIER_PHASE
+    PutKey: CARRIER_PHASE_S
+    ValType: Float64
+  - PVName: GATE_START
+    GetKey: GATE_START
+    PutKey: GATE_START_S
+    ValType: Float64
+  - PVName: GATE_WIDTH
+    GetKey: GATE_WIDTH
+    PutKey: GATE_WIDTH_S
+    ValType: Float64
+  - PVName: UPDATE_INTERVAL
+    GetKey: UPDATE_INTERVAL
+    PutKey: UPDATE_INTERVAL_S
+    ValType: Int32
+  - PVName: SAMPLES_PER_CH
+    GetKey: SAMPLES_PER_CH
+    PutKey: SAMPLES_PER_CH_S
+    ValType: Int32
+  - PVName: GATE_ENABLE
+    GetKey: GATE_ENABLE
+    PutKey: GATE_ENABLE_S
+    ValType: Int32
+  - PVName: CH0_GAIN
+    GetKey: CH0_GAIN
+    PutKey: CH0_GAIN_S
+    ValType: Float64
+  - PVName: CH1_GAIN
+    GetKey: CH1_GAIN
+    PutKey: CH1_GAIN_S
+    ValType: Float64
+  - PVName: CH2_GAIN
+    GetKey: CH2_GAIN
+    PutKey: CH2_GAIN_S
+    ValType: Float64
+  - PVName: CH3_GAIN
+    GetKey: CH3_GAIN
+    PutKey: CH3_GAIN_S
+    ValType: Float64

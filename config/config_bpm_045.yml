@@ -1,0 +1,188 @@
+Device:
+  DeviceName: BPM:0045
+  RedisHost: redis-bpm-045
+  PVList:
+  - PVName: MAG_CH0
+    GetKey: MAG_CH0
+    ValType: Float32
+    ValCount: 10000
+  - PVName: PHASE_CH0
+    GetKey: PHASE_CH0
+    ValType: Float32
+    ValCount: 10000
+  - PVName: MAG_CH1
+    GetKey: MAG_CH1
+    ValType: Float32
+    ValCount: 10000
+  - PVName: PHASE_CH1
+    GetKey: PHASE_CH1
+    ValType: Float32
+    ValCount: 10000
+  - PVName: MAG_CH2
+    GetKey: MAG_CH2
+    ValType: Float32
+    ValCount: 10000
+  - PVName: PHASE_CH2
+    GetKey: PHASE_CH2
+    ValType: Float32
+    ValCount: 10000
+  - PVName: MAG_CH3
+    GetKey: MAG_CH3
+    ValType: Float32
+    ValCount: 10000
+  - PVName: PHASE_CH3
+    GetKey: PHASE_CH3
+    ValType: Float32
+    ValCount: 10000
+  - PVName: MAG_CH4
+    GetKey: MAG_CH4
+    ValType: Float32
+    ValCount: 10000
+  - PVName: PHASE_CH4
+    GetKey: PHASE_CH4
+    ValType: Float32
+    ValCount: 10000
+  - PVName: MAG_CH5
+    GetKey: MAG_CH5
+    ValType: Float32
+    ValCount: 10000
+  - PVName: PHASE_CH5
+    GetKey: PHASE_CH5
+    ValType: Float32
+    ValCount: 10000
+  - PVName: MAG_CH6
+    GetKey: MAG_CH6
+    ValType: Float32
+    ValCount: 10000
+  - PVName: PHASE_CH6
+    GetKey: PHASE_CH6
+    ValType: Float32
+    ValCount: 10000
+  - PVName: MAG_CH7
+    GetKey: MAG_CH7
+    ValType: Float32
+    ValCount: 10000
+  - PVName: PHASE_CH7
+    GetKey: PHASE_CH7
+    ValType: Float32
+    ValCount: 10000
+  - PVName: FILTERED_CH0
+    GetKey: FILTERED_CH0
+    ValType: Float32
+    ValCount: 10000
+  - PVName: FFT_MAG
+    GetKey: FFT_MAG
+    ValType: Float32
+    ValCount: 5000
+  - PVName: FFT_PHASE
+    GetKey: FFT_PHASE
+    ValType: Float32
+    ValCount: 5000
+  - PVName: DIFF_H
+    GetKey: DIFF_H
+    ValType: Float32
+    ValCount: 10000
+  - PVName: POS_H
+    GetKey: POS_H
+    ValType: Float32
+    ValCount: 10000
+  - PVName: INT_H
+    GetKey: INT_H
+    ValType: Float32
+    ValCount: 10000
+  - PVName: POS_V
+    GetKey: POS_V
+    ValType: Float32
+    ValCount: 10000
+  - PVName: INT_V
+    GetKey: INT_V
+    ValType: Float32
+    ValCount: 10000
+  - PVName: POS_H1
+    GetKey: POS_H1
+    ValType: Float32
+    ValCount: 10000
+  - PVName: INT_H1
+    GetKey: INT_H1
+    ValType: Float32
+    ValCount: 10000
+  - PVName: POS_V1
+    GetKey: POS_V1
+    ValType: Float32
+    ValCount: 10000
+  - PVName: INT_V1
+    GetKey: INT_V1
+    ValType: Float32
+    ValCount: 10000
+  - PVName: INTEG_NARROW
+    GetKey: INTEG_NARROW
+    ValType: Float32
+  - PVName: INTEG_NARROW_AVG
+    GetKey: INTEG_NARROW_AVG
+    ValType: Float32
+  - PVName: INTEG_WIDE
+    GetKey: INTEG_WIDE
+    ValType: Float32
+  - PVName: INTEG_WIDE_AVG
+    GetKey: INTEG_WIDE_AVG
+    ValType: Float32
+  - PVName: RAW_MUX_WF
+    GetKey: RAW_MUX_WF
+    ValType: Float32
+    ValCount: 160000
+  - PVName: BEAM_X
+    GetKey: BEAM_X
+    PutKey: BEAM_X_S
+    ValType: Float64
+  - PVName: BEAM_Y
+    GetKey: BEAM_Y
+    PutKey: BEAM_Y_S
+    ValType: Float64
+  - PVName: BEAM_INTENSITY
+    GetKey: BEAM_INTENSITY
+    PutKey: BEAM_INTENSITY_S
+    ValType: Float64
+  - PVName: APERTURE
+    GetKey: APERTURE
+    PutKey: APERTURE_S
+    ValType: Float64
+  - PVName: CARRIER_FREQ
+    GetKey: CARRIER_FREQ
+    PutKey: CARRIER_FREQ_S
+    ValType: Float64
+  - PVName: CARRIER_PHASE
+    GetKey: CARRIER_PHASE
+    PutKey: CARRIER_PHASE_S
+    ValType: Float64
+  - PVName: NOISE
+    GetKey: NOISE
+    PutKey: NOISE_S
+    ValType: Float64
+  - PVName: GATE_START
+    GetKey: GATE_START
+    PutKey: GATE_START_S
+    ValType: Float64
+  - PVName: GATE_WIDTH
+    GetKey: GATE_WIDTH
+    PutKey: GATE_WIDTH_S
+    ValType: Float64
+  - PVName: ADC_SCALE
+    GetKey: ADC_SCALE
+    PutKey: ADC_SCALE_S
+    ValType: Float64
+  - PVName: UPDATE_INTERVAL
+    GetKey: UPDATE_INTERVAL
+    PutKey: UPDATE_INTERVAL_S
+    ValType: Int32
+  - PVName: SAMPLES_PER_CH
+    GetKey: SAMPLES_PER_CH
+    PutKey: SAMPLES_PER_CH_S
+    ValType: Int32
+  - PVName: MODE_CHANGE
+    GetKey: MODE_CHANGE
+    PutKey: MODE_CHANGE_S
+    ValType: Int32
+  - PVName: GATE_ENABLE
+    GetKey: GATE_ENABLE
+    PutKey: GATE_ENABLE_S
+    ValType: Int32

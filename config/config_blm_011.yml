@@ -1,0 +1,98 @@
+Device:
+  DeviceName: BLM:0011
+  RedisHost: redis-blm-02
+  PVList:
+  - PVName: RAW_CH0
+    GetKey: RAW_CH0
+    ValType: Float32
+    ValCount: 10000
+  - PVName: FILTERED_CH0
+    GetKey: FILTERED_CH0
+    ValType: Float32
+    ValCount: 10000
+  - PVName: INTEG_10MS_CH0
+    GetKey: INTEG_10MS_CH0
+    ValType: Float32
+  - PVName: INTEG_10MS_AVG5M_CH0
+    GetKey: INTEG_10MS_AVG5M_CH0
+    ValType: Float32
+  - PVName: INTEG_10MS_AVG1M_CH0
+    GetKey: INTEG_10MS_AVG1M_CH0
+    ValType: Float32
+  - PVName: INTEG_FULL_CH0
+    GetKey: INTEG_FULL_CH0
+    ValType: Float32
+  - PVName: INTEG_FULL_AVG5M_CH0
+    GetKey: INTEG_FULL_AVG5M_CH0
+    ValType: Float32
+  - PVName: INTEG_FULL_AVG1M_CH0
+    GetKey: INTEG_FULL_AVG1M_CH0
+    ValType: Float32
+  - PVName: RAW_BLM_WF
+    GetKey: RAW_BLM_WF
+    ValType: Float32
+    ValCount: 10000
+  - PVName: BASELINE
+    GetKey: BASELINE
+    PutKey: BASELINE_S
+    ValType: Float64
+  - PVName: NOISE
+    GetKey: NOISE
+    PutKey: NOISE_S
+    ValType: Float64
+  - PVName: LOSS_AMPLITUDE
+    GetKey: LOSS_AMPLITUDE
+    PutKey: LOSS_AMPLITUDE_S
+    ValType: Float64
+  - PVName: LOSS_POSITION
+    GetKey: LOSS_POSITION
+    PutKey: LOSS_POSITION_S
+    ValType: Float64
+  - PVName: LOSS_WIDTH
+    GetKey: LOSS_WIDTH
+    PutKey: LOSS_WIDTH_S
+    ValType: Float64
+  - PVName: UPDATE_INTERVAL
+    GetKey: UPDATE_INTERVAL
+    PutKey: UPDATE_INTERVAL_S
+    ValType: Int32
+  - PVName: SAMPLES_PER_CH
+    GetKey: SAMPLES_PER_CH
+    PutKey: SAMPLES_PER_CH_S
+    ValType: Int32
+  - PVName: LOSS_ENABLE
+    GetKey: LOSS_ENABLE
+    PutKey: LOSS_ENABLE_S
+    ValType: Int32
+  - PVName: CH0_SCALE
+    GetKey: CH0_SCALE
+    PutKey: CH0_SCALE_S
+    ValType: Float64
+  - PVName: CH1_SCALE
+    GetKey: CH1_SCALE
+    PutKey: CH1_SCALE_S
+    ValType: Float64
+  - PVName: CH2_SCALE
+    GetKey: CH2_SCALE
+    PutKey: CH2_SCALE_S
+    ValType: Float64
+  - PVName: CH3_SCALE
+    GetKey: CH3_SCALE
+    PutKey: CH3_SCALE_S
+    ValType: Float64
+  - PVName: CH4_SCALE
+    GetKey: CH4_SCALE
+    PutKey: CH4_SCALE_S
+    ValType: Float64
+  - PVName: CH5_SCALE
+    GetKey: CH5_SCALE
+    PutKey: CH5_SCALE_S
+    ValType: Float64
+  - PVName: CH6_SCALE
+    GetKey: CH6_SCALE
+    PutKey: CH6_SCALE_S
+    ValType: Float64
+  - PVName: CH7_SCALE
+    GetKey: CH7_SCALE
+    PutKey: CH7_SCALE_S
+    ValType: Float64

@@ -36,6 +36,7 @@ import math
 import yaml
 
 OUT_DIR = "system-configs"
+IOC_DIR = "../config"
 COMPOSE_FILE = "docker-compose.yml"
 IMAGE_NAME = "redis-adapter:latest"
 
@@ -481,6 +482,255 @@ def gen_bcm_adapter_config(idx, redis_host):
 
 
 # ============================================================
+# General EPICS IOC config generators (multi-config format)
+# ============================================================
+#
+# Single IOC serving all device types. One config file per device.
+#   config/config.yaml          — base IOC config (IOCName, PVBase, RedisBase)
+#   config/config_bpm_001.yml   — BPM:0001 on redis-bpm-001
+#   config/config_blm_001.yml   — BLM:0001 on redis-blm-01
+#   config/config_bcm_01.yml    — BCM:0001 on redis-bcm-01
+#
+# Key construction:  RedisBase:DeviceName:GetKey
+#   RedisBase = "SPARK:INST", DeviceName = "BPM:0001", GetKey = "MAG_CH0"
+#   -> Redis key: "SPARK:INST:BPM:0001:MAG_CH0"
+#
+# PV name construction:  PVBase:DeviceName:PVName
+#   PVBase = "SPARK:INST", DeviceName = "BPM:0001", PVName = "MAG_CH0"
+#   -> PV: "SPARK:INST:BPM:0001:MAG_CH0"
+#
+
+IOC_BASE = "SPARK:INST"
+
+
+def gen_ioc_base_config():
+    """Generate the base config.yaml for the single IOC."""
+    return {
+        "IOC": {
+            "IOCName": IOC_BASE,
+            "PVBase": IOC_BASE,
+            "RedisBase": IOC_BASE,
+            "AliveRHost": "127.0.0.1",
+        }
+    }
+
+
+def gen_ioc_bpm_device(idx, num_channels, redis_host):
+    """Generate IOC device config for a BPM."""
+    dev_name = f"BPM:{idx:04d}"
+    pvlist = []
+
+    # --- Adapter output waveforms (read-only) ---
+    for ch in range(num_channels):
+        pvlist.append({"PVName": f"MAG_CH{ch}",   "GetKey": f"MAG_CH{ch}",   "ValType": "Float32", "ValCount": BPM_SAMPLES})
+        pvlist.append({"PVName": f"PHASE_CH{ch}", "GetKey": f"PHASE_CH{ch}", "ValType": "Float32", "ValCount": BPM_SAMPLES})
+
+    # Filtered (ch0 only)
+    pvlist.append({"PVName": "FILTERED_CH0", "GetKey": "FILTERED_CH0", "ValType": "Float32", "ValCount": BPM_SAMPLES})
+
+    # FFT
+    pvlist.append({"PVName": "FFT_MAG",   "GetKey": "FFT_MAG",   "ValType": "Float32", "ValCount": BPM_SAMPLES // 2})
+    pvlist.append({"PVName": "FFT_PHASE", "GetKey": "FFT_PHASE", "ValType": "Float32", "ValCount": BPM_SAMPLES // 2})
+
+    # Baseline subtraction
+    pvlist.append({"PVName": "DIFF_H", "GetKey": "DIFF_H", "ValType": "Float32", "ValCount": BPM_SAMPLES})
+
+    # Position-intensity pairs
+    pos_pairs = []
+    for base in range(0, num_channels, 4):
+        if base + 3 < num_channels:
+            suffix = f"{base // 4}" if base > 0 else ""
+            pos_pairs.append((f"POS_H{suffix}", f"INT_H{suffix}"))
+            pos_pairs.append((f"POS_V{suffix}", f"INT_V{suffix}"))
+
+    for pos_key, int_key in pos_pairs:
+        pvlist.append({"PVName": pos_key, "GetKey": pos_key, "ValType": "Float32", "ValCount": BPM_SAMPLES})
+        pvlist.append({"PVName": int_key, "GetKey": int_key, "ValType": "Float32", "ValCount": BPM_SAMPLES})
+
+    # Integration scalars
+    for key in ["INTEG_NARROW", "INTEG_NARROW_AVG", "INTEG_WIDE", "INTEG_WIDE_AVG"]:
+        pvlist.append({"PVName": key, "GetKey": key, "ValType": "Float32"})
+
+    # --- Raw input waveform (read-only) ---
+    pvlist.append({"PVName": "RAW_MUX_WF", "GetKey": "RAW_MUX_WF", "ValType": "Float32",
+                   "ValCount": BPM_SAMPLES * num_channels * 2})
+
+    # --- Twin control settings (read-write with confirmation) ---
+    settings_float = [
+        "BEAM_X", "BEAM_Y", "BEAM_INTENSITY", "APERTURE",
+        "CARRIER_FREQ", "CARRIER_PHASE", "NOISE",
+        "GATE_START", "GATE_WIDTH", "ADC_SCALE",
+    ]
+    settings_int = [
+        "UPDATE_INTERVAL", "SAMPLES_PER_CH", "MODE_CHANGE", "GATE_ENABLE",
+    ]
+
+    for name in settings_float:
+        pvlist.append({"PVName": name, "GetKey": name, "PutKey": f"{name}_S", "ValType": "Float64"})
+    for name in settings_int:
+        pvlist.append({"PVName": name, "GetKey": name, "PutKey": f"{name}_S", "ValType": "Int32"})
+
+    return {
+        "Device": {
+            "DeviceName": dev_name,
+            "RedisHost": redis_host,
+            "PVList": pvlist,
+        }
+    }
+
+
+def gen_ioc_blm_device(idx, redis_host):
+    """Generate IOC device config for a BLM."""
+    dev_name = f"BLM:{idx:04d}"
+    pvlist = []
+
+    # --- Adapter output waveforms (read-only) ---
+    pvlist.append({"PVName": "RAW_CH0",      "GetKey": "RAW_CH0",      "ValType": "Float32", "ValCount": BLM_SAMPLES})
+    pvlist.append({"PVName": "FILTERED_CH0", "GetKey": "FILTERED_CH0", "ValType": "Float32", "ValCount": BLM_SAMPLES})
+
+    # Integration outputs
+    pvlist.append({"PVName": "INTEG_10MS_CH0",      "GetKey": "INTEG_10MS_CH0",      "ValType": "Float32"})
+    pvlist.append({"PVName": "INTEG_10MS_AVG5M_CH0", "GetKey": "INTEG_10MS_AVG5M_CH0", "ValType": "Float32"})
+    pvlist.append({"PVName": "INTEG_10MS_AVG1M_CH0", "GetKey": "INTEG_10MS_AVG1M_CH0", "ValType": "Float32"})
+    pvlist.append({"PVName": "INTEG_FULL_CH0",       "GetKey": "INTEG_FULL_CH0",       "ValType": "Float32"})
+    pvlist.append({"PVName": "INTEG_FULL_AVG5M_CH0", "GetKey": "INTEG_FULL_AVG5M_CH0", "ValType": "Float32"})
+    pvlist.append({"PVName": "INTEG_FULL_AVG1M_CH0", "GetKey": "INTEG_FULL_AVG1M_CH0", "ValType": "Float32"})
+
+    # --- Raw input waveform (read-only) ---
+    pvlist.append({"PVName": "RAW_BLM_WF", "GetKey": "RAW_BLM_WF", "ValType": "Float32",
+                   "ValCount": BLM_SAMPLES * BLM_CHANNELS})
+
+    # --- Twin control settings (read-write with confirmation) ---
+    settings_float = [
+        "BASELINE", "NOISE", "LOSS_AMPLITUDE", "LOSS_POSITION", "LOSS_WIDTH",
+    ]
+    settings_int = [
+        "UPDATE_INTERVAL", "SAMPLES_PER_CH", "LOSS_ENABLE",
+    ]
+
+    for name in settings_float:
+        pvlist.append({"PVName": name, "GetKey": name, "PutKey": f"{name}_S", "ValType": "Float64"})
+    for name in settings_int:
+        pvlist.append({"PVName": name, "GetKey": name, "PutKey": f"{name}_S", "ValType": "Int32"})
+
+    # Per-channel scale settings (up to 8)
+    for ch in range(8):
+        pvlist.append({"PVName": f"CH{ch}_SCALE", "GetKey": f"CH{ch}_SCALE",
+                       "PutKey": f"CH{ch}_SCALE_S", "ValType": "Float64"})
+
+    return {
+        "Device": {
+            "DeviceName": dev_name,
+            "RedisHost": redis_host,
+            "PVList": pvlist,
+        }
+    }
+
+
+def gen_ioc_bcm_device(idx, redis_host):
+    """Generate IOC device config for a BCM."""
+    dev_name = f"BCM:{idx:04d}"
+    pvlist = []
+
+    # --- Adapter output waveforms (read-only) ---
+    for ch in range(BCM_CHANNELS):
+        pvlist.append({"PVName": f"SUB_CH{ch}", "GetKey": f"SUB_CH{ch}", "ValType": "Float32", "ValCount": BCM_SAMPLES})
+
+    pvlist.append({"PVName": "FILTERED_CH0", "GetKey": "FILTERED_CH0", "ValType": "Float32", "ValCount": BCM_SAMPLES})
+
+    # Per-channel integration scalars
+    for ch in range(BCM_CHANNELS):
+        pvlist.append({"PVName": f"INTEG_GATED_CH{ch}",    "GetKey": f"INTEG_GATED_CH{ch}",    "ValType": "Float32"})
+        pvlist.append({"PVName": f"GATED_AVG1M_CH{ch}",    "GetKey": f"GATED_AVG1M_CH{ch}",    "ValType": "Float32"})
+        pvlist.append({"PVName": f"GATED_AVG5M_CH{ch}",    "GetKey": f"GATED_AVG5M_CH{ch}",    "ValType": "Float32"})
+        pvlist.append({"PVName": f"INTEG_UNGATED_CH{ch}",  "GetKey": f"INTEG_UNGATED_CH{ch}",  "ValType": "Float32"})
+        pvlist.append({"PVName": f"UNGATED_AVG1M_CH{ch}",  "GetKey": f"UNGATED_AVG1M_CH{ch}",  "ValType": "Float32"})
+        pvlist.append({"PVName": f"UNGATED_AVG5M_CH{ch}",  "GetKey": f"UNGATED_AVG5M_CH{ch}",  "ValType": "Float32"})
+
+    # --- Raw input waveforms (read-only) ---
+    pvlist.append({"PVName": "RAW_BCM_WF", "GetKey": "RAW_BCM_WF", "ValType": "Float32",
+                   "ValCount": BCM_SAMPLES * BCM_CHANNELS})
+    pvlist.append({"PVName": "BKG_BCM_WF", "GetKey": "BKG_BCM_WF", "ValType": "Float32",
+                   "ValCount": BCM_SAMPLES * BCM_CHANNELS})
+
+    # --- Twin control settings (read-write with confirmation) ---
+    settings_float = [
+        "BEAM_CURRENT", "BASELINE", "NOISE",
+        "CARRIER_FREQ", "CARRIER_PHASE",
+        "GATE_START", "GATE_WIDTH",
+    ]
+    settings_int = [
+        "UPDATE_INTERVAL", "SAMPLES_PER_CH", "GATE_ENABLE",
+    ]
+
+    for name in settings_float:
+        pvlist.append({"PVName": name, "GetKey": name, "PutKey": f"{name}_S", "ValType": "Float64"})
+    for name in settings_int:
+        pvlist.append({"PVName": name, "GetKey": name, "PutKey": f"{name}_S", "ValType": "Int32"})
+
+    # Per-channel gain settings
+    for ch in range(BCM_CHANNELS):
+        pvlist.append({"PVName": f"CH{ch}_GAIN", "GetKey": f"CH{ch}_GAIN",
+                       "PutKey": f"CH{ch}_GAIN_S", "ValType": "Float64"})
+
+    return {
+        "Device": {
+            "DeviceName": dev_name,
+            "RedisHost": redis_host,
+            "PVList": pvlist,
+        }
+    }
+
+
+def gen_ioc_configs(bpm_instances, blm_instances, bcm_instances):
+    """Generate all General EPICS IOC config files (multi-config format).
+
+    Single IOC with one flat config directory:
+      config/config.yaml           — base IOC config
+      config/config_bpm_001.yml    — one per BPM device
+      config/config_blm_001.yml    — one per BLM device
+      config/config_bcm_01.yml     — one per BCM device
+    """
+    ensure_dir(IOC_DIR)
+    write_yaml(os.path.join(IOC_DIR, "config.yaml"), gen_ioc_base_config())
+    total_pvs = 0
+
+    # --- BPM devices ---
+    bpm_pvs = 0
+    for idx, nch in bpm_instances:
+        tag = f"{idx:03d}"
+        redis_host = f"redis-bpm-{tag}"
+        cfg = gen_ioc_bpm_device(idx, nch, redis_host)
+        write_yaml(os.path.join(IOC_DIR, f"config_bpm_{tag}.yml"), cfg)
+        bpm_pvs += len(cfg["Device"]["PVList"])
+    total_pvs += bpm_pvs
+
+    # --- BLM devices ---
+    blm_pvs = 0
+    for i, idx_blm in enumerate(blm_instances):
+        tag = f"{idx_blm:03d}"
+        dig = (i // BLM_PER_DIGITIZER) + 1
+        redis_host = f"redis-blm-{dig:02d}"
+        cfg = gen_ioc_blm_device(idx_blm, redis_host)
+        write_yaml(os.path.join(IOC_DIR, f"config_blm_{tag}.yml"), cfg)
+        blm_pvs += len(cfg["Device"]["PVList"])
+    total_pvs += blm_pvs
+
+    # --- BCM devices ---
+    bcm_pvs = 0
+    for i, idx_bcm in enumerate(bcm_instances):
+        tag = f"{idx_bcm:02d}"
+        dig = (i // BCM_PER_DIGITIZER) + 1
+        redis_host = f"redis-bcm-{dig:02d}"
+        cfg = gen_ioc_bcm_device(idx_bcm, redis_host)
+        write_yaml(os.path.join(IOC_DIR, f"config_bcm_{tag}.yml"), cfg)
+        bcm_pvs += len(cfg["Device"]["PVList"])
+    total_pvs += bcm_pvs
+
+    return bpm_pvs, blm_pvs, bcm_pvs, total_pvs
+
+
+# ============================================================
 # System services generation
 # ============================================================
 
@@ -681,6 +931,10 @@ def main():
         write_yaml(f"{OUT_DIR}/bcm/bcm-{tag}.yml", gen_bcm_adapter_config(idx_bcm, redis_host))
         bcm_instances.append(idx_bcm)
 
+    # --- General EPICS IOC configs ---
+    bpm_pvs, blm_pvs, bcm_pvs, total_pvs = gen_ioc_configs(
+        bpm_instances, blm_instances, bcm_instances)
+
     # --- Build unified compose ---
     system_services, num_redis = gen_system_services(bpm_instances, blm_instances, bcm_instances)
     demo_services = gen_demo_services()
@@ -782,6 +1036,12 @@ def main():
     print()
     print("  TUI tools: inst-tui, redis-tui (profile: tui)")
     print(f"Generated {COMPOSE_FILE}")
+    print()
+    print(f"Generated IOC configs in {IOC_DIR}/")
+    print(f"  BPM: {len(bpm_instances)} devices, {bpm_pvs} PVs")
+    print(f"  BLM: {NUM_BLM} devices, {blm_pvs} PVs")
+    print(f"  BCM: {NUM_BCM} devices, {bcm_pvs} PVs")
+    print(f"  Total: {total_pvs} PVs in 1 IOC ({len(bpm_instances) + NUM_BLM + NUM_BCM} device configs)")
 
 
 if __name__ == "__main__":

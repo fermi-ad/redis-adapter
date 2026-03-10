@@ -69,7 +69,9 @@ std::string RedisAdapterLite::build_key(const std::string& subKey,
                                          const std::string& baseKey) const
 {
   const std::string& base = baseKey.empty() ? _base_key : baseKey;
-  return subKey.empty() ? base : base + ":" + subKey;
+  if (subKey.empty()) return base;
+  if (base.empty())   return subKey;
+  return base + ":" + subKey;
 }
 
 std::pair<std::string, std::string> RedisAdapterLite::split_key(const std::string& key) const
