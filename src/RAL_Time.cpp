@@ -6,6 +6,7 @@
 
 #include "RAL_Time.hpp"
 #include <chrono>
+#include <syslog.h>
 
 static const uint32_t NANOS_PER_MILLI = 1'000'000;
 
@@ -23,7 +24,16 @@ RAL_Time::RAL_Time(const std::string& id)
     size_t pos = id.find('-');
     if (pos != std::string::npos) { value += std::stoll(id.substr(pos + 1)); }
   }
-  catch (...) { value = 0; }
+  catch (const std::exception& e)
+  {
+    syslog(LOG_WARNING, "RAL_Time: failed to parse '%s': %s", id.c_str(), e.what());
+    value = 0;
+  }
+  catch (...)
+  {
+    syslog(LOG_WARNING, "RAL_Time: failed to parse '%s'", id.c_str());
+    value = 0;
+  }
 }
 
 std::string RAL_Time::id() const
