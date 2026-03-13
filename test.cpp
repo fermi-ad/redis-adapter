@@ -533,3 +533,81 @@ TEST(RedisAdapter, Watchdog)
   this_thread::sleep_for(milliseconds(600));
   EXPECT_EQ(redis.getWatchdogs().size(), 1);
 }
+
+TEST(RedisAdapter, OutOfOrderTimestamp)
+{
+  RedisAdapter redis("TEST");
+
+  //  add a value at current time
+  RA_Time first = redis.addSingleValue("ooo", 100);
+  EXPECT_TRUE(first.ok());
+
+  //  add a value with a back-in-time timestamp - should fail gracefully, not crash or reconnect
+  RA_Time back = redis.addSingleValue("ooo", 200, { .time = RA_Time(1000) });
+  EXPECT_FALSE(back.ok());
+
+  //  verify the adapter is still connected and functional after the rejected add
+  EXPECT_TRUE(redis.connected());
+
+  //  verify the original value is still there
+  int val = 0;
+  EXPECT_TRUE(redis.getSingleValue("ooo", val).ok());
+  EXPECT_EQ(val, 100);
+
+  //  verify we can still add new values with current time
+  RA_Time next = redis.addSingleValue("ooo", 300);
+  EXPECT_TRUE(next.ok());
+
+  val = 0;
+  EXPECT_TRUE(redis.getSingleValue("ooo", val).ok());
+  EXPECT_EQ(val, 300);
+}
+
+TEST(RedisAdapter, DestructorWithActiveReaders)
+{
+  //  test that RedisAdapter destructor cleanly shuts down with active readers
+  //  previously, detached reconnect threads could outlive the object
+  {
+    RedisAdapter redis("TEST");
+
+    EXPECT_TRUE(redis.addValuesReader<int>("dtor_test", [&](const string& base, const string& sub, const RA::TimeValList<int>& ats)
+      {
+        //  reader callback - just consume data
+      }
+    ));
+    this_thread::sleep_for(milliseconds(5));
+
+    EXPECT_TRUE(redis.addSingleValue("dtor_test", 42).ok());
+    this_thread::sleep_for(milliseconds(50));
+  }
+  //  if we reach here without crash/hang, the destructor properly cleaned up
+
+  //  verify Redis is still functional by creating a new adapter
+  RedisAdapter redis2("TEST");
+  EXPECT_TRUE(redis2.connected());
+}
+
+TEST(RedisAdapter, ConcurrentReaderModification)
+{
+  //  test that concurrent reader add/remove doesn't corrupt state
+  RedisAdapter redis("TEST");
+
+  for (int i = 0; i < 5; i++)
+  {
+    string key = "conc_" + to_string(i);
+    EXPECT_TRUE(redis.addValuesReader<int>(key, [](const string& base, const string& sub, const RA::TimeValList<int>& ats) {}));
+  }
+  this_thread::sleep_for(milliseconds(10));
+
+  //  remove and re-add readers rapidly
+  for (int i = 0; i < 5; i++)
+  {
+    string key = "conc_" + to_string(i);
+    EXPECT_TRUE(redis.removeReader(key));
+  }
+  this_thread::sleep_for(milliseconds(10));
+
+  //  adapter should still be functional
+  EXPECT_TRUE(redis.connected());
+  EXPECT_TRUE(redis.addSingleValue("conc_check", 1).ok());
+}

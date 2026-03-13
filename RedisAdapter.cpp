@@ -91,12 +91,18 @@ RedisAdapter::RedisAdapter(const string& baseKey, const RA_Options& options) :
 //
 RedisAdapter::~RedisAdapter()
 {
-  if (_watchdog_run)
+  _shutdown = true;
+
+  if (_watchdog_run.load())
   {
     _watchdog_run = false;
     _watchdog_cv.notify_all();
     _watchdog_thd.join();
   }
+
+  if (_reconnect_thd.joinable()) _reconnect_thd.join();
+
+  std::lock_guard<std::mutex> lk(_reader_mtx);
   for (auto& item : _reader) { stop_reader(item.first); }
 }
 
@@ -134,12 +140,13 @@ RA_Time RedisAdapter::addSingleDouble(const string& subKey, double data, const R
 //
 bool RedisAdapter::setDeferReaders(bool defer)
 {
-  if (defer && ! _readers_defer)
+  std::lock_guard<std::mutex> lk(_reader_mtx);
+  if (defer && ! _readers_defer.load())
   {
     _readers_defer = defer;
     for (auto& item : _reader) { stop_reader(item.first); }
   }
-  else if ( ! defer && _readers_defer)
+  else if ( ! defer && _readers_defer.load())
   {
     _readers_defer = defer;
     for (auto& item : _reader) { start_reader(item.first); }
@@ -157,6 +164,8 @@ bool RedisAdapter::setDeferReaders(bool defer)
 bool RedisAdapter::addGenericReader(const string& key, ReaderSubFn<Attrs> func)
 {
   if (split_key(key).first.size()) return false;  //  reject if basekey found
+
+  std::lock_guard<std::mutex> lk(_reader_mtx);
 
   uint32_t token = reader_token(key);
   reader_info& info = _reader[token];
@@ -185,6 +194,8 @@ bool RedisAdapter::addGenericReader(const string& key, ReaderSubFn<Attrs> func)
 bool RedisAdapter::removeGenericReader(const string& key)
 {
   if (split_key(key).first.size()) return false;  //  reject if basekey found
+
+  std::lock_guard<std::mutex> lk(_reader_mtx);
 
   uint32_t token = reader_token(key);
   if (token == NO_TOKEN || _reader.count(token) == 0) return false;
@@ -271,6 +282,8 @@ bool RedisAdapter::add_reader_helper(const string& baseKey, const string& subKey
 {
   string key = build_key(subKey, baseKey);
 
+  std::lock_guard<std::mutex> lk(_reader_mtx);
+
   uint32_t token = reader_token(key);
   reader_info& info = _reader[token];
 
@@ -292,6 +305,8 @@ bool RedisAdapter::add_reader_helper(const string& baseKey, const string& subKey
 bool RedisAdapter::remove_reader_helper(const string& baseKey, const string& subKey)
 {
   string key = build_key(subKey, baseKey);
+
+  std::lock_guard<std::mutex> lk(_reader_mtx);
 
   uint32_t token = reader_token(key);
   if (token == NO_TOKEN || _reader.count(token) == 0) return false;
@@ -414,18 +429,27 @@ bool RedisAdapter::stop_reader(uint32_t token)
 //    on failure thread lingers for 100ms to throttle network connection requests
 int32_t RedisAdapter::reconnect(int32_t result)
 {
+  if (_shutdown) return result;
+
   if (result == 0 && _connecting.exchange(true) == false)
   {
-    thread([&]()
+    if (_reconnect_thd.joinable()) _reconnect_thd.join();
+
+    _reconnect_thd = thread([this]()
       {
         if (_redis.connect(_options.cxn))
         {
+          std::lock_guard<std::mutex> lk(_reader_mtx);
+
           //  stop any waiting readers
           for (const auto& rdr : _reader) { stop_reader(rdr.first); }
           //  if any NO_TOKEN readers exist move them to valid tokens
           if (_reader.count(NO_TOKEN))
           {
-            reader_info& tmp = _reader.at(NO_TOKEN);
+            //  move NO_TOKEN entry out first to avoid iterator invalidation
+            reader_info tmp = std::move(_reader.at(NO_TOKEN));
+            _reader.erase(NO_TOKEN);
+
             for (const auto& subs : tmp.subs)
             {
               string key = subs.first;
@@ -439,9 +463,7 @@ int32_t RedisAdapter::reconnect(int32_t result)
                 info.stop = build_key(part.second + ":" + STOP_STUB, part.first);
                 info.keyids[info.stop] = "$";
               }
-              // syslog(LOG_INFO, "RedisAdapter::reconnect create %s token %u funcs %zu", key.c_str(), token, subs.second.size());
             }
-            _reader.erase(NO_TOKEN);
           }
           //  restart all readers
           for (const auto& rdr : _reader) { start_reader(rdr.first); }
@@ -452,7 +474,7 @@ int32_t RedisAdapter::reconnect(int32_t result)
         }
         _connecting = false;  //  thread is done
       }
-    ).detach();   //  cast new thread into the void
+    );
   }
   return result;
 }
