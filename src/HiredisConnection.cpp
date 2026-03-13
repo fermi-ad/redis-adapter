@@ -7,6 +7,7 @@
 #include "HiredisConnection.hpp"
 #include <syslog.h>
 #include <cstdarg>
+#include <atomic>
 
 //--- Helper: create and configure a redisContext ---
 static redisContext* make_context(const RAL_Options& opts)
@@ -95,6 +96,12 @@ bool HiredisConnection::ping()
   bool ok = r && r->type == REDIS_REPLY_STATUS && std::string(r->str) == "PONG";
   if (r) freeReplyObject(r);
   return ok;
+}
+
+bool HiredisConnection::is_connected()
+{
+  std::lock_guard<std::mutex> lk(_mutex);
+  return _ctx != nullptr && _ctx->err == 0;
 }
 
 redisContext* HiredisConnection::create_context()
@@ -415,11 +422,11 @@ int32_t HiredisConnection::hexpire(const std::string& key, const std::string& fi
     std::string err(r->str, r->len);
     if (err.find("unknown command") != std::string::npos)
     {
-      static bool squelch = false;
-      if (!squelch)
+      static std::atomic<bool> squelch{false};
+      if (!squelch.load(std::memory_order_relaxed))
       {
         syslog(LOG_NOTICE, "HiredisConnection: HEXPIRE requires redis-server 7.4+");
-        squelch = true;
+        squelch.store(true, std::memory_order_relaxed);
       }
       return -3;
     }
@@ -455,6 +462,7 @@ std::vector<std::string> HiredisConnection::hkeys(const std::string& key)
 int64_t HiredisConnection::publish(const std::string& channel, const std::string& message)
 {
   std::lock_guard<std::mutex> lk(_mutex);
+  if (!_ctx) return -1;
 
   // Use argv-based command to handle binary-safe message
   std::string cmd_s = "PUBLISH";

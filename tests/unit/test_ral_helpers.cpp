@@ -10,6 +10,9 @@
 
 using namespace std;
 
+// Expose DEFAULT_FIELD address for cross-TU inline verification
+const std::string* default_field_addr_other_tu() { return &DEFAULT_FIELD; }
+
 TEST(RAL_Helpers, StringRoundTrip)
 {
   Attrs a = ral_from_string("hello");

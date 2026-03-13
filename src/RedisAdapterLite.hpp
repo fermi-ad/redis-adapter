@@ -146,7 +146,7 @@ private:
   bool stop_reader(uint32_t token);
 
   std::mutex _reader_mutex;
-  std::unordered_map<uint32_t, ReaderInfo> _readers;
+  std::unordered_map<uint32_t, std::unique_ptr<ReaderInfo>> _readers;
   std::atomic<bool> _readers_defer{false};
 
   //--- Pub/Sub infrastructure ---

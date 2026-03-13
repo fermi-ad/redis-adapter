@@ -26,7 +26,10 @@ public:
     registerCacheReader();
   }
 
-  ~RedisCache() = default;
+  ~RedisCache()
+  {
+    _ra->removeReader(_subkey);
+  }
 
   RedisCache(const RedisCache&) = delete;
   RedisCache& operator=(const RedisCache&) = delete;
@@ -105,7 +108,7 @@ private:
       {
         if (entries.empty()) return;
 
-        auto blob = ral_to_blob(entries.front().second);
+        auto blob = ral_to_blob(entries.back().second);
         if (!blob || blob->size() < sizeof(Type)) return;
 
         size_t count = blob->size() / sizeof(Type);
@@ -117,7 +120,7 @@ private:
         {
           std::lock_guard<std::shared_mutex> swapLock(_swapMutex);
           _readIndex = writeIndex;
-          _lastWrite = entries.front().first;
+          _lastWrite = entries.back().first;
         }
         _newValueAvailable.store(true);
       }

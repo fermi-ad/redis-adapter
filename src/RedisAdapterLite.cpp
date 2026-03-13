@@ -138,7 +138,9 @@ TimeAttrsList RedisAdapterLite::get_forward(const std::string& key,
   else
     raw = _redis.xrange(key, minID, maxID);
 
-  check_reconnect(raw.size() > 0 ? 1 : 0);
+  // Only trigger reconnect if the connection is actually down.
+  // An empty result is valid (no entries in range).
+  check_reconnect(_redis.is_connected() ? 1 : 0);
   return raw;
 }
 
@@ -153,7 +155,9 @@ TimeAttrsList RedisAdapterLite::get_reverse(const std::string& key,
   else
     raw = _redis.xrevrange(key, maxID, "-");
 
-  check_reconnect(raw.size() > 0 ? 1 : 0);
+  // Only trigger reconnect if the connection is actually down.
+  // An empty result is valid (no entries in range).
+  check_reconnect(_redis.is_connected() ? 1 : 0);
   return raw;
 }
 
@@ -570,7 +574,9 @@ bool RedisAdapterLite::addReader(const std::string& subKey, ReaderCallback func,
   uint32_t token = reader_token(key);
 
   std::lock_guard<std::mutex> lk(_reader_mutex);
-  ReaderInfo& info = _readers[token];
+  auto& ptr = _readers[token];
+  if (!ptr) ptr = std::make_unique<ReaderInfo>();
+  ReaderInfo& info = *ptr;
 
   info.subs[key].push_back(func);
   info.key_ids[key] = "$";
@@ -596,7 +602,7 @@ bool RedisAdapterLite::removeReader(const std::string& subKey, const std::string
   if (token == NO_TOKEN || _readers.count(token) == 0) return false;
 
   stop_reader(token);
-  ReaderInfo& info = _readers.at(token);
+  ReaderInfo& info = *_readers.at(token);
   info.subs.erase(key);
   info.key_ids.erase(key);
 
@@ -630,7 +636,7 @@ bool RedisAdapterLite::start_reader(uint32_t token)
   if (_readers_defer) return true;
   if (token == NO_TOKEN || _readers.count(token) == 0) return false;
 
-  ReaderInfo& info = _readers.at(token);
+  ReaderInfo& info = *_readers.at(token);
   if (info.thread.joinable()) return false;
 
   // Create a dedicated context for this reader thread
@@ -641,11 +647,12 @@ bool RedisAdapterLite::start_reader(uint32_t token)
   std::promise<void> started;
   auto started_future = started.get_future();
 
-  info.thread = std::thread([this, token, p = std::move(started)]() mutable
+  // Capture raw pointer — stable across map rehashes since ReaderInfo
+  // is heap-allocated via unique_ptr. stop_reader() joins before erase.
+  ReaderInfo* info_ptr = &info;
+  info.thread = std::thread([this, info_ptr, p = std::move(started)]() mutable
   {
-    // Look up by token instead of capturing &info by reference.
-    // Safe: stop_reader() always joins this thread before _readers.erase(token).
-    ReaderInfo& info = _readers.at(token);
+    ReaderInfo& info = *info_ptr;
     bool check_for_dollars = true;
     info.run = true;
     p.set_value();  // signal thread started
@@ -767,7 +774,7 @@ bool RedisAdapterLite::stop_reader(uint32_t token)
   // Caller must hold _reader_mutex
   if (token == NO_TOKEN || _readers.count(token) == 0) return false;
 
-  ReaderInfo& info = _readers.at(token);
+  ReaderInfo& info = *_readers.at(token);
   if (!info.thread.joinable()) return false;
 
   info.run = false;
@@ -829,11 +836,14 @@ bool RedisAdapterLite::restart_subscriber()
   _sub.run = true;
   _sub.thread = std::thread([this, channels = std::move(channels_snapshot)]()
   {
-    // Subscribe to all channels
+    // Subscribe to all channels — use argv-based command to safely
+    // handle channel names containing special characters
     for (auto& [channel, _] : channels)
     {
+      const char* argv[2]    = { "SUBSCRIBE", channel.c_str() };
+      size_t      argvlen[2] = { 9,           channel.size() };
       redisReply* r = static_cast<redisReply*>(
-          redisCommand(_sub.ctx, "SUBSCRIBE %s", channel.c_str()));
+          redisCommandArgv(_sub.ctx, 2, argv, argvlen));
       if (r) freeReplyObject(r);
     }
 
@@ -894,8 +904,10 @@ void RedisAdapterLite::stop_subscriber()
     {
       for (auto& [channel, _] : _sub.channels)
       {
+        const char* argv[3]    = { "PUBLISH", channel.c_str(), "" };
+        size_t      argvlen[3] = { 7,         channel.size(),  0 };
         redisReply* r = static_cast<redisReply*>(
-            redisCommand(tmp, "PUBLISH %s %s", channel.c_str(), ""));
+            redisCommandArgv(tmp, 3, argv, argvlen));
         if (r) freeReplyObject(r);
       }
       redisFree(tmp);

@@ -28,6 +28,7 @@ public:
   bool connect(const RAL_Options& opts);
   bool reconnect();
   bool ping();
+  bool is_connected();
 
   //--- Stream commands ---
   std::string xadd(const std::string& key, const std::string& id,

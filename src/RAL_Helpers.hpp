@@ -10,7 +10,7 @@
 #include <cstring>
 #include <optional>
 
-const std::string DEFAULT_FIELD = "_";
+inline const std::string DEFAULT_FIELD = "_";
 
 //--- Extract typed data from Attrs ---
 
