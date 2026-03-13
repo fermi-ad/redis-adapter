@@ -25,28 +25,41 @@ RedisAdapterLite::RedisAdapterLite(const std::string& baseKey, const RAL_Options
 
   if (_options.dogname.size())
   {
+    // Set run flag BEFORE creating thread so the destructor can always
+    // signal shutdown, even if it runs before the thread starts.
+    _watchdog_run = true;
+
     _watchdog_thd = std::thread([this]()
     {
       std::unique_lock<std::mutex> lk(_watchdog_mutex);
 
-      addWatchdog(_options.dogname, 1);
+      if (!addWatchdog(_options.dogname, 1))
+        syslog(LOG_WARNING, "RedisAdapterLite: failed to register watchdog '%s'",
+               _options.dogname.c_str());
 
-      for (_watchdog_run = true;
-           _watchdog_run && _watchdog_cv.wait_for(lk, milliseconds(900)) == std::cv_status::timeout;
-           petWatchdog(_options.dogname, 1)) {}
+      while (_watchdog_run)
+      {
+        if (_watchdog_cv.wait_for(lk, milliseconds(900)) == std::cv_status::timeout)
+        {
+          if (!petWatchdog(_options.dogname, 1))
+            syslog(LOG_WARNING, "RedisAdapterLite: failed to pet watchdog '%s'",
+                   _options.dogname.c_str());
+        }
+      }
     });
   }
 }
 
 RedisAdapterLite::~RedisAdapterLite()
 {
-  // Stop watchdog
-  if (_watchdog_run)
+  // Stop watchdog — hold mutex to synchronize with the watchdog thread's
+  // condition variable wait, preventing missed wakeups
   {
+    std::lock_guard<std::mutex> lk(_watchdog_mutex);
     _watchdog_run = false;
-    _watchdog_cv.notify_all();
-    if (_watchdog_thd.joinable()) _watchdog_thd.join();
   }
+  _watchdog_cv.notify_all();
+  if (_watchdog_thd.joinable()) _watchdog_thd.join();
 
   // Stop all readers
   {
@@ -628,8 +641,11 @@ bool RedisAdapterLite::start_reader(uint32_t token)
   std::promise<void> started;
   auto started_future = started.get_future();
 
-  info.thread = std::thread([this, &info, p = std::move(started)]() mutable
+  info.thread = std::thread([this, token, p = std::move(started)]() mutable
   {
+    // Look up by token instead of capturing &info by reference.
+    // Safe: stop_reader() always joins this thread before _readers.erase(token).
+    ReaderInfo& info = _readers.at(token);
     bool check_for_dollars = true;
     info.run = true;
     p.set_value();  // signal thread started
@@ -779,6 +795,7 @@ bool RedisAdapterLite::subscribe(const std::string& subKey, SubCallback func,
 {
   std::lock_guard<std::mutex> lk(_sub_mutex);
   std::string channel = build_key(subKey, baseKey);
+  stop_subscriber();
   _sub.channels[channel] = func;
   return restart_subscriber();
 }
@@ -787,13 +804,10 @@ bool RedisAdapterLite::unsubscribe(const std::string& subKey, const std::string&
 {
   std::lock_guard<std::mutex> lk(_sub_mutex);
   std::string channel = build_key(subKey, baseKey);
+  stop_subscriber();
   _sub.channels.erase(channel);
 
-  if (_sub.channels.empty())
-  {
-    stop_subscriber();
-    return true;
-  }
+  if (_sub.channels.empty()) return true;
   return restart_subscriber();
 }
 
@@ -807,11 +821,16 @@ bool RedisAdapterLite::restart_subscriber()
   _sub.ctx = _redis.create_context();
   if (!_sub.ctx) return false;
 
+  // Snapshot channels for the thread — the thread uses this copy
+  // instead of accessing _sub.channels, eliminating the need for
+  // _sub_mutex in the thread and preventing deadlock with join().
+  auto channels_snapshot = _sub.channels;
+
   _sub.run = true;
-  _sub.thread = std::thread([this]()
+  _sub.thread = std::thread([this, channels = std::move(channels_snapshot)]()
   {
     // Subscribe to all channels
-    for (auto& [channel, _] : _sub.channels)
+    for (auto& [channel, _] : channels)
     {
       redisReply* r = static_cast<redisReply*>(
           redisCommand(_sub.ctx, "SUBSCRIBE %s", channel.c_str()));
@@ -837,9 +856,9 @@ bool RedisAdapterLite::restart_subscriber()
           std::string channel(reply->element[1]->str, reply->element[1]->len);
           std::string message(reply->element[2]->str, reply->element[2]->len);
 
-          std::lock_guard<std::mutex> lk(_sub_mutex);
-          auto it = _sub.channels.find(channel);
-          if (it != _sub.channels.end())
+          // Use the thread-local snapshot — no mutex needed
+          auto it = channels.find(channel);
+          if (it != channels.end())
           {
             auto split = split_key(channel);
             auto func = it->second;
@@ -865,15 +884,12 @@ void RedisAdapterLite::stop_subscriber()
   if (!_sub.run) return;
   _sub.run = false;
 
-  // Unsubscribe to unblock the getReply loop
+  // Send PUBLISH via a separate context to unblock redisGetReply
   if (_sub.ctx)
   {
-    // Send UNSUBSCRIBE via a separate context to unblock
     redisContext* tmp = _redis.create_context();
     if (tmp)
     {
-      // Publishing to a channel the subscriber is on will cause it to receive
-      // a message and check _sub.run. But UNSUBSCRIBE is cleaner.
       for (auto& [channel, _] : _sub.channels)
       {
         redisReply* r = static_cast<redisReply*>(
