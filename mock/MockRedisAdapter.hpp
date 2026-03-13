@@ -61,7 +61,7 @@ public:
     {
       int dataSize = data.size_bytes();
       std::shared_ptr<void> ptr(
-        new T[data.size()],                // allocate correct number of elements
+        new T[dataSize],                   // allocate
         [](void* p) { delete[] static_cast<T*>(p); } // deleter
       );
       T* raw = static_cast<T*>(ptr.get());
