@@ -354,7 +354,8 @@ RedisAdapter::addValues(const std::string& subKey, const TimeValList<T>& data, u
 
     std::string id = _redis.xadd(key, item.first.id_or_now(), attrs.begin(), attrs.end());
 
-    if (id.size()) { ret.push_back(RA_Time(id)); }
+    RA_Time t(id);
+    if (t.ok()) { ret.push_back(t); }
   }
   if (trim && ret.size()) { _redis.xtrim(key, std::max(trim, (uint32_t)ret.size())); }
 
@@ -371,7 +372,8 @@ RedisAdapter::addValues(const std::string& subKey, const TimeValList<Attrs>& dat
   {
     std::string id = _redis.xadd(key, item.first.id_or_now(), item.second.begin(), item.second.end());
 
-    if (id.size()) { ret.push_back(RA_Time(id)); }
+    RA_Time t(id);
+    if (t.ok()) { ret.push_back(t); }
   }
   if (trim && ret.size()) { _redis.xtrim(key, std::max(trim, (uint32_t)ret.size())); }
 
@@ -400,7 +402,8 @@ RedisAdapter::addLists(const std::string& subKey, const TimeValList<std::vector<
 
     std::string id = _redis.xadd(key, item.first.id_or_now(), attrs.begin(), attrs.end());
 
-    if (id.size()) { ret.push_back(RA_Time(id)); }
+    RA_Time t(id);
+    if (t.ok()) { ret.push_back(t); }
   }
   if (trim && ret.size()) { _redis.xtrim(key, std::max(trim, (uint32_t)ret.size())); }
 
