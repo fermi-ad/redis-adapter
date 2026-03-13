@@ -457,6 +457,72 @@ std::vector<RAL_Time> RedisAdapterLite::addAttrsBatch(const std::string& subKey,
 }
 
 //===========================================================================
+//  WriteBatch
+//===========================================================================
+
+void RedisAdapterLite::WriteBatch::addString(const std::string& subKey,
+                                              const std::string& data,
+                                              const RAL_AddArgs& args)
+{
+  _entries.push_back({_adapter.build_key(subKey), args.time.id_or_now(),
+                      ral_from_string(data), args.trim});
+}
+
+void RedisAdapterLite::WriteBatch::addDouble(const std::string& subKey, double data,
+                                              const RAL_AddArgs& args)
+{
+  char buf[sizeof(double)];
+  std::memcpy(buf, &data, sizeof(double));
+  Attrs attrs = {{ DEFAULT_FIELD, std::string(buf, sizeof(double)) }};
+  _entries.push_back({_adapter.build_key(subKey), args.time.id_or_now(),
+                      std::move(attrs), args.trim});
+}
+
+void RedisAdapterLite::WriteBatch::addInt(const std::string& subKey, int64_t data,
+                                           const RAL_AddArgs& args)
+{
+  char buf[sizeof(int64_t)];
+  std::memcpy(buf, &data, sizeof(int64_t));
+  Attrs attrs = {{ DEFAULT_FIELD, std::string(buf, sizeof(int64_t)) }};
+  _entries.push_back({_adapter.build_key(subKey), args.time.id_or_now(),
+                      std::move(attrs), args.trim});
+}
+
+void RedisAdapterLite::WriteBatch::addBlob(const std::string& subKey,
+                                            const void* data, size_t size,
+                                            const RAL_AddArgs& args)
+{
+  _entries.push_back({_adapter.build_key(subKey), args.time.id_or_now(),
+                      ral_from_blob(data, size), args.trim});
+}
+
+void RedisAdapterLite::WriteBatch::addAttrs(const std::string& subKey,
+                                             const Attrs& data,
+                                             const RAL_AddArgs& args)
+{
+  _entries.push_back({_adapter.build_key(subKey), args.time.id_or_now(),
+                      data, args.trim});
+}
+
+std::vector<RAL_Time> RedisAdapterLite::WriteBatch::execute()
+{
+  if (_entries.empty()) return {};
+
+  auto ids = _adapter._redis.xadd_pipeline_multi(_entries);
+  _entries.clear();
+
+  std::vector<RAL_Time> ret;
+  ret.reserve(ids.size());
+  for (auto& id : ids)
+  {
+    if (!id.empty()) ret.push_back(RAL_Time(id));
+    else ret.push_back(RAL_Time());
+  }
+  _adapter.check_reconnect(ret.empty() ? 0 : 1);
+  return ret;
+}
+
+//===========================================================================
 //  Connection
 //===========================================================================
 

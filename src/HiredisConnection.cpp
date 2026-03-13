@@ -349,6 +349,95 @@ std::vector<std::string> HiredisConnection::xadd_pipeline(
   return results;
 }
 
+std::vector<std::string> HiredisConnection::xadd_pipeline_multi(
+    const std::vector<PipelineEntry>& entries)
+{
+  std::lock_guard<std::mutex> lk(_mutex);
+  if (!_ctx || entries.empty()) return {};
+
+  // Phase 1: Append all XADD commands
+  for (auto& e : entries)
+  {
+    std::vector<const char*> argv;
+    std::vector<size_t> argvlen;
+
+    if (e.trim > 0)
+    {
+      // XADD key MAXLEN ~ trim id field value ...
+      std::string maxlen_str = std::to_string(e.trim);
+      argv.reserve(6 + e.fields.size() * 2);
+      argvlen.reserve(6 + e.fields.size() * 2);
+
+      argv.push_back("XADD");              argvlen.push_back(4);
+      argv.push_back(e.key.c_str());       argvlen.push_back(e.key.size());
+      argv.push_back("MAXLEN");            argvlen.push_back(6);
+      argv.push_back("~");                 argvlen.push_back(1);
+      argv.push_back(maxlen_str.c_str());  argvlen.push_back(maxlen_str.size());
+      argv.push_back(e.id.c_str());        argvlen.push_back(e.id.size());
+
+      for (auto& [f, v] : e.fields)
+      {
+        argv.push_back(f.c_str());  argvlen.push_back(f.size());
+        argv.push_back(v.c_str());  argvlen.push_back(v.size());
+      }
+
+      redisAppendCommandArgv(_ctx, static_cast<int>(argv.size()),
+                             argv.data(), argvlen.data());
+    }
+    else
+    {
+      // XADD key id field value ...
+      argv.reserve(3 + e.fields.size() * 2);
+      argvlen.reserve(3 + e.fields.size() * 2);
+
+      argv.push_back("XADD");         argvlen.push_back(4);
+      argv.push_back(e.key.c_str());  argvlen.push_back(e.key.size());
+      argv.push_back(e.id.c_str());   argvlen.push_back(e.id.size());
+
+      for (auto& [f, v] : e.fields)
+      {
+        argv.push_back(f.c_str());  argvlen.push_back(f.size());
+        argv.push_back(v.c_str());  argvlen.push_back(v.size());
+      }
+
+      redisAppendCommandArgv(_ctx, static_cast<int>(argv.size()),
+                             argv.data(), argvlen.data());
+    }
+  }
+
+  // Phase 2: Read all replies
+  std::vector<std::string> results;
+  results.reserve(entries.size());
+
+  for (size_t i = 0; i < entries.size(); ++i)
+  {
+    redisReply* raw = nullptr;
+    if (redisGetReply(_ctx, reinterpret_cast<void**>(&raw)) != REDIS_OK)
+    {
+      syslog(LOG_ERR, "HiredisConnection::xadd_pipeline_multi: reply read failed at %zu", i);
+      for (size_t j = i + 1; j < entries.size(); ++j)
+      {
+        redisReply* drain = nullptr;
+        if (redisGetReply(_ctx, reinterpret_cast<void**>(&drain)) == REDIS_OK && drain)
+          freeReplyObject(drain);
+      }
+      return results;
+    }
+
+    ReplyPtr r(raw);
+    if (r && r->type == REDIS_REPLY_STRING)
+      results.emplace_back(r->str, r->len);
+    else
+    {
+      if (r && r->type == REDIS_REPLY_ERROR)
+        syslog(LOG_ERR, "HiredisConnection::xadd_pipeline_multi: %s", r->str);
+      results.emplace_back();
+    }
+  }
+
+  return results;
+}
+
 TimeAttrsList HiredisConnection::xrange(const std::string& key, const std::string& min,
                                          const std::string& max)
 {

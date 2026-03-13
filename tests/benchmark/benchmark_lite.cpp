@@ -613,6 +613,82 @@ static void BM_UDS_AddGetCycle(benchmark::State& state)
 }
 BENCHMARK(BM_UDS_AddGetCycle);
 
+// --- WriteBatch: multi-key pipeline ---
+
+static void BM_TCP_WriteBatch_MultiKey(benchmark::State& state)
+{
+  const int num_keys = state.range(0);
+  std::vector<std::string> keys;
+  for (int i = 0; i < num_keys; ++i)
+    keys.push_back("bm_wb_" + std::to_string(i));
+  for (auto& k : keys) get_tcp().del(k);
+
+  for (auto _ : state)
+  {
+    auto batch = get_tcp().createBatch();
+    for (int i = 0; i < num_keys; ++i)
+      batch.addDouble(keys[i], static_cast<double>(i));
+    auto r = batch.execute();
+    benchmark::DoNotOptimize(r);
+  }
+  state.SetItemsProcessed(state.iterations() * num_keys);
+  for (auto& k : keys) get_tcp().del(k);
+}
+BENCHMARK(BM_TCP_WriteBatch_MultiKey)->Arg(10)->Arg(100)->Arg(1000);
+
+static void BM_UDS_WriteBatch_MultiKey(benchmark::State& state)
+{
+  SKIP_IF_NO_UDS();
+  const int num_keys = state.range(0);
+  std::vector<std::string> keys;
+  for (int i = 0; i < num_keys; ++i)
+    keys.push_back("bm_wb_" + std::to_string(i));
+  for (auto& k : keys) get_uds().del(k);
+
+  for (auto _ : state)
+  {
+    auto batch = get_uds().createBatch();
+    for (int i = 0; i < num_keys; ++i)
+      batch.addDouble(keys[i], static_cast<double>(i));
+    auto r = batch.execute();
+    benchmark::DoNotOptimize(r);
+  }
+  state.SetItemsProcessed(state.iterations() * num_keys);
+  for (auto& k : keys) get_uds().del(k);
+}
+BENCHMARK(BM_UDS_WriteBatch_MultiKey)->Arg(10)->Arg(100)->Arg(1000);
+
+// WriteBatch with mixed types across different keys
+static void BM_TCP_WriteBatch_MixedTypes(benchmark::State& state)
+{
+  const int batch_size = state.range(0);
+  std::vector<std::string> keys;
+  for (int i = 0; i < batch_size; ++i)
+    keys.push_back("bm_wbm_" + std::to_string(i));
+  for (auto& k : keys) get_tcp().del(k);
+
+  uint8_t blob_data[64] = {};
+  for (auto _ : state)
+  {
+    auto batch = get_tcp().createBatch();
+    for (int i = 0; i < batch_size; ++i)
+    {
+      switch (i % 4)
+      {
+        case 0: batch.addDouble(keys[i], 3.14); break;
+        case 1: batch.addInt(keys[i], 42); break;
+        case 2: batch.addString(keys[i], "hello"); break;
+        case 3: batch.addBlob(keys[i], blob_data, sizeof(blob_data)); break;
+      }
+    }
+    auto r = batch.execute();
+    benchmark::DoNotOptimize(r);
+  }
+  state.SetItemsProcessed(state.iterations() * batch_size);
+  for (auto& k : keys) get_tcp().del(k);
+}
+BENCHMARK(BM_TCP_WriteBatch_MixedTypes)->Arg(10)->Arg(100)->Arg(1000);
+
 // ============================================================================
 //  STRESS TESTS (TCP and UDS variants)
 // ============================================================================

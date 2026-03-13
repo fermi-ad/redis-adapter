@@ -113,6 +113,38 @@ public:
   bool removeReader(const std::string& subKey,
                     const std::string& baseKey = "");
 
+  //--- WriteBatch: multi-key pipelined writes ---
+  class WriteBatch
+  {
+  public:
+    void addString(const std::string& subKey, const std::string& data,
+                   const RAL_AddArgs& args = {});
+    void addDouble(const std::string& subKey, double data,
+                   const RAL_AddArgs& args = {});
+    void addInt(const std::string& subKey, int64_t data,
+                const RAL_AddArgs& args = {});
+    void addBlob(const std::string& subKey, const void* data, size_t size,
+                 const RAL_AddArgs& args = {});
+    void addAttrs(const std::string& subKey, const Attrs& data,
+                  const RAL_AddArgs& args = {});
+
+    // Execute all queued commands in a single pipeline.
+    // Returns one RAL_Time per queued command (in order).
+    std::vector<RAL_Time> execute();
+
+    size_t size() const { return _entries.size(); }
+    void clear() { _entries.clear(); }
+
+  private:
+    friend class RedisAdapterLite;
+    explicit WriteBatch(RedisAdapterLite& adapter) : _adapter(adapter) {}
+
+    RedisAdapterLite& _adapter;
+    std::vector<HiredisConnection::PipelineEntry> _entries;
+  };
+
+  WriteBatch createBatch() { return WriteBatch(*this); }
+
 private:
   //--- Key building ---
   std::string build_key(const std::string& subKey,

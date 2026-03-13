@@ -55,6 +55,18 @@ public:
                                           const std::vector<std::pair<std::string, Attrs>>& entries,
                                           uint32_t trim = 0);
 
+  // Multi-key pipelined XADD for WriteBatch.
+  // Each entry: (key, stream_id, fields, trim).  If trim > 0 the XADD
+  // uses inline MAXLEN ~.  All commands are pipelined in a single batch.
+  struct PipelineEntry
+  {
+    std::string key;
+    std::string id;
+    Attrs fields;
+    uint32_t trim = 0;
+  };
+  std::vector<std::string> xadd_pipeline_multi(const std::vector<PipelineEntry>& entries);
+
   TimeAttrsList xrange(const std::string& key, const std::string& min,
                         const std::string& max);
   TimeAttrsList xrange(const std::string& key, const std::string& min,
