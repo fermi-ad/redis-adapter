@@ -68,17 +68,23 @@ if(RAL_BUILD_TESTS)
   enable_testing()
   include(GoogleTest)
 
-  add_executable(ral-test-features test/test_features.cpp)
-  target_link_libraries(ral-test-features redis-adapter-lite GTest::gtest_main)
-  gtest_discover_tests(ral-test-features)
+  # Unit tests
+  file(GLOB RAL_UNIT_TESTS tests/unit/*.cpp)
+  add_executable(ral-test-unit ${RAL_UNIT_TESTS})
+  target_link_libraries(ral-test-unit redis-adapter-lite GTest::gtest_main)
+  gtest_discover_tests(ral-test-unit TEST_PREFIX "unit/")
 
-  add_executable(ral-test-wrapper test/test_wrapper.cpp)
-  target_link_libraries(ral-test-wrapper redis-adapter-lite GTest::gtest_main)
-  gtest_discover_tests(ral-test-wrapper)
+  # Integration tests
+  file(GLOB RAL_INTEGRATION_TESTS tests/integration/*.cpp)
+  add_executable(ral-test-integration ${RAL_INTEGRATION_TESTS})
+  target_link_libraries(ral-test-integration redis-adapter-lite GTest::gtest_main)
+  gtest_discover_tests(ral-test-integration TEST_PREFIX "integration/")
 
-  add_executable(ral-test-bugs test/test_bugs.cpp)
-  target_link_libraries(ral-test-bugs redis-adapter-lite GTest::gtest_main)
-  gtest_discover_tests(ral-test-bugs)
+  # Regression tests
+  file(GLOB RAL_REGRESSION_TESTS tests/regressions/*.cpp)
+  add_executable(ral-test-regressions ${RAL_REGRESSION_TESTS})
+  target_link_libraries(ral-test-regressions redis-adapter-lite GTest::gtest_main)
+  gtest_discover_tests(ral-test-regressions TEST_PREFIX "regressions/")
 endif()
 
 # ---- Benchmarks ----
