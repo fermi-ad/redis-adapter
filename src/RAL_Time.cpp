@@ -20,7 +20,16 @@ RAL_Time::RAL_Time(const std::string& id)
 {
   try
   {
-    value = std::stoll(id) * NANOS_PER_MILLI;
+    int64_t ms = std::stoll(id);
+    // Guard against overflow: max safe ms is INT64_MAX / NANOS_PER_MILLI (~year 2262)
+    static constexpr int64_t MAX_MS = INT64_MAX / NANOS_PER_MILLI;
+    if (ms > MAX_MS)
+    {
+      syslog(LOG_WARNING, "RAL_Time: timestamp overflow for '%s'", id.c_str());
+      value = 0;
+      return;
+    }
+    value = ms * NANOS_PER_MILLI;
     size_t pos = id.find('-');
     if (pos != std::string::npos) { value += std::stoll(id.substr(pos + 1)); }
   }

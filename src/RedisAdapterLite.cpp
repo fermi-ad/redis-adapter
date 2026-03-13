@@ -848,7 +848,9 @@ bool RedisAdapterLite::restart_subscriber()
         break;
       }
 
-      if (reply && reply->type == REDIS_REPLY_ARRAY && reply->elements >= 3)
+      if (reply && reply->type == REDIS_REPLY_ARRAY && reply->elements >= 3
+          && reply->element[0] && reply->element[1] && reply->element[2]
+          && reply->element[0]->str && reply->element[1]->str && reply->element[2]->str)
       {
         std::string type(reply->element[0]->str, reply->element[0]->len);
         if (type == "message")
@@ -872,7 +874,7 @@ bool RedisAdapterLite::restart_subscriber()
       if (reply) freeReplyObject(reply);
     }
 
-    if (_sub.ctx) { redisFree(_sub.ctx); _sub.ctx = nullptr; }
+    // Context cleanup is handled by stop_subscriber() after join
   });
 
   return true;
@@ -881,7 +883,7 @@ bool RedisAdapterLite::restart_subscriber()
 void RedisAdapterLite::stop_subscriber()
 {
   // Caller must hold _sub_mutex
-  if (!_sub.run) return;
+  if (!_sub.thread.joinable()) return;
   _sub.run = false;
 
   // Send PUBLISH via a separate context to unblock redisGetReply
@@ -900,5 +902,8 @@ void RedisAdapterLite::stop_subscriber()
     }
   }
 
-  if (_sub.thread.joinable()) _sub.thread.join();
+  _sub.thread.join();
+
+  // Clean up context after thread has exited — no race possible
+  if (_sub.ctx) { redisFree(_sub.ctx); _sub.ctx = nullptr; }
 }

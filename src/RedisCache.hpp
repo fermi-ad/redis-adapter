@@ -53,7 +53,7 @@ public:
     return _lastWrite;
   }
 
-  RAL_Time copyReadBuffer(Type& destValue, int firstIndexToCopy = 0, int* pElementsCopied = nullptr)
+  RAL_Time copyReadBuffer(Type& destValue, size_t firstIndexToCopy = 0, int* pElementsCopied = nullptr)
   {
     std::shared_lock<std::shared_mutex> lk(_swapMutex);
 
@@ -70,7 +70,7 @@ public:
     }
 
     auto& src = _buffers.at(_readIndex);
-    if (firstIndexToCopy >= static_cast<int>(src.size()))
+    if (firstIndexToCopy >= src.size())
     {
       if (pElementsCopied) *pElementsCopied = 0;
       return RAL_Time();
