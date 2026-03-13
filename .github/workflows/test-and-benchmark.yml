@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  test-coverage:
+  full-report:
     runs-on: ubuntu-latest
 
     steps:
@@ -24,45 +24,78 @@ jobs:
     - name: Start Redis server
       run: redis-server --daemonize yes --save "" --appendonly no
 
-    - name: Configure (tests + coverage)
-      run: cmake -S . -B build -DRAL_BUILD_TESTS=ON -DRAL_COVERAGE=ON -DCMAKE_BUILD_TYPE=Debug
+    # ── Tests + Coverage ──
 
-    - name: Build
-      run: cmake --build build -j$(nproc)
+    - name: Configure (tests + coverage)
+      run: cmake -S . -B build-test -DRAL_BUILD_TESTS=ON -DRAL_COVERAGE=ON -DCMAKE_BUILD_TYPE=Debug
+
+    - name: Build tests
+      run: cmake --build build-test -j$(nproc)
 
     - name: Run unit tests
-      run: ./build/ral-test-unit --gtest_output=xml:build/unit-results.xml
+      run: ./build-test/ral-test-unit --gtest_output=xml:build-test/unit-results.xml
 
     - name: Run integration tests
-      run: ./build/ral-test-integration --gtest_output=xml:build/integration-results.xml
+      run: ./build-test/ral-test-integration --gtest_output=xml:build-test/integration-results.xml
 
     - name: Run regression tests
-      run: ./build/ral-test-regressions --gtest_output=xml:build/regression-results.xml
+      run: ./build-test/ral-test-regressions --gtest_output=xml:build-test/regression-results.xml
 
-    - name: Generate coverage report
+    - name: Generate coverage data
       run: |
-        lcov --capture --directory build --output-file build/coverage.info \
+        lcov --capture --directory build-test --output-file build-test/coverage.info \
             --ignore-errors mismatch,mismatch
-        lcov --extract build/coverage.info '*/src/*' --output-file build/coverage_src.info \
+        lcov --extract build-test/coverage.info '*/src/*' --output-file build-test/coverage_src.info \
             --ignore-errors mismatch,mismatch
-        genhtml build/coverage_src.info --output-directory build/coverage-report \
+        genhtml build-test/coverage_src.info --output-directory build-test/coverage-report \
             --ignore-errors mismatch,mismatch
 
-    - name: Test and coverage summary
+    # ── Benchmarks + Profiling ──
+
+    - name: Configure (benchmarks + profiling)
+      run: cmake -S . -B build-bench -DRAL_BUILD_BENCHMARKS=ON -DRAL_PROFILE=ON -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build benchmarks
+      run: cmake --build build-bench -j$(nproc)
+
+    - name: Run benchmarks
+      working-directory: build-bench
+      run: ./ral-benchmark --benchmark_format=json --benchmark_out=benchmark_results.json
+
+    - name: Generate gprof report
+      working-directory: build-bench
+      run: gprof ral-benchmark gmon.out > gprof_report.txt
+
+    - name: Generate HTML profile report
+      run: |
+        python3 scripts/generate_profile_report.py \
+            --benchmark-json build-bench/benchmark_results.json \
+            --gprof-txt      build-bench/gprof_report.txt \
+            --output         build-bench/profile_report.html
+
+    # ── Summary ──
+
+    - name: Generate summary
       if: always()
       run: |
         python3 - <<'PYEOF'
         import xml.etree.ElementTree as ET
+        import json
         from pathlib import Path
         import os
 
+        lines = []
+
+        # ── Tests ──
         suites = [
-            ("Unit", "build/unit-results.xml"),
-            ("Integration", "build/integration-results.xml"),
-            ("Regression", "build/regression-results.xml"),
+            ("Unit", "build-test/unit-results.xml"),
+            ("Integration", "build-test/integration-results.xml"),
+            ("Regression", "build-test/regression-results.xml"),
         ]
 
-        lines = ["## Test Results\n", "| Suite | Tests | Passed | Failed | Skipped | Time |", "|-------|-------|--------|--------|---------|------|"]
+        lines.append("## Test Results\n")
+        lines.append("| Suite | Tests | Passed | Failed | Skipped | Time |")
+        lines.append("|-------|-------|--------|--------|---------|------|")
         total_tests = total_pass = total_fail = total_skip = 0
         failures = []
 
@@ -82,16 +115,16 @@ jobs:
             total_pass += passed
             total_fail += fail
             total_skip += skip
-            status = ":white_check_mark:" if fail == 0 else ":x:"
-            lines.append(f"| {status} {name} | {tests} | {passed} | {fail} | {skip} | {time_s:.2f}s |")
+            icon = ":white_check_mark:" if fail == 0 else ":x:"
+            lines.append(f"| {icon} {name} | {tests} | {passed} | {fail} | {skip} | {time_s:.2f}s |")
 
             for tc in root.iter("testcase"):
-                for f in tc.iter("failure"):
-                    suite = tc.attrib.get("classname", "")
-                    test = tc.attrib.get("name", "")
-                    msg = f.attrib.get("message", f.text or "")
+                for f_el in tc.iter("failure"):
+                    cname = tc.attrib.get("classname", "")
+                    tname = tc.attrib.get("name", "")
+                    msg = f_el.attrib.get("message", f_el.text or "")
                     short = msg.strip().split("\n")[0][:200] if msg.strip() else ""
-                    failures.append((name, f"{suite}.{test}", short))
+                    failures.append((name, f"{cname}.{tname}", short))
 
         lines.append(f"| **Total** | **{total_tests}** | **{total_pass}** | **{total_fail}** | **{total_skip}** | |")
 
@@ -101,85 +134,158 @@ jobs:
                 lines.append(f"<details><summary>:x: <code>{test}</code> ({suite})</summary>\n")
                 lines.append(f"```\n{msg}\n```\n</details>\n")
 
-        # Coverage summary from lcov
-        cov_info = Path("build/coverage_src.info")
+        # ── Coverage ──
+        cov_info = Path("build-test/coverage_src.info")
         if cov_info.exists():
-            lines.append("\n## Coverage\n")
+            lines.append("\n---\n\n## Coverage\n")
             line_hit = line_total = fn_hit = fn_total = 0
+            # Per-file coverage
+            file_cov = {}
+            cur_file = None
             for l in cov_info.read_text().splitlines():
-                if l.startswith("LH:"): line_hit += int(l.split(":")[1])
-                elif l.startswith("LF:"): line_total += int(l.split(":")[1])
-                elif l.startswith("FNH:"): fn_hit += int(l.split(":")[1])
-                elif l.startswith("FNF:"): fn_total += int(l.split(":")[1])
+                if l.startswith("SF:"):
+                    cur_file = l[3:].split("/src/")[-1] if "/src/" in l[3:] else l[3:].split("/")[-1]
+                elif l.startswith("LH:"):
+                    lh = int(l.split(":")[1])
+                    line_hit += lh
+                    if cur_file: file_cov.setdefault(cur_file, {})["lh"] = lh
+                elif l.startswith("LF:"):
+                    lf = int(l.split(":")[1])
+                    line_total += lf
+                    if cur_file: file_cov.setdefault(cur_file, {})["lf"] = lf
+                elif l.startswith("FNH:"):
+                    fn_hit += int(l.split(":")[1])
+                elif l.startswith("FNF:"):
+                    fn_total += int(l.split(":")[1])
+
             line_pct = (line_hit / line_total * 100) if line_total else 0
             fn_pct = (fn_hit / fn_total * 100) if fn_total else 0
-            lines.append(f"| Metric | Hit | Total | Coverage |")
-            lines.append(f"|--------|-----|-------|----------|")
+
+            lines.append("### Summary\n")
+            lines.append("| Metric | Hit | Total | Coverage |")
+            lines.append("|--------|-----|-------|----------|")
             lines.append(f"| Lines | {line_hit} | {line_total} | **{line_pct:.1f}%** |")
             lines.append(f"| Functions | {fn_hit} | {fn_total} | **{fn_pct:.1f}%** |")
 
+            lines.append("\n### Per File\n")
+            lines.append("| File | Lines | Coverage |")
+            lines.append("|------|-------|----------|")
+            for fname in sorted(file_cov):
+                fc = file_cov[fname]
+                lh = fc.get("lh", 0)
+                lf = fc.get("lf", 0)
+                pct = (lh / lf * 100) if lf else 0
+                bar = ":green_circle:" if pct >= 90 else (":yellow_circle:" if pct >= 70 else ":red_circle:")
+                lines.append(f"| {bar} `{fname}` | {lh}/{lf} | {pct:.1f}% |")
+
+        # ── Benchmarks ──
+        bm_path = Path("build-bench/benchmark_results.json")
+        if bm_path.exists():
+            lines.append("\n---\n\n## Benchmarks\n")
+            data = json.loads(bm_path.read_text())
+            benchmarks = [b for b in data.get("benchmarks", []) if b.get("run_type") != "aggregate"]
+
+            ctx = data.get("context", {})
+            if ctx:
+                lines.append(f"*{ctx.get('num_cpus', '?')} CPUs, {ctx.get('mhz_per_cpu', '?')} MHz, "
+                             f"{ctx.get('executable', '').split('/')[-1]}*\n")
+
+            def fmt_ns(ns):
+                if ns < 1000: return f"{ns:.0f} ns"
+                if ns < 1_000_000: return f"{ns/1000:.1f} us"
+                if ns < 1_000_000_000: return f"{ns/1_000_000:.2f} ms"
+                return f"{ns/1_000_000_000:.2f} s"
+
+            def fmt_rate(val, key):
+                if key == "bytes_per_second":
+                    if val >= 1024**3: return f"{val/1024**3:.1f} GB/s"
+                    if val >= 1024**2: return f"{val/1024**2:.1f} MB/s"
+                    if val >= 1024: return f"{val/1024:.1f} KB/s"
+                    return f"{val:.0f} B/s"
+                if key == "items_per_second":
+                    if val >= 1_000_000: return f"{val/1_000_000:.2f}M/s"
+                    if val >= 1_000: return f"{val/1_000:.1f}K/s"
+                    return f"{val:.0f}/s"
+                return f"{val:.2f}"
+
+            # Group by prefix
+            groups = {}
+            for b in benchmarks:
+                name = b["name"]
+                # Derive group from name prefix
+                if name.startswith("BM_From") or name.startswith("BM_To") or name.startswith("BM_Time"):
+                    grp = "Serialization"
+                elif "Stress" in name or "ManyStreams" in name:
+                    grp = "Stress"
+                elif "Add" in name and "Get" not in name and ("Bulk" in name or "Doubles" in name):
+                    grp = "Bulk Add"
+                elif "Get" in name and ("Range" in name or "Before" in name):
+                    grp = "Range Queries"
+                elif "Add" in name and "Get" not in name:
+                    grp = "Add"
+                elif "Get" in name:
+                    grp = "Get"
+                elif "Cycle" in name:
+                    grp = "Add+Get Cycle"
+                elif "Connected" in name:
+                    grp = "Connection"
+                else:
+                    grp = "Other"
+                groups.setdefault(grp, []).append(b)
+
+            order = ["Serialization", "Add", "Get", "Range Queries", "Bulk Add",
+                     "Add+Get Cycle", "Connection", "Stress", "Other"]
+
+            for grp in order:
+                bms = groups.get(grp, [])
+                if not bms:
+                    continue
+                lines.append(f"\n### {grp}\n")
+                lines.append("| Benchmark | Time | CPU | Iters | Throughput |")
+                lines.append("|-----------|------|-----|-------|------------|")
+                for b in bms:
+                    display = b["name"].replace("BM_TCP_", "").replace("BM_UDS_", "[UDS] ").replace("BM_", "")
+                    tu = b.get("time_unit", "ns")
+                    mult = {"ns": 1, "us": 1000, "ms": 1_000_000, "s": 1_000_000_000}.get(tu, 1)
+                    real = b.get("real_time", b.get("cpu_time", 0)) * mult
+                    cpu = b.get("cpu_time", 0) * mult
+                    iters = b.get("iterations", 0)
+                    tp = ""
+                    for k in ["bytes_per_second", "items_per_second"]:
+                        if k in b:
+                            tp = fmt_rate(b[k], k)
+                            break
+                    lines.append(f"| `{display}` | {fmt_ns(real)} | {fmt_ns(cpu)} | {iters:,} | {tp or '—'} |")
+
+        # ── Write summary ──
         summary = "\n".join(lines)
         print(summary)
         with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
             f.write(summary)
         PYEOF
 
+    # ── Artifacts ──
+
     - name: Upload test results
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: test-results
-        path: build/*-results.xml
+        path: build-test/*-results.xml
 
     - name: Upload coverage report
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: coverage-report
-        path: build/coverage-report/
-
-  benchmark-profile:
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        submodules: true
-
-    - name: Install Redis server
-      run: |
-        tar xzf .github/redis-server.tar.gz
-        sudo mv redis-server /usr/local/bin/
-
-    - name: Start Redis server
-      run: redis-server --daemonize yes --save "" --appendonly no
-
-    - name: Configure (benchmarks + profiling)
-      run: cmake -S . -B build -DRAL_BUILD_BENCHMARKS=ON -DRAL_PROFILE=ON -DCMAKE_BUILD_TYPE=Release
-
-    - name: Build
-      run: cmake --build build -j$(nproc)
-
-    - name: Run benchmarks
-      working-directory: build
-      run: ./ral-benchmark --benchmark_format=json --benchmark_out=benchmark_results.json
-
-    - name: Generate gprof report
-      working-directory: build
-      run: gprof ral-benchmark gmon.out > gprof_report.txt
-
-    - name: Generate HTML profile report
-      run: |
-        python3 scripts/generate_profile_report.py \
-            --benchmark-json build/benchmark_results.json \
-            --gprof-txt      build/gprof_report.txt \
-            --output         build/profile_report.html
+        path: build-test/coverage-report/
 
     - name: Upload benchmark results
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: benchmark-results
         path: |
-          build/benchmark_results.json
-          build/gprof_report.txt
-          build/profile_report.html
+          build-bench/benchmark_results.json
+          build-bench/gprof_report.txt
+          build-bench/profile_report.html
