@@ -38,11 +38,15 @@ static redisContext* make_context(const RAL_Options& opts)
   // Set command timeout
   redisSetTimeout(ctx, tv);
 
-  // Auth if password provided
+  // Auth if password provided — use argv-based command to safely handle
+  // passwords containing special characters (spaces, quotes, etc.)
   if (opts.password.size())
   {
+    const char* argv[3]    = { "AUTH", opts.user.c_str(), opts.password.c_str() };
+    size_t      argvlen[3] = { 4,     opts.user.size(),  opts.password.size() };
+
     redisReply* r = static_cast<redisReply*>(
-        redisCommand(ctx, "AUTH %s %s", opts.user.c_str(), opts.password.c_str()));
+        redisCommandArgv(ctx, 3, argv, argvlen));
     bool ok = r && r->type != REDIS_REPLY_ERROR;
     if (!ok) syslog(LOG_ERR, "HiredisConnection: AUTH failed: %s", r ? r->str : "null reply");
     if (r) freeReplyObject(r);
