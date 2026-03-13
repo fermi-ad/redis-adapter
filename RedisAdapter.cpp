@@ -419,7 +419,11 @@ bool RedisAdapter::stop_reader(uint32_t token)
 
   info.run = false;
   Attrs attrs = default_field_attrs("");
-  reconnect(_redis.xaddTrim(info.stop, "*", attrs.begin(), attrs.end(), 1).size());
+  //  poke the stop stream to unblock xreadMultiBlock - if it fails the reader
+  //  will still exit after its timeout expires, do NOT call reconnect() here
+  //  since stop_reader is called from within locked sections and spawning a
+  //  reconnect thread could cause unnecessary blocking
+  _redis.xaddTrim(info.stop, "*", attrs.begin(), attrs.end(), 1);
   info.thread.join();
   return true;
 }
