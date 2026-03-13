@@ -1,34 +1,48 @@
-name: Build and test redis-adapter
+name: Test
 
 on:
+  push:
+    branches: [main, redis-adapter-lite]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
-  pull_request:
-    branches:
-    - main
-
 jobs:
-  build-test:
+  test:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-      with: 
+      with:
         submodules: true
 
-    - name: Install redis-server
+    - name: Install Redis server
       run: |
-        tar xvzf .github/redis-server.tar.gz
+        tar xzf .github/redis-server.tar.gz
         sudo mv redis-server /usr/local/bin/
 
-    - name: Start redis-server
-      run: redis-server --daemonize yes --unixsocket /tmp/redis.sock --unixsocketperm 700
+    - name: Start Redis server
+      run: redis-server --daemonize yes --save "" --appendonly no
 
-    - name: Configure and build redis-adapter
-      run: |
-        cmake -S . -B build -D REDIS_ADAPTER_TEST=1
-        cmake --build build
+    - name: Configure
+      run: cmake -S . -B build -DRAL_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Debug
 
-    - name: Run redis-adapter tests
-      run: build/redis-adapter-test
+    - name: Build
+      run: cmake --build build -j$(nproc)
+
+    - name: Run unit tests
+      run: ./build/ral-test-unit --gtest_output=xml:build/unit-results.xml
+
+    - name: Run integration tests
+      run: ./build/ral-test-integration --gtest_output=xml:build/integration-results.xml
+
+    - name: Run regression tests
+      run: ./build/ral-test-regressions --gtest_output=xml:build/regression-results.xml
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: build/*-results.xml

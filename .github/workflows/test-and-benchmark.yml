@@ -1,18 +1,10 @@
-name: Build, Test, and Benchmark RedisAdapter
+name: Test, Benchmark, and Reports
 
 on:
-#  push:
-#    branches:
-#      - main
-#  pull_request:
-#    branches:
-#      - main
-
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
 jobs:
-  build-test-benchmark:
+  test-coverage:
     runs-on: ubuntu-latest
 
     steps:
@@ -21,42 +13,94 @@ jobs:
       with:
         submodules: true
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y cmake g++ libhiredis-dev
+    - name: Install tools
+      run: sudo apt-get update && sudo apt-get install -y lcov
 
-    - name: Install latest Redis
+    - name: Install Redis server
       run: |
-        # Download and build the latest Redis
-        curl -O http://download.redis.io/redis-stable.tar.gz
-        tar xvzf redis-stable.tar.gz
-        cd redis-stable
-        make
-        sudo make install
+        tar xzf .github/redis-server.tar.gz
+        sudo mv redis-server /usr/local/bin/
 
     - name: Start Redis server
-      run: |
-        chmod +x ./redis-start.sh
-        ./redis-start.sh
+      run: redis-server --daemonize yes --save "" --appendonly no
 
-    - name: Configure and Build RedisAdapter
-      run: |
-        cmake -S . -B build -DREDIS_ADAPTER_TEST=1 -DREDIS_ADAPTER_BENCHMARK=1
-        cmake --build build
+    - name: Configure (tests + coverage)
+      run: cmake -S . -B build -DRAL_BUILD_TESTS=ON -DRAL_COVERAGE=ON -DCMAKE_BUILD_TYPE=Debug
 
-    - name: Run Tests
-      run: |
-        ./build/redis-adapter-test
+    - name: Build
+      run: cmake --build build -j$(nproc)
 
-    - name: Run Benchmarks (TCP)
-      run: |
-        ./build/redis-adapter-benchmark
-      env:
-        REDIS_ADAPTER_BENCHMARK_HOST: "127.0.0.1" # You can customize this if needed
+    - name: Run unit tests
+      run: ./build/ral-test-unit --gtest_output=xml:build/unit-results.xml
 
-    - name: Run Benchmarks (UNIX Domain Socket)
+    - name: Run integration tests
+      run: ./build/ral-test-integration --gtest_output=xml:build/integration-results.xml
+
+    - name: Run regression tests
+      run: ./build/ral-test-regressions --gtest_output=xml:build/regression-results.xml
+
+    - name: Generate coverage report
       run: |
-        ./build/redis-adapter-benchmark
-      env:
-        REDIS_ADAPTER_BENCHMARK_HOST: "/tmp/redis.sock" # You can customize this if needed
+        lcov --capture --directory build --output-file build/coverage.info
+        lcov --extract build/coverage.info '*/src/*' --output-file build/coverage_src.info
+        genhtml build/coverage_src.info --output-directory build/coverage-report
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: build/*-results.xml
+
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: build/coverage-report/
+
+  benchmark-profile:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Install Redis server
+      run: |
+        tar xzf .github/redis-server.tar.gz
+        sudo mv redis-server /usr/local/bin/
+
+    - name: Start Redis server
+      run: redis-server --daemonize yes --save "" --appendonly no
+
+    - name: Configure (benchmarks + profiling)
+      run: cmake -S . -B build -DRAL_BUILD_BENCHMARKS=ON -DRAL_PROFILE=ON -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build
+      run: cmake --build build -j$(nproc)
+
+    - name: Run benchmarks
+      working-directory: build
+      run: ./ral-benchmark --benchmark_format=json --benchmark_out=benchmark_results.json
+
+    - name: Generate gprof report
+      working-directory: build
+      run: gprof ral-benchmark gmon.out > gprof_report.txt
+
+    - name: Generate HTML profile report
+      run: |
+        python3 scripts/generate_profile_report.py \
+            --benchmark-json build/benchmark_results.json \
+            --gprof-txt      build/gprof_report.txt \
+            --output         build/profile_report.html
+
+    - name: Upload benchmark results
+      uses: actions/upload-artifact@v4
+      with:
+        name: benchmark-results
+        path: |
+          build/benchmark_results.json
+          build/gprof_report.txt
+          build/profile_report.html
