@@ -59,7 +59,7 @@ public:
     template<template<typename T, size_t S> class C, typename T, size_t S> RA_Time
     addSingleList(const std::string& subKey, const C<T, S>& data, const RA_ArgsAdd& args = {})
     {
-      int dataSize = data.size() * sizeof(T);
+      int dataSize = data.size_bytes();
       std::shared_ptr<void> ptr(
         new T[data.size()],                // allocate correct number of elements
         [](void* p) { delete[] static_cast<T*>(p); } // deleter
