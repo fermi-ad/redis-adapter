@@ -115,7 +115,7 @@ if(RAL_BUILD_BENCHMARKS)
   set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(benchmark)
 
-  add_executable(ral-benchmark test/benchmark_lite.cpp)
+  add_executable(ral-benchmark tests/benchmark/benchmark_lite.cpp)
   target_link_libraries(ral-benchmark redis-adapter-lite benchmark::benchmark)
 endif()
 

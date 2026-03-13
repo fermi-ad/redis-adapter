@@ -283,8 +283,7 @@ redis-adapter/
     unit/                     Pure logic tests (no Redis)
     integration/              Full round-trip tests (requires Redis)
     regressions/              Bug-specific regression tests
-  test/
-    benchmark_lite.cpp        Google Benchmark suite
+    benchmark/              Google Benchmark suite
   scripts/
     generate_profile_report.py  Profile report generator (gprof + benchmark JSON → HTML)
   doc/

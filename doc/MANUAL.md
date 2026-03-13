@@ -208,7 +208,7 @@ The `RAL_COVERAGE` option adds `--coverage -fprofile-arcs -ftest-coverage` flags
 
 ## Benchmarks
 
-The benchmark suite (`test/benchmark_lite.cpp`) uses [Google Benchmark](https://github.com/google/benchmark) to measure serialization, single-value add/get, range queries, bulk operations, and stress tests. A running Redis server is required.
+The benchmark suite (`tests/benchmark/benchmark_lite.cpp`) uses [Google Benchmark](https://github.com/google/benchmark) to measure serialization, single-value add/get, range queries, bulk operations, and stress tests. A running Redis server is required.
 
 ```bash
 # Build

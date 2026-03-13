@@ -1448,10 +1448,10 @@ The following table summarizes how each template type `T` maps to the underlying
 
 ### Testing
 
-The wrapper test suite is located at `test/test_wrapper.cpp` with the CMake target `ral-test-wrapper`:
+The wrapper tests are in `tests/integration/test_wrapper.cpp`, included in the `ral-test-integration` target:
 
 ```bash
 cmake -S . -B build -DRAL_BUILD_TESTS=ON
 cmake --build build
-./build/ral-test-wrapper
+./build/ral-test-integration --gtest_filter="Wrapper.*"
 ```
