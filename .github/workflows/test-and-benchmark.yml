@@ -41,9 +41,12 @@ jobs:
 
     - name: Generate coverage report
       run: |
-        lcov --capture --directory build --output-file build/coverage.info
-        lcov --extract build/coverage.info '*/src/*' --output-file build/coverage_src.info
-        genhtml build/coverage_src.info --output-directory build/coverage-report
+        lcov --capture --directory build --output-file build/coverage.info \
+            --ignore-errors mismatch,mismatch
+        lcov --extract build/coverage.info '*/src/*' --output-file build/coverage_src.info \
+            --ignore-errors mismatch,mismatch
+        genhtml build/coverage_src.info --output-directory build/coverage-report \
+            --ignore-errors mismatch,mismatch
 
     - name: Upload test results
       if: always()
