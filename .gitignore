@@ -1,4 +1,5 @@
 build/
+build-*/
 install/
 
 CMakeLists.txt.user
@@ -14,6 +15,19 @@ CPackSourceConfig.cmake
 _deps/
 Makefile
 Testing/
+
+# Coverage artifacts
+*.gcda
+*.gcno
+*.gcov
+*.info
+coverage-report/
+
+# Profiling artifacts
+gmon.out
+gprof_report.txt
+profile_report.html
+benchmark_results.json
 
 .vscode/
 .claude/
