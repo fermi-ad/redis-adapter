@@ -87,6 +87,20 @@ if(RAL_BUILD_TESTS)
   gtest_discover_tests(ral-test-regressions TEST_PREFIX "regressions/")
 endif()
 
+# ---- Coverage ----
+option(RAL_COVERAGE "Build with gcov coverage instrumentation" OFF)
+if(RAL_COVERAGE)
+  message(STATUS "RAL_COVERAGE enabled — adding --coverage flags")
+  target_compile_options(redis-adapter-lite PRIVATE --coverage -fprofile-arcs -ftest-coverage)
+  target_link_options(redis-adapter-lite PRIVATE --coverage)
+  if(RAL_BUILD_TESTS)
+    foreach(tgt ral-test-unit ral-test-integration ral-test-regressions)
+      target_compile_options(${tgt} PRIVATE --coverage -fprofile-arcs -ftest-coverage)
+      target_link_options(${tgt} PRIVATE --coverage)
+    endforeach()
+  endif()
+endif()
+
 # ---- Benchmarks ----
 option(RAL_BUILD_BENCHMARKS "Build RedisAdapterLite benchmarks" OFF)
 if(RAL_BUILD_BENCHMARKS)
@@ -103,6 +117,18 @@ if(RAL_BUILD_BENCHMARKS)
 
   add_executable(ral-benchmark test/benchmark_lite.cpp)
   target_link_libraries(ral-benchmark redis-adapter-lite benchmark::benchmark)
+endif()
+
+# ---- Profiling ----
+option(RAL_PROFILE "Build with gprof profiling instrumentation" OFF)
+if(RAL_PROFILE)
+  message(STATUS "RAL_PROFILE enabled — adding -pg flag")
+  target_compile_options(redis-adapter-lite PRIVATE -pg)
+  target_link_options(redis-adapter-lite PRIVATE -pg)
+  if(RAL_BUILD_BENCHMARKS)
+    target_compile_options(ral-benchmark PRIVATE -pg)
+    target_link_options(ral-benchmark PRIVATE -pg)
+  endif()
 endif()
 
 # ---- Install ----
