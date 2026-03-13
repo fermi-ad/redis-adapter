@@ -268,6 +268,87 @@ int64_t HiredisConnection::xtrim(const std::string& key, uint32_t maxlen)
   return -1;
 }
 
+std::vector<std::string> HiredisConnection::xadd_pipeline(
+    const std::string& key,
+    const std::vector<std::pair<std::string, Attrs>>& entries,
+    uint32_t trim)
+{
+  std::lock_guard<std::mutex> lk(_mutex);
+  if (!_ctx || entries.empty()) return {};
+
+  // Phase 1: Append all XADD commands to the output buffer (no round-trips)
+  for (auto& [id, fields] : entries)
+  {
+    std::vector<const char*> argv;
+    std::vector<size_t> argvlen;
+    argv.reserve(3 + fields.size() * 2);
+    argvlen.reserve(3 + fields.size() * 2);
+
+    argv.push_back("XADD");       argvlen.push_back(4);
+    argv.push_back(key.c_str());  argvlen.push_back(key.size());
+    argv.push_back(id.c_str());   argvlen.push_back(id.size());
+
+    for (auto& [f, v] : fields)
+    {
+      argv.push_back(f.c_str());  argvlen.push_back(f.size());
+      argv.push_back(v.c_str());  argvlen.push_back(v.size());
+    }
+
+    redisAppendCommandArgv(_ctx, static_cast<int>(argv.size()),
+                           argv.data(), argvlen.data());
+  }
+
+  // Optionally append XTRIM
+  if (trim > 0)
+  {
+    std::string maxlen_str = std::to_string(trim);
+    const char* argv[5]    = { "XTRIM", key.c_str(), "MAXLEN", "~", maxlen_str.c_str() };
+    size_t      argvlen[5] = { 5,       key.size(),  6,        1,   maxlen_str.size() };
+    redisAppendCommandArgv(_ctx, 5, argv, argvlen);
+  }
+
+  // Phase 2: Read all replies (one per appended command)
+  std::vector<std::string> results;
+  results.reserve(entries.size());
+
+  for (size_t i = 0; i < entries.size(); ++i)
+  {
+    redisReply* raw = nullptr;
+    if (redisGetReply(_ctx, reinterpret_cast<void**>(&raw)) != REDIS_OK)
+    {
+      syslog(LOG_ERR, "HiredisConnection::xadd_pipeline: reply read failed at entry %zu", i);
+      // Drain remaining replies to keep pipeline in sync
+      for (size_t j = i + 1; j < entries.size() + (trim > 0 ? 1 : 0); ++j)
+      {
+        redisReply* drain = nullptr;
+        if (redisGetReply(_ctx, reinterpret_cast<void**>(&drain)) == REDIS_OK && drain)
+          freeReplyObject(drain);
+      }
+      return results;
+    }
+
+    ReplyPtr r(raw);
+    if (r && r->type == REDIS_REPLY_STRING)
+      results.emplace_back(r->str, r->len);
+    else
+    {
+      if (r && r->type == REDIS_REPLY_ERROR)
+        syslog(LOG_ERR, "HiredisConnection::xadd_pipeline: %s", r->str);
+      results.emplace_back();
+    }
+  }
+
+  // Read XTRIM reply if we appended one
+  if (trim > 0)
+  {
+    redisReply* raw = nullptr;
+    if (redisGetReply(_ctx, reinterpret_cast<void**>(&raw)) == REDIS_OK && raw)
+      freeReplyObject(raw);
+  }
+
+  return results;
+}
+
 TimeAttrsList HiredisConnection::xrange(const std::string& key, const std::string& min,
                                          const std::string& max)
 {

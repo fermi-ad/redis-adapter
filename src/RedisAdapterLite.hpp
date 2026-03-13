@@ -125,6 +125,10 @@ private:
                              const char* data, size_t size,
                              const RAL_AddArgs& args);
 
+  std::vector<RAL_Time> pipeline_add(const std::string& key,
+                                     const std::vector<std::pair<std::string, Attrs>>& entries,
+                                     uint32_t trim);
+
   TimeAttrsList get_forward(const std::string& key,
                             RAL_Time minTime, RAL_Time maxTime, uint32_t count);
   TimeAttrsList get_reverse(const std::string& key,

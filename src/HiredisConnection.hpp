@@ -47,6 +47,14 @@ public:
 
   int64_t xtrim(const std::string& key, uint32_t maxlen);
 
+  // Pipelined XADD: appends all commands, reads all replies in one batch.
+  // entries = vector of (stream_id, fields) pairs.
+  // If trim > 0, appends a single XTRIM after all XADDs.
+  // Returns vector of assigned stream IDs (empty string on per-entry failure).
+  std::vector<std::string> xadd_pipeline(const std::string& key,
+                                          const std::vector<std::pair<std::string, Attrs>>& entries,
+                                          uint32_t trim = 0);
+
   TimeAttrsList xrange(const std::string& key, const std::string& min,
                         const std::string& max);
   TimeAttrsList xrange(const std::string& key, const std::string& min,

@@ -379,80 +379,81 @@ TimeAttrsList RedisAdapterLite::getAttrsBefore(const std::string& subKey, const 
 //  Bulk add (multiple timestamped items)
 //===========================================================================
 
+std::vector<RAL_Time> RedisAdapterLite::pipeline_add(const std::string& key,
+                                                       const std::vector<std::pair<std::string, Attrs>>& entries,
+                                                       uint32_t trim)
+{
+  // Ensure trim is at least as large as the batch to avoid
+  // trimming away entries we just added
+  uint32_t effective_trim = 0;
+  if (trim) effective_trim = std::max(trim, static_cast<uint32_t>(entries.size()));
+
+  auto ids = _redis.xadd_pipeline(key, entries, effective_trim);
+
+  std::vector<RAL_Time> ret;
+  ret.reserve(ids.size());
+  for (auto& id : ids)
+  {
+    if (!id.empty()) ret.push_back(RAL_Time(id));
+  }
+  check_reconnect(ret.size());
+  return ret;
+}
+
 std::vector<RAL_Time> RedisAdapterLite::addStrings(const std::string& subKey,
                                                      const TimeStringList& data, uint32_t trim)
 {
-  std::vector<RAL_Time> ret;
   std::string key = build_key(subKey);
+  std::vector<std::pair<std::string, Attrs>> entries;
+  entries.reserve(data.size());
   for (auto& item : data)
-  {
-    std::string id = _redis.xadd(key, item.first.id_or_now(), ral_from_string(item.second));
-    if (id.size()) ret.push_back(RAL_Time(id));
-  }
-  if (trim && ret.size()) _redis.xtrim(key, std::max(trim, static_cast<uint32_t>(ret.size())));
-  check_reconnect(ret.size());
-  return ret;
+    entries.emplace_back(item.first.id_or_now(), ral_from_string(item.second));
+  return pipeline_add(key, entries, trim);
 }
 
 std::vector<RAL_Time> RedisAdapterLite::addDoubles(const std::string& subKey,
                                                      const TimeDoubleList& data, uint32_t trim)
 {
-  std::vector<RAL_Time> ret;
   std::string key = build_key(subKey);
+  std::vector<std::pair<std::string, Attrs>> entries;
+  entries.reserve(data.size());
   for (auto& item : data)
-  {
-    std::string id = _redis.xadd(key, item.first.id_or_now(), ral_from_double(item.second));
-    if (id.size()) ret.push_back(RAL_Time(id));
-  }
-  if (trim && ret.size()) _redis.xtrim(key, std::max(trim, static_cast<uint32_t>(ret.size())));
-  check_reconnect(ret.size());
-  return ret;
+    entries.emplace_back(item.first.id_or_now(), ral_from_double(item.second));
+  return pipeline_add(key, entries, trim);
 }
 
 std::vector<RAL_Time> RedisAdapterLite::addInts(const std::string& subKey,
                                                   const TimeIntList& data, uint32_t trim)
 {
-  std::vector<RAL_Time> ret;
   std::string key = build_key(subKey);
+  std::vector<std::pair<std::string, Attrs>> entries;
+  entries.reserve(data.size());
   for (auto& item : data)
-  {
-    std::string id = _redis.xadd(key, item.first.id_or_now(), ral_from_int(item.second));
-    if (id.size()) ret.push_back(RAL_Time(id));
-  }
-  if (trim && ret.size()) _redis.xtrim(key, std::max(trim, static_cast<uint32_t>(ret.size())));
-  check_reconnect(ret.size());
-  return ret;
+    entries.emplace_back(item.first.id_or_now(), ral_from_int(item.second));
+  return pipeline_add(key, entries, trim);
 }
 
 std::vector<RAL_Time> RedisAdapterLite::addBlobs(const std::string& subKey,
                                                    const TimeBlobList& data, uint32_t trim)
 {
-  std::vector<RAL_Time> ret;
   std::string key = build_key(subKey);
+  std::vector<std::pair<std::string, Attrs>> entries;
+  entries.reserve(data.size());
   for (auto& item : data)
-  {
-    std::string id = _redis.xadd(key, item.first.id_or_now(),
-                                  ral_from_blob(item.second.data(), item.second.size()));
-    if (id.size()) ret.push_back(RAL_Time(id));
-  }
-  if (trim && ret.size()) _redis.xtrim(key, std::max(trim, static_cast<uint32_t>(ret.size())));
-  check_reconnect(ret.size());
-  return ret;
+    entries.emplace_back(item.first.id_or_now(),
+                         ral_from_blob(item.second.data(), item.second.size()));
+  return pipeline_add(key, entries, trim);
 }
 
 std::vector<RAL_Time> RedisAdapterLite::addAttrsBatch(const std::string& subKey,
                                                         const TimeAttrsList& data, uint32_t trim)
 {
-  std::vector<RAL_Time> ret;
   std::string key = build_key(subKey);
+  std::vector<std::pair<std::string, Attrs>> entries;
+  entries.reserve(data.size());
   for (auto& item : data)
-  {
-    std::string id = _redis.xadd(key, item.first.id_or_now(), item.second);
-    if (id.size()) ret.push_back(RAL_Time(id));
-  }
-  if (trim && ret.size()) _redis.xtrim(key, std::max(trim, static_cast<uint32_t>(ret.size())));
-  check_reconnect(ret.size());
-  return ret;
+    entries.emplace_back(item.first.id_or_now(), item.second);
+  return pipeline_add(key, entries, trim);
 }
 
 //===========================================================================
