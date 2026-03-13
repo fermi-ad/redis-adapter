@@ -290,7 +290,6 @@ tr:hover td { background: #1c2128; }
 .right { text-align: right; }
 .nowrap { white-space: nowrap; }
 .insight { background: var(--card); border-left: 3px solid var(--accent); padding: 0.8rem 1rem; margin: 0.8rem 0; border-radius: 0 6px 6px 0; font-size: 0.9rem; }
-.insight-warn { border-left-color: var(--yellow); }
 .section { margin-bottom: 2.5rem; }
 footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--text2); font-size: 0.75rem; }
 """
@@ -306,24 +305,6 @@ def bar_color(pct: float) -> str:
 def generate_html(benchmarks: list[dict], gprof_rows: list[dict], output: str):
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-    # ── compute summary stats from benchmarks ──
-    stats = {}
-    for bm in benchmarks:
-        n = bm["name"]
-        t = bm.get("real_time", bm.get("cpu_time", 0))
-        if n == "BM_TCP_AddDouble":
-            stats["add_latency"] = fmt_time(t)
-        elif n == "BM_TCP_GetDouble":
-            stats["get_latency"] = fmt_time(t)
-        elif n == "BM_FromDouble":
-            stats["ser_time"] = fmt_time(t)
-        elif n == "BM_ToDouble":
-            stats["deser_time"] = fmt_time(t)
-        elif n == "BM_TCP_AddBlob/1048576":
-            stats["blob_tp"] = extract_throughput(bm)[0]
-        elif n == "BM_TCP_Connected":
-            stats["ping"] = fmt_time(t)
-
     total_time = gprof_rows[-1]["cum"] if gprof_rows else 0
 
     parts = []
@@ -332,23 +313,51 @@ def generate_html(benchmarks: list[dict], gprof_rows: list[dict], output: str):
     parts.append(f"<style>{CSS}</style></head><body>")
 
     parts.append("<h1>RedisAdapterLite — Performance Profile</h1>")
-    parts.append(f"<p class='subtitle'>gprof + Google Benchmark &middot; TCP transport &middot; {now}</p>")
+    parts.append(f"<p class='subtitle'>gprof + Google Benchmark &middot; {now}</p>")
 
-    # ── summary cards ──
-    parts.append("<div class='grid'>")
-    cards = [
-        ("Total Profile Time", f"{total_time:.2f}s", "CPU time under benchmark"),
-        ("Add Latency", stats.get("add_latency", "—"), "Single double add (TCP)"),
-        ("Get Latency", stats.get("get_latency", "—"), "Single double get (TCP)"),
-        ("Serialization", stats.get("ser_time", "—"), "ral_from_double"),
-        ("Deserialization", stats.get("deser_time", "—"), "ral_to_double (memcpy)"),
-        ("Blob Throughput", stats.get("blob_tp", "—"), "1 MB blobs over TCP"),
-        ("PING Latency", stats.get("ping", "—"), "connected() round-trip"),
-    ]
-    for label, value, detail in cards:
-        parts.append(f"<div class='stat-card'><div class='label'>{label}</div>"
-                     f"<div class='value'>{value}</div><div class='detail'>{detail}</div></div>")
-    parts.append("</div>")
+    # ── summary cards (derived from data) ──
+    cards = []
+    if gprof_rows:
+        cards.append(("Total Profile Time", f"{total_time:.2f}s", "CPU time under benchmark"))
+        n_funcs = len([r for r in gprof_rows if r["pct"] >= 0.5])
+        cards.append(("Hot Functions", str(n_funcs), f"of {len(gprof_rows)} total (&ge;0.5%)"))
+    if benchmarks:
+        non_agg = [b for b in benchmarks if b.get("run_type") != "aggregate"]
+        cards.append(("Benchmarks", str(len(non_agg)), "test cases executed"))
+        # Find fastest and slowest non-aggregate benchmarks
+        timed = [(b, b.get("real_time", b.get("cpu_time", 0)),
+                  {"ns": 1, "us": 1000, "ms": 1_000_000, "s": 1_000_000_000}.get(b.get("time_unit", "ns"), 1))
+                 for b in non_agg]
+        if timed:
+            fastest = min(timed, key=lambda x: x[1] * x[2])
+            slowest = max(timed, key=lambda x: x[1] * x[2])
+            fn = fastest[0]["name"].replace("BM_TCP_", "").replace("BM_UDS_", "").replace("BM_", "")
+            sn = slowest[0]["name"].replace("BM_TCP_", "").replace("BM_UDS_", "").replace("BM_", "")
+            cards.append(("Fastest", fmt_time(fastest[1] * fastest[2]), fn))
+            cards.append(("Slowest", fmt_time(slowest[1] * slowest[2]), sn))
+        # Find highest throughput benchmark
+        tp_bms = [(b, b.get("bytes_per_second", b.get("items_per_second", 0)))
+                  for b in non_agg if "bytes_per_second" in b or "items_per_second" in b]
+        if tp_bms:
+            best_tp = max(tp_bms, key=lambda x: x[1])
+            tp_str, _ = extract_throughput(best_tp[0])
+            tn = best_tp[0]["name"].replace("BM_TCP_", "").replace("BM_UDS_", "").replace("BM_", "")
+            cards.append(("Peak Throughput", tp_str, tn))
+    if gprof_rows:
+        # Top subsystem from gprof
+        subsystem_totals: dict[str, float] = {}
+        for r in gprof_rows:
+            _, layer, _ = classify_function(r["name"])
+            subsystem_totals[layer] = subsystem_totals.get(layer, 0) + r["pct"]
+        top_layer = max(subsystem_totals, key=subsystem_totals.get)
+        cards.append(("Top Subsystem", f"{subsystem_totals[top_layer]:.1f}%", top_layer))
+
+    if cards:
+        parts.append("<div class='grid'>")
+        for label, value, detail in cards:
+            parts.append(f"<div class='stat-card'><div class='label'>{label}</div>"
+                         f"<div class='value'>{value}</div><div class='detail'>{detail}</div></div>")
+        parts.append("</div>")
 
     # ── gprof hotspots ──
     if gprof_rows:
@@ -449,26 +458,6 @@ def generate_html(benchmarks: list[dict], gprof_rows: list[dict], output: str):
             parts.append("</tbody></table>")
 
         parts.append("</div>")
-
-    # ── recommendations ──
-    parts.append("<div class='section'><h2>Optimization Recommendations</h2>")
-    recommendations = [
-        ("Pipeline bulk operations",
-         "<code>addDoubles()</code> issues N separate round-trips. "
-         "Redis pipelining (batch send, batch receive) could reduce latency by ~10&times;."),
-        ("Flatten single-field Attrs",
-         "<code>unordered_map</code> construction/hashing accounts for ~14% of CPU. "
-         "Single-value ops always use field <code>\"_\"</code> — a specialized path would eliminate this overhead."),
-        ("Pre-allocate parse vectors",
-         "<code>vector&lt;TimeAttrs&gt;::_M_realloc_insert</code> (~3.5%) can be avoided by calling "
-         "<code>reserve(reply-&gt;elements)</code> since the count is known from the Redis reply."),
-        ("Consider UDS transport",
-         "Unix domain sockets eliminate TCP overhead. If Redis is local, "
-         "UDS can reduce per-operation latency by 30–50%."),
-    ]
-    for title, body in recommendations:
-        parts.append(f"<div class='insight insight-warn'><strong>{title}</strong><br>{body}</div>")
-    parts.append("</div>")
 
     parts.append(f"<footer>Generated by <code>scripts/generate_profile_report.py</code> &middot; {now}</footer>")
     parts.append("</body></html>")

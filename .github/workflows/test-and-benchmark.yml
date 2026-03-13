@@ -48,6 +48,82 @@ jobs:
         genhtml build/coverage_src.info --output-directory build/coverage-report \
             --ignore-errors mismatch,mismatch
 
+    - name: Test and coverage summary
+      if: always()
+      run: |
+        python3 - <<'PYEOF'
+        import xml.etree.ElementTree as ET
+        from pathlib import Path
+        import os
+
+        suites = [
+            ("Unit", "build/unit-results.xml"),
+            ("Integration", "build/integration-results.xml"),
+            ("Regression", "build/regression-results.xml"),
+        ]
+
+        lines = ["## Test Results\n", "| Suite | Tests | Passed | Failed | Skipped | Time |", "|-------|-------|--------|--------|---------|------|"]
+        total_tests = total_pass = total_fail = total_skip = 0
+        failures = []
+
+        for name, path in suites:
+            p = Path(path)
+            if not p.exists():
+                lines.append(f"| {name} | — | — | — | — | *not run* |")
+                continue
+            tree = ET.parse(p)
+            root = tree.getroot()
+            tests = int(root.attrib.get("tests", 0))
+            fail = int(root.attrib.get("failures", 0))
+            skip = int(root.attrib.get("disabled", root.attrib.get("skipped", 0)))
+            time_s = float(root.attrib.get("time", 0))
+            passed = tests - fail - skip
+            total_tests += tests
+            total_pass += passed
+            total_fail += fail
+            total_skip += skip
+            status = ":white_check_mark:" if fail == 0 else ":x:"
+            lines.append(f"| {status} {name} | {tests} | {passed} | {fail} | {skip} | {time_s:.2f}s |")
+
+            for tc in root.iter("testcase"):
+                for f in tc.iter("failure"):
+                    suite = tc.attrib.get("classname", "")
+                    test = tc.attrib.get("name", "")
+                    msg = f.attrib.get("message", f.text or "")
+                    short = msg.strip().split("\n")[0][:200] if msg.strip() else ""
+                    failures.append((name, f"{suite}.{test}", short))
+
+        lines.append(f"| **Total** | **{total_tests}** | **{total_pass}** | **{total_fail}** | **{total_skip}** | |")
+
+        if failures:
+            lines.append("\n### Failures\n")
+            for suite, test, msg in failures:
+                lines.append(f"<details><summary>:x: <code>{test}</code> ({suite})</summary>\n")
+                lines.append(f"```\n{msg}\n```\n</details>\n")
+
+        # Coverage summary from lcov
+        cov_info = Path("build/coverage_src.info")
+        if cov_info.exists():
+            lines.append("\n## Coverage\n")
+            line_hit = line_total = fn_hit = fn_total = 0
+            for l in cov_info.read_text().splitlines():
+                if l.startswith("LH:"): line_hit += int(l.split(":")[1])
+                elif l.startswith("LF:"): line_total += int(l.split(":")[1])
+                elif l.startswith("FNH:"): fn_hit += int(l.split(":")[1])
+                elif l.startswith("FNF:"): fn_total += int(l.split(":")[1])
+            line_pct = (line_hit / line_total * 100) if line_total else 0
+            fn_pct = (fn_hit / fn_total * 100) if fn_total else 0
+            lines.append(f"| Metric | Hit | Total | Coverage |")
+            lines.append(f"|--------|-----|-------|----------|")
+            lines.append(f"| Lines | {line_hit} | {line_total} | **{line_pct:.1f}%** |")
+            lines.append(f"| Functions | {fn_hit} | {fn_total} | **{fn_pct:.1f}%** |")
+
+        summary = "\n".join(lines)
+        print(summary)
+        with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+            f.write(summary)
+        PYEOF
+
     - name: Upload test results
       if: always()
       uses: actions/upload-artifact@v4
