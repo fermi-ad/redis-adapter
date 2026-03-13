@@ -4,25 +4,30 @@
 
 1. [Overview](#overview)
 2. [Architecture](#architecture)
-3. [Key naming](#key-naming)
-4. [Timestamps (RAL_Time)](#timestamps-ral_time)
-5. [Types (RAL_Types)](#types-ral_types)
-6. [Serialization helpers (RAL_Helpers)](#serialization-helpers-ral_helpers)
-7. [Connection options](#connection-options)
-8. [Construction](#construction)
-9. [Add operations](#add-operations)
-10. [Get operations](#get-operations)
-11. [Range queries](#range-queries)
-12. [Reverse range queries](#reverse-range-queries)
-13. [Bulk add](#bulk-add)
-14. [Stream readers](#stream-readers)
-15. [Pub/Sub](#pubsub)
-16. [Watchdog](#watchdog)
-17. [Key management](#key-management)
-18. [RedisCache](#rediscache)
-19. [Threading model](#threading-model)
-20. [Error handling](#error-handling)
-21. [Compatibility wrapper (RedisAdapter)](#compatibility-wrapper-redisadapter)
+3. [Building](#building)
+4. [Testing](#testing)
+5. [Coverage](#coverage)
+6. [Benchmarks](#benchmarks)
+7. [Profiling](#profiling)
+8. [Key naming](#key-naming)
+9. [Timestamps (RAL_Time)](#timestamps-ral_time)
+10. [Types (RAL_Types)](#types-ral_types)
+11. [Serialization helpers (RAL_Helpers)](#serialization-helpers-ral_helpers)
+12. [Connection options](#connection-options)
+13. [Construction](#construction)
+14. [Add operations](#add-operations)
+15. [Get operations](#get-operations)
+16. [Range queries](#range-queries)
+17. [Reverse range queries](#reverse-range-queries)
+18. [Bulk add](#bulk-add)
+19. [Stream readers](#stream-readers)
+20. [Pub/Sub](#pubsub)
+21. [Watchdog](#watchdog)
+22. [Key management](#key-management)
+23. [RedisCache](#rediscache)
+24. [Threading model](#threading-model)
+25. [Error handling](#error-handling)
+26. [Compatibility wrapper (RedisAdapter)](#compatibility-wrapper-redisadapter)
 
 ---
 
@@ -62,6 +67,207 @@ Source files:
 | `HiredisReply.hpp/cpp` | Reply parsing for stream data |
 | `ThreadPool.hpp` | Simple worker thread pool |
 | `RedisCache.hpp` | Double-buffered cache over a stream reader |
+
+## Building
+
+### Prerequisites
+
+- C++17 compiler (GCC 7+, Clang 5+, MSVC 2017+)
+- CMake 3.14+
+- Redis server (6.0+ for streams, 7.4+ for watchdog)
+- hiredis (included as a git submodule)
+
+### Clone and build
+
+```bash
+git clone --recurse-submodules <repo-url>
+cd redis-adapter
+
+# Library only
+cmake -S . -B build
+cmake --build build
+```
+
+### CMake options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `RAL_BUILD_TESTS` | `OFF` | Build unit, integration, and regression test suites (fetches Google Test 1.15.2) |
+| `RAL_BUILD_BENCHMARKS` | `OFF` | Build the Google Benchmark suite (fetches Google Benchmark 1.9.1) |
+| `RAL_COVERAGE` | `OFF` | Add `--coverage -fprofile-arcs -ftest-coverage` to library and test targets |
+| `RAL_PROFILE` | `OFF` | Add `-pg` (gprof) to library and benchmark targets |
+
+Options can be combined:
+
+```bash
+cmake -S . -B build \
+    -DRAL_BUILD_TESTS=ON \
+    -DRAL_BUILD_BENCHMARKS=ON \
+    -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+```
+
+### Build targets
+
+| Target | Option required | Description |
+|--------|----------------|-------------|
+| `redis-adapter-lite` | — | Static library |
+| `ral-test-unit` | `RAL_BUILD_TESTS` | Unit tests (no Redis needed) |
+| `ral-test-integration` | `RAL_BUILD_TESTS` | Integration tests (requires Redis) |
+| `ral-test-regressions` | `RAL_BUILD_TESTS` | Regression tests (requires Redis) |
+| `ral-benchmark` | `RAL_BUILD_BENCHMARKS` | Google Benchmark suite (requires Redis) |
+
+### Integration into your project
+
+**As a CMake subdirectory (recommended):**
+
+```cmake
+add_subdirectory(redis-adapter)
+target_link_libraries(your_target PRIVATE redis-adapter-lite)
+```
+
+**After install:**
+
+```bash
+cmake --install build --prefix /usr/local
+```
+
+```cmake
+find_package(redis-adapter-lite REQUIRED)
+target_link_libraries(your_target PRIVATE redis-adapter-lite)
+```
+
+Headers are installed to `include/redis-adapter-lite/`, the library to `lib/`, and a CMake config file to `lib/cmake/redis-adapter-lite/`.
+
+## Testing
+
+Tests are organized into three suites under `tests/`:
+
+| Suite | Directory | Redis needed | What it covers |
+|-------|-----------|-------------|----------------|
+| **Unit** | `tests/unit/` | No | RAL_Time parsing, serialization helpers, ThreadPool |
+| **Integration** | `tests/integration/` | Yes | Add/get, range queries, bulk, pub/sub, readers, concurrency, reconnect, watchdog |
+| **Regression** | `tests/regressions/` | Yes | AUTH injection, subscriber deadlock, watchdog race, reader thread safety |
+
+### Running tests
+
+```bash
+# Build
+cmake -S . -B build -DRAL_BUILD_TESTS=ON
+cmake --build build
+
+# Run all suites via CTest
+cd build && ctest --output-on-failure
+
+# Or run each suite individually
+./build/ral-test-unit
+./build/ral-test-integration
+./build/ral-test-regressions
+
+# Run a single test by name
+./build/ral-test-unit --gtest_filter="RAL_Time.*"
+./build/ral-test-integration --gtest_filter="Concurrent.*"
+```
+
+Integration and regression tests expect Redis on `127.0.0.1:6379`. Test keys are prefixed with `TEST:` or `CONC_*:` and cleaned up after each test.
+
+## Coverage
+
+Generate an lcov/gcov HTML coverage report:
+
+```bash
+# 1. Build with coverage instrumentation (use Debug for accurate line counts)
+cmake -S . -B build-coverage \
+    -DRAL_BUILD_TESTS=ON \
+    -DRAL_COVERAGE=ON \
+    -DCMAKE_BUILD_TYPE=Debug
+cmake --build build-coverage
+
+# 2. Run all test suites to generate .gcda profiling data
+./build-coverage/ral-test-unit
+./build-coverage/ral-test-integration
+./build-coverage/ral-test-regressions
+
+# 3. Capture coverage data
+lcov --capture --directory build-coverage --output-file build-coverage/coverage.info
+
+# 4. Filter to src/ only (exclude test code, hiredis, gtest)
+lcov --extract build-coverage/coverage.info '*/src/*' \
+    --output-file build-coverage/coverage_src.info
+
+# 5. Generate HTML report
+genhtml build-coverage/coverage_src.info \
+    --output-directory build-coverage/coverage-report
+
+# 6. Open the report
+open build-coverage/coverage-report/index.html    # macOS
+xdg-open build-coverage/coverage-report/index.html  # Linux
+```
+
+The `RAL_COVERAGE` option adds `--coverage -fprofile-arcs -ftest-coverage` flags to both the library and all test executables.
+
+## Benchmarks
+
+The benchmark suite (`test/benchmark_lite.cpp`) uses [Google Benchmark](https://github.com/google/benchmark) to measure serialization, single-value add/get, range queries, bulk operations, and stress tests. A running Redis server is required.
+
+```bash
+# Build
+cmake -S . -B build -DRAL_BUILD_BENCHMARKS=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+
+# Run all benchmarks (console output)
+./build/ral-benchmark
+
+# Run with JSON output for reporting
+./build/ral-benchmark \
+    --benchmark_format=json \
+    --benchmark_out=benchmark_results.json
+
+# Run a subset
+./build/ral-benchmark --benchmark_filter="BM_TCP_Add"
+./build/ral-benchmark --benchmark_filter="BM_From|BM_To"
+./build/ral-benchmark --benchmark_filter="Stress"
+```
+
+See [BENCHMARKS.md](BENCHMARKS.md) for performance data across Redis 7.0–8.6.
+
+## Profiling
+
+CPU profiling with gprof to identify hotspots:
+
+```bash
+# 1. Build with profiling + benchmarks
+cmake -S . -B build-profile \
+    -DRAL_BUILD_BENCHMARKS=ON \
+    -DRAL_PROFILE=ON \
+    -DCMAKE_BUILD_TYPE=Release
+cmake --build build-profile
+
+# 2. Run benchmarks (produces gmon.out in CWD)
+cd build-profile
+./ral-benchmark \
+    --benchmark_format=json \
+    --benchmark_out=benchmark_results.json
+
+# 3. Generate raw gprof report
+gprof ral-benchmark gmon.out > gprof_report.txt
+
+# 4. Generate styled HTML report (includes benchmark throughput data)
+cd ..
+python3 scripts/generate_profile_report.py \
+    --benchmark-json build-profile/benchmark_results.json \
+    --gprof-txt      build-profile/gprof_report.txt \
+    --output         build-profile/profile_report.html
+```
+
+The `RAL_PROFILE` option adds the `-pg` flag to the library and benchmark targets. The HTML report generator (`scripts/generate_profile_report.py`) parses both gprof output and Google Benchmark JSON to produce a single report with:
+
+- **Summary stat cards** — add latency, get latency, serialization time, blob throughput
+- **CPU hotspot table** — functions sorted by self time, with visual bars and subsystem tags (hiredis, RAL, STL, benchmark, system)
+- **Benchmark results** — grouped by category (serialization, single ops, range queries, bulk, stress) with wall time, CPU time, iterations, and throughput
+- **Optimization recommendations** — based on the profiling data
+
+---
 
 ## Key naming
 
@@ -782,5 +988,5 @@ The following methods delegate directly to `RedisAdapterLite` with identical sig
 3. If you relied on `psubscribe`, replace with exact `subscribe` calls or implement pattern matching in your callback.
 4. Remove any references to the connection pool size (`cxn.size`) -- it compiles but has no effect.
 5. Link against `redis-adapter-lite` in CMake (the wrapper is header-only, no separate library target).
-6. Run `ral-test-wrapper` to verify your build (`test/test_wrapper.cpp`).
+6. Run `ral-test-integration --gtest_filter="Wrapper.*"` to verify your build (`tests/integration/test_wrapper.cpp`).
 
