@@ -77,6 +77,7 @@ static void BM_FromDouble(benchmark::State& state)
     auto attrs = ral_from_double(3.14159);
     benchmark::DoNotOptimize(attrs);
   }
+  state.SetItemsProcessed(state.iterations());
 }
 BENCHMARK(BM_FromDouble);
 
@@ -88,6 +89,7 @@ static void BM_ToDouble(benchmark::State& state)
     auto val = ral_to_double(attrs);
     benchmark::DoNotOptimize(val);
   }
+  state.SetItemsProcessed(state.iterations());
 }
 BENCHMARK(BM_ToDouble);
 
@@ -98,6 +100,7 @@ static void BM_FromInt(benchmark::State& state)
     auto attrs = ral_from_int(42);
     benchmark::DoNotOptimize(attrs);
   }
+  state.SetItemsProcessed(state.iterations());
 }
 BENCHMARK(BM_FromInt);
 
@@ -109,6 +112,7 @@ static void BM_ToInt(benchmark::State& state)
     auto val = ral_to_int(attrs);
     benchmark::DoNotOptimize(val);
   }
+  state.SetItemsProcessed(state.iterations());
 }
 BENCHMARK(BM_ToInt);
 
@@ -132,6 +136,7 @@ static void BM_TimeToStreamId(benchmark::State& state)
     auto id = t.id();
     benchmark::DoNotOptimize(id);
   }
+  state.SetItemsProcessed(state.iterations());
 }
 BENCHMARK(BM_TimeToStreamId);
 
@@ -143,6 +148,7 @@ static void BM_TimeFromStreamId(benchmark::State& state)
     RAL_Time t(id);
     benchmark::DoNotOptimize(t);
   }
+  state.SetItemsProcessed(state.iterations());
 }
 BENCHMARK(BM_TimeFromStreamId);
 
@@ -167,6 +173,7 @@ static void BM_TCP_AddDouble(benchmark::State& state)
     auto t = get_tcp().addDouble("bm_add_dbl", 3.14, {.trim = 0});
     benchmark::DoNotOptimize(t);
   }
+  state.SetItemsProcessed(state.iterations());
   get_tcp().del("bm_add_dbl");
 }
 BENCHMARK(BM_TCP_AddDouble);
@@ -180,6 +187,7 @@ static void BM_UDS_AddDouble(benchmark::State& state)
     auto t = get_uds().addDouble("bm_add_dbl", 3.14, {.trim = 0});
     benchmark::DoNotOptimize(t);
   }
+  state.SetItemsProcessed(state.iterations());
   get_uds().del("bm_add_dbl");
 }
 BENCHMARK(BM_UDS_AddDouble);
@@ -192,6 +200,7 @@ static void BM_TCP_AddInt(benchmark::State& state)
     auto t = get_tcp().addInt("bm_add_int", 42, {.trim = 0});
     benchmark::DoNotOptimize(t);
   }
+  state.SetItemsProcessed(state.iterations());
   get_tcp().del("bm_add_int");
 }
 BENCHMARK(BM_TCP_AddInt);
@@ -205,6 +214,7 @@ static void BM_UDS_AddInt(benchmark::State& state)
     auto t = get_uds().addInt("bm_add_int", 42, {.trim = 0});
     benchmark::DoNotOptimize(t);
   }
+  state.SetItemsProcessed(state.iterations());
   get_uds().del("bm_add_int");
 }
 BENCHMARK(BM_UDS_AddInt);
@@ -280,6 +290,7 @@ static void BM_TCP_GetDouble(benchmark::State& state)
     benchmark::DoNotOptimize(t);
     benchmark::DoNotOptimize(dest);
   }
+  state.SetItemsProcessed(state.iterations());
   get_tcp().del("bm_get_dbl");
 }
 BENCHMARK(BM_TCP_GetDouble);
@@ -296,6 +307,7 @@ static void BM_UDS_GetDouble(benchmark::State& state)
     benchmark::DoNotOptimize(t);
     benchmark::DoNotOptimize(dest);
   }
+  state.SetItemsProcessed(state.iterations());
   get_uds().del("bm_get_dbl");
 }
 BENCHMARK(BM_UDS_GetDouble);
@@ -311,6 +323,7 @@ static void BM_TCP_GetInt(benchmark::State& state)
     benchmark::DoNotOptimize(t);
     benchmark::DoNotOptimize(dest);
   }
+  state.SetItemsProcessed(state.iterations());
   get_tcp().del("bm_get_int");
 }
 BENCHMARK(BM_TCP_GetInt);
@@ -327,6 +340,7 @@ static void BM_UDS_GetInt(benchmark::State& state)
     benchmark::DoNotOptimize(t);
     benchmark::DoNotOptimize(dest);
   }
+  state.SetItemsProcessed(state.iterations());
   get_uds().del("bm_get_int");
 }
 BENCHMARK(BM_UDS_GetInt);
@@ -478,6 +492,7 @@ static void BM_TCP_AddAttrs(benchmark::State& state)
     auto t = get_tcp().addAttrs("bm_add_attr", attrs, {.trim = 0});
     benchmark::DoNotOptimize(t);
   }
+  state.SetItemsProcessed(state.iterations());
   get_tcp().del("bm_add_attr");
 }
 BENCHMARK(BM_TCP_AddAttrs)->Arg(1)->Arg(5)->Arg(20);
@@ -494,6 +509,7 @@ static void BM_UDS_AddAttrs(benchmark::State& state)
     auto t = get_uds().addAttrs("bm_add_attr", attrs, {.trim = 0});
     benchmark::DoNotOptimize(t);
   }
+  state.SetItemsProcessed(state.iterations());
   get_uds().del("bm_add_attr");
 }
 BENCHMARK(BM_UDS_AddAttrs)->Arg(1)->Arg(5)->Arg(20);
@@ -512,6 +528,7 @@ static void BM_TCP_GetAttrs(benchmark::State& state)
     benchmark::DoNotOptimize(t);
     benchmark::DoNotOptimize(dest);
   }
+  state.SetItemsProcessed(state.iterations());
   get_tcp().del("bm_get_attr");
 }
 BENCHMARK(BM_TCP_GetAttrs)->Arg(1)->Arg(5)->Arg(20);
@@ -531,6 +548,7 @@ static void BM_UDS_GetAttrs(benchmark::State& state)
     benchmark::DoNotOptimize(t);
     benchmark::DoNotOptimize(dest);
   }
+  state.SetItemsProcessed(state.iterations());
   get_uds().del("bm_get_attr");
 }
 BENCHMARK(BM_UDS_GetAttrs)->Arg(1)->Arg(5)->Arg(20);
@@ -544,6 +562,7 @@ static void BM_TCP_Connected(benchmark::State& state)
     bool c = get_tcp().connected();
     benchmark::DoNotOptimize(c);
   }
+  state.SetItemsProcessed(state.iterations());
 }
 BENCHMARK(BM_TCP_Connected);
 
@@ -555,6 +574,7 @@ static void BM_UDS_Connected(benchmark::State& state)
     bool c = get_uds().connected();
     benchmark::DoNotOptimize(c);
   }
+  state.SetItemsProcessed(state.iterations());
 }
 BENCHMARK(BM_UDS_Connected);
 
@@ -571,6 +591,7 @@ static void BM_TCP_AddGetCycle(benchmark::State& state)
     get_tcp().getDouble("bm_cycle", dest);
     benchmark::DoNotOptimize(dest);
   }
+  state.SetItemsProcessed(state.iterations());
   get_tcp().del("bm_cycle");
 }
 BENCHMARK(BM_TCP_AddGetCycle);
@@ -587,6 +608,7 @@ static void BM_UDS_AddGetCycle(benchmark::State& state)
     get_uds().getDouble("bm_cycle", dest);
     benchmark::DoNotOptimize(dest);
   }
+  state.SetItemsProcessed(state.iterations());
   get_uds().del("bm_cycle");
 }
 BENCHMARK(BM_UDS_AddGetCycle);

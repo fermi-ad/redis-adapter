@@ -21,8 +21,10 @@ jobs:
         tar xzf .github/redis-server.tar.gz
         sudo mv redis-server /usr/local/bin/
 
-    - name: Start Redis server
-      run: redis-server --daemonize yes --save "" --appendonly no
+    - name: Start Redis server (TCP + UDS)
+      run: |
+        chmod +x tests/redis-start.sh
+        ./tests/redis-start.sh
 
     # ── Tests + Coverage ──
 
