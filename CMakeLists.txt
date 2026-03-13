@@ -68,13 +68,17 @@ if(RAL_BUILD_TESTS)
   enable_testing()
   include(GoogleTest)
 
-  add_executable(ral-test test/test_lite.cpp)
-  target_link_libraries(ral-test redis-adapter-lite GTest::gtest_main)
-  gtest_discover_tests(ral-test)
+  add_executable(ral-test-features test/test_features.cpp)
+  target_link_libraries(ral-test-features redis-adapter-lite GTest::gtest_main)
+  gtest_discover_tests(ral-test-features)
 
   add_executable(ral-test-wrapper test/test_wrapper.cpp)
   target_link_libraries(ral-test-wrapper redis-adapter-lite GTest::gtest_main)
   gtest_discover_tests(ral-test-wrapper)
+
+  add_executable(ral-test-bugs test/test_bugs.cpp)
+  target_link_libraries(ral-test-bugs redis-adapter-lite GTest::gtest_main)
+  gtest_discover_tests(ral-test-bugs)
 endif()
 
 # ---- Benchmarks ----
