@@ -108,7 +108,10 @@ RAL_Time RedisAdapterLite::add_entry(const std::string& key, const Attrs& attrs,
     ? _redis.xadd_trim(key, args.time.id_or_now(), attrs, args.trim)
     : _redis.xadd(key, args.time.id_or_now(), attrs);
 
-  if (check_reconnect(id.size()) == 0) return RAL_NOT_CONNECTED;
+  // Check connection state, not result emptiness — an empty ID can mean
+  // a Redis error (e.g. out-of-order timestamp), not a connection failure.
+  if (check_reconnect(_redis.is_connected() ? 1 : 0) == 0) return RAL_NOT_CONNECTED;
+  if (id.empty()) return {};
   return RAL_Time(id);
 }
 
@@ -121,7 +124,10 @@ RAL_Time RedisAdapterLite::add_entry_single(const std::string& key,
     ? _redis.xadd_trim_single(key, args.time.id_or_now(), FIELD, 1, data, size, args.trim)
     : _redis.xadd_single(key, args.time.id_or_now(), FIELD, 1, data, size);
 
-  if (check_reconnect(id.size()) == 0) return RAL_NOT_CONNECTED;
+  // Check connection state, not result emptiness — an empty ID can mean
+  // a Redis error (e.g. out-of-order timestamp), not a connection failure.
+  if (check_reconnect(_redis.is_connected() ? 1 : 0) == 0) return RAL_NOT_CONNECTED;
+  if (id.empty()) return {};
   return RAL_Time(id);
 }
 
@@ -396,7 +402,9 @@ std::vector<RAL_Time> RedisAdapterLite::pipeline_add(const std::string& key,
   {
     if (!id.empty()) ret.push_back(RAL_Time(id));
   }
-  check_reconnect(ret.size());
+  // Check connection state, not result count — entries can fail due to
+  // Redis errors (e.g. out-of-order timestamps) without a connection problem.
+  check_reconnect(_redis.is_connected() ? 1 : 0);
   return ret;
 }
 
