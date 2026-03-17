@@ -712,11 +712,38 @@ bool RedisAdapterLite::start_reader(uint32_t token)
   if (token == NO_TOKEN || _readers.count(token) == 0) return false;
 
   ReaderInfo& info = *_readers.at(token);
-  if (info.thread.joinable()) return false;
 
-  // Create a dedicated context for this reader thread
-  info.ctx = _redis.create_context();
-  if (!info.ctx) return false;
+  // Join previous thread if it hasn't been cleaned up
+  if (info.thread.joinable())
+  {
+    info.run = false;
+    Attrs attrs = ral_from_string("");
+    _redis.xadd_trim(info.stop_key, "*", attrs, 1);
+    info.thread.join();
+  }
+
+  // Create a dedicated context for this reader thread, with retry
+  info.ctx = nullptr;
+  for (int attempt = 0; attempt < 10 && !info.ctx; ++attempt)
+  {
+    info.ctx = _redis.create_context();
+    if (!info.ctx)
+    {
+      fprintf(stderr, "RedisAdapterLite: create_context failed (attempt %d/10)\n", attempt + 1);
+      std::this_thread::sleep_for(milliseconds(200));
+    }
+  }
+  if (!info.ctx)
+  {
+    fprintf(stderr, "RedisAdapterLite: create_context failed after 10 attempts, reader not started\n");
+    return false;
+  }
+
+  // Log the keys this reader will watch
+  fprintf(stderr, "RedisAdapterLite: starting reader token=%u with %zu keys:\n",
+          token, info.key_ids.size());
+  for (auto& [k, id] : info.key_ids)
+    fprintf(stderr, "RedisAdapterLite:   key=[%s] id=[%s]\n", k.c_str(), id.c_str());
 
   // Use promise/future for thread start confirmation
   std::promise<void> started;
@@ -734,6 +761,19 @@ bool RedisAdapterLite::start_reader(uint32_t token)
 
     while (info.run)
     {
+      // Reconnect if context was lost
+      if (!info.ctx)
+      {
+        fprintf(stderr, "RedisAdapterLite: reader reconnecting...\n");
+        info.ctx = _redis.create_context();
+        if (!info.ctx)
+        {
+          std::this_thread::sleep_for(milliseconds(1000));
+          continue;
+        }
+        fprintf(stderr, "RedisAdapterLite: reader reconnected\n");
+      }
+
       // Build keys_ids for XREAD
       std::vector<std::pair<std::string, std::string>> keys_ids;
       for (auto& [k, id] : info.key_ids)
@@ -765,17 +805,23 @@ bool RedisAdapterLite::start_reader(uint32_t token)
 
       if (!raw)
       {
+        fprintf(stderr, "RedisAdapterLite: reader XREAD returned null — err=%d errstr=[%s]\n",
+                info.ctx ? info.ctx->err : -1,
+                info.ctx ? info.ctx->errstr : "no ctx");
         syslog(LOG_ERR, "RedisAdapterLite: reader lost connection");
-        info.run = false;
-        break;
+        redisFree(info.ctx);
+        info.ctx = nullptr;
+        continue;  // reconnect on next iteration
       }
 
       if (raw->type == REDIS_REPLY_ERROR)
       {
+        fprintf(stderr, "RedisAdapterLite: reader error: %s\n", raw->str);
         syslog(LOG_ERR, "RedisAdapterLite: reader error: %s", raw->str);
         freeReplyObject(raw);
-        info.run = false;
-        break;
+        redisFree(info.ctx);
+        info.ctx = nullptr;
+        continue;  // reconnect on next iteration
       }
 
       if (raw->type == REDIS_REPLY_NIL)
@@ -836,11 +882,13 @@ bool RedisAdapterLite::start_reader(uint32_t token)
   });
 
   // Wait for thread to start (with timeout)
-  if (started_future.wait_for(milliseconds(50)) == std::future_status::timeout)
+  if (started_future.wait_for(milliseconds(500)) == std::future_status::timeout)
   {
+    fprintf(stderr, "RedisAdapterLite: start_reader thread start timeout\n");
     syslog(LOG_WARNING, "RedisAdapterLite: start_reader timeout");
     return false;
   }
+  fprintf(stderr, "RedisAdapterLite: reader token=%u started successfully\n", token);
   return true;
 }
 
