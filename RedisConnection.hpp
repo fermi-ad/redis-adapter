@@ -1,6 +1,7 @@
 #pragma once
 
 #include "sw/redis++/redis++.h"
+#include <shared_mutex>
 #include <syslog.h>
 
 namespace swr = sw::redis;
@@ -73,6 +74,7 @@ public:
   //
   bool connect(const Options& opts)
   {
+    std::unique_lock lock(_mtx);
     swr::ConnectionOptions co;
     swr::ConnectionPoolOptions cpo;
 
@@ -124,6 +126,7 @@ public:
   //
   bool ping(const std::string& key = "ping")
   {
+    std::shared_lock lock(_mtx);
     try
     {
       if (_cluster) return _cluster->redis(key, false).ping().compare("PONG") == 0;
@@ -143,6 +146,7 @@ public:
   //
   int32_t del(const std::string& key)
   {
+    std::shared_lock lock(_mtx);
     try
     {
       if (_cluster) return _cluster->del(key);
@@ -167,6 +171,7 @@ public:
   bool xrange(const std::string& key, const std::string& beg,
               const std::string& end, uint32_t cnt, Output out)
   {
+    std::shared_lock lock(_mtx);
     try
     {
       if (_cluster) { _cluster->xrange(key, beg, end, cnt, out); return true; }
@@ -190,6 +195,7 @@ public:
   bool xrange(const std::string& key, const std::string& beg,
               const std::string& end, Output out)
   {
+    std::shared_lock lock(_mtx);
     try
     {
       if (_cluster) { _cluster->xrange(key, beg, end, out); return true; }
@@ -214,6 +220,7 @@ public:
   bool xrevrange(const std::string& key, const std::string& end,
                  const std::string& beg, uint32_t cnt, Output out)
   {
+    std::shared_lock lock(_mtx);
     try
     {
       if (_cluster) { _cluster->xrevrange(key, end, beg, cnt, out); return true; }
@@ -237,6 +244,7 @@ public:
   bool xrevrange(const std::string& key, const std::string& end,
                  const std::string& beg, Output out)
   {
+    std::shared_lock lock(_mtx);
     try
     {
       if (_cluster) { _cluster->xrevrange(key, end, beg, out); return true; }
@@ -263,6 +271,7 @@ public:
   template<typename Input, typename Output>
   bool xreadMultiBlock(Input fst, Input lst, uint32_t tmo, Output out)
   {
+    std::shared_lock lock(_mtx);
     try
     {
       if (_cluster) { _cluster->xread(fst, lst, chr::milliseconds(tmo), out); return true; }
@@ -286,6 +295,7 @@ public:
   template<typename Input>
   std::string xadd(const std::string& key, const std::string& id, Input fst, Input lst)
   {
+    std::shared_lock lock(_mtx);
     try
     {
       if (_cluster) return _cluster->xadd(key, id, fst, lst);
@@ -306,6 +316,7 @@ public:
   //
   int32_t xtrim(const std::string& key, uint32_t thr, bool apx = true)
   {
+    std::shared_lock lock(_mtx);
     try
     {
       if (_cluster) return _cluster->xtrim(key, thr, apx);
@@ -331,6 +342,7 @@ public:
   std::string xaddTrim(const std::string& key, const std::string& id,
                        Input fst, Input lst, uint32_t thr, bool apx = true)
   {
+    std::shared_lock lock(_mtx);
     try
     {
       if (_cluster) return _cluster->xadd(key, id, fst, lst, thr, apx);
@@ -350,6 +362,7 @@ public:
   //
   int32_t exists(const std::string& key)
   {
+    std::shared_lock lock(_mtx);
     try
     {
       if (_cluster) return _cluster->exists(key);
@@ -369,6 +382,7 @@ public:
   //
   int32_t keyslot(const std::string& key)
   {
+    std::shared_lock lock(_mtx);
     try
     {
       if (_cluster) return _cluster->command<long long>("cluster", "keyslot", key);
@@ -394,6 +408,7 @@ public:
   //
   int32_t copy(const std::string& src, const std::string& dst)
   {
+    std::shared_lock lock(_mtx);
     try
     {
       if (_cluster) return _cluster->command<long long>("copy", src, dst);
@@ -421,6 +436,7 @@ public:
   //
   bool rename(const std::string& src, const std::string& dst)
   {
+    std::shared_lock lock(_mtx);
     try
     {
       if (_cluster) { _cluster->rename(src, dst); return true; }
@@ -438,6 +454,7 @@ public:
   std::vector<std::string> time(const std::string& key = "time")
   {
     std::vector<std::string> ret;
+    std::shared_lock lock(_mtx);
     try
     {
       if (_cluster) _cluster->redis(key, false).command("time", std::back_inserter(ret));
@@ -458,6 +475,7 @@ public:
   //
   int32_t hexists(const std::string& key, const std::string& fld)
   {
+    std::shared_lock lock(_mtx);
     try
     {
       if (_cluster) return _cluster->hexists(key, fld);
@@ -478,6 +496,7 @@ public:
   //
   bool hset(const std::string& key, const std::string& fld, const std::string& val)
   {
+    std::shared_lock lock(_mtx);
     try
     {
       if (_cluster) return _cluster->hset(key, fld, val) >= 0;
@@ -503,6 +522,7 @@ public:
   int32_t hexpire(const std::string& key, const std::string& fld, uint32_t sec)
   {
     std::vector<long long> ret;
+    std::shared_lock lock(_mtx);
     try
     {
       if (_cluster) _cluster->command("hexpire", key, std::to_string(sec), "fields", "1", fld, std::back_inserter(ret));
@@ -535,6 +555,7 @@ public:
    std::vector<std::string> hkeys(const std::string& key)
   {
     std::vector<std::string> ret;
+    std::shared_lock lock(_mtx);
     try
     {
       if (_cluster) _cluster->hkeys(key, std::back_inserter(ret));
@@ -557,6 +578,7 @@ public:
   //
   swr::Subscriber* subscriber()
   {
+    std::shared_lock lock(_mtx);
     try
     {
       if (_cluster) { return new swr::Subscriber(_cluster->subscriber()); }
@@ -576,6 +598,7 @@ public:
   //
   int32_t publish(const std::string& chn, const std::string& msg)
   {
+    std::shared_lock lock(_mtx);
     try
     {
       if (_cluster) return _cluster->publish(chn, msg);
@@ -586,6 +609,7 @@ public:
   }
 
 private:
+  mutable std::shared_mutex          _mtx;
   std::unique_ptr<swr::RedisCluster> _cluster;
   std::unique_ptr<swr::Redis>        _singler;
 };
