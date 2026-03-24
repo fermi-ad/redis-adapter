@@ -13,6 +13,7 @@ using RedisAdapter = MockRedisAdapter;
 #include "ThreadPool.hpp"
 #include <thread>
 #include <atomic>
+#include <mutex>
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  define RA_VERSION
@@ -448,7 +449,7 @@ private:
   get_reverse_stream_helper(const std::string& baseKey, const std::string& subKey, RA_Time maxTime, uint32_t count);
 
   template<typename T> TimeValList<std::vector<T>>
-  get_reverse_stream_list_helper(const std::string& baseKey, const std::string& subKey, RA_Time maxTme, uint32_t count);
+  get_reverse_stream_list_helper(const std::string& baseKey, const std::string& subKey, RA_Time maxTime, uint32_t count);
 
   template<typename T> RA_Time
   get_single_stream_helper(const std::string& baseKey, const std::string& subKey, T& dest, RA_Time maxTime);
@@ -468,6 +469,8 @@ private:
 
   int32_t reconnect(int32_t result);
   std::atomic_bool _connecting;
+  std::thread _reconnect_thd;
+  std::atomic<bool> _shutdown{false};
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Watchdog
@@ -475,7 +478,7 @@ private:
   std::string _watchdog_key;
   std::thread _watchdog_thd;
   std::condition_variable _watchdog_cv;
-  bool _watchdog_run;
+  std::atomic<bool> _watchdog_run;
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Stream readers
@@ -483,7 +486,9 @@ private:
   bool start_reader(uint32_t token);
   bool stop_reader(uint32_t token);
 
-  bool _readers_defer;
+  std::atomic<bool> _readers_defer;
+
+  std::mutex _reader_mtx;
 
   struct reader_info
   {

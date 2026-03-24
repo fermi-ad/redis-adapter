@@ -90,9 +90,9 @@ public:
     template<typename T> RA_Time
     addSingleList(const std::string& subKey, const std::vector<T>& data, const RA_ArgsAdd& args = {})
     {
-      int dataSize = data.size_bytes();
+      int dataSize = data.size() * sizeof(T);
       std::shared_ptr<void> ptr(
-        new T[dataSize],                   // allocate
+        new T[data.size()],                // allocate correct number of elements
         [](void* p) { delete[] static_cast<T*>(p); } // deleter
       );
       T* raw = static_cast<T*>(ptr.get());
@@ -120,11 +120,9 @@ public:
     template<typename T> RA_Time
     addSingleValue(const std::string& subKey, const T& data, const RA_ArgsAdd& args = {}) {
       std::shared_ptr<void> ptr(
-        new T,                   // allocate
-        [](void* p) { delete[] static_cast<T*>(p); } // deleter
+        new T(data),             // allocate and copy
+        [](void* p) { delete static_cast<T*>(p); } // deleter
       );
-      T* raw = static_cast<T*>(ptr.get());
-      std::copy(&data, &data+sizeof(data), raw);
       addSingleValue_args arguments {
         .subKey = subKey,
         .data = ptr,
@@ -132,7 +130,7 @@ public:
       };
       addSingleValue_arguments.push_back(arguments);
 
-      addSingleList_numCalls_vector++;
+      addSingleValue_numCalls++;
       return RA_Time(getTimeNanosTest());
     }
 };

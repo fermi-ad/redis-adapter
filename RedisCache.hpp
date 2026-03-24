@@ -15,7 +15,7 @@
 template<typename Type>
 class RedisCache {
 private:
-    std::atomic<bool> newValueAvailable{false}; // Atomic flag for signaling new values
+    std::atomic<bool> _newValueAvailable{false}; // Atomic flag for signaling new values
     std::shared_ptr<RedisAdapter> _ra;
     // The implementation of this cache has a potential flaw where if we have multiple readers contantly reading, then we could potentally stop new data from ever being
     // written and as a side effect lock up the stream reader. If we ever actually use that we should think through implementing that sanely. Boost has an implementaion of queued
@@ -23,7 +23,7 @@ private:
     mutable std::shared_mutex swapMutex; // Mutex that prevents swapping which buffer is for reading and writing.
                                          // This mutex allows for simultanious reads, but prevents reading while writing.
 
-    int readIndex = 0;
+    std::atomic<int> readIndex{0};
     std::array<std::vector<Type>, 2> buffers;
     RA_Time lastWrite = 0;
     std::string _subkey;
@@ -43,7 +43,7 @@ private:
         }
         // Effectivly does nothing if the code using this class doesn't ever try to read this.
         // Set the atomic flag to indicate that new data is available
-        newValueAvailable.store(true);
+        _newValueAvailable.store(true);
     }
     void registerCacheReader() {
         //Setup redis setting readers
@@ -111,7 +111,7 @@ public:
             { copySourceEnd = sourceBuffer.end(); }
 
         if (copySourceStart >= sourceBuffer.end()) {
-           *pElementsCopied = 0;
+           if (pElementsCopied != nullptr) *pElementsCopied = 0;
            return RA_Time(); // Return an invalid time, and don't copy anything
         }
 
@@ -131,18 +131,18 @@ public:
     }
     template <typename Rep, typename Period>
     void waitForNewValue(std::chrono::duration<Rep, Period> timeBetweenChecks) {
-        // Sleep until the newValueAvailable flag is raised
-        while (!newValueAvailable.load()) {
+        // Sleep until the _newValueAvailable flag is raised
+        while (!_newValueAvailable.load()) {
             std::this_thread::sleep_for(timeBetweenChecks); // Sleep for a short duration
         }
         // After waking up, lower the flag
-        newValueAvailable.store(false);
+        _newValueAvailable.store(false);
     }
-    bool newValueAvaliable() {
-        return newValueAvailable.load();
+    bool newValueAvailable() {
+        return _newValueAvailable.load();
     }
-    void clearNewValueAvaliable() {
-        newValueAvailable.store(false);
+    void clearNewValueAvailable() {
+        _newValueAvailable.store(false);
     }
 
     RedisCache(std::shared_ptr<RedisAdapter> ra, std::string subkey) { _ra = ra; _subkey = subkey; registerCacheReader(); }

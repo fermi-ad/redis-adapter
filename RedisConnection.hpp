@@ -291,6 +291,7 @@ public:
       if (_cluster) return _cluster->xadd(key, id, fst, lst);
       if (_singler) return _singler->xadd(key, id, fst, lst);
     }
+    catch (const swr::ReplyError& e) { syslog(LOG_WARNING, "RedisConnection::%s %s", __func__, e.what()); return "ERR"; }
     catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
     return {};
   }
@@ -336,6 +337,7 @@ public:
       if (_cluster) return _cluster->xadd(key, id, fst, lst, thr, apx);
       if (_singler) return _singler->xadd(key, id, fst, lst, thr, apx);
     }
+    catch (const swr::ReplyError& e) { syslog(LOG_WARNING, "RedisConnection::%s %s", __func__, e.what()); return "ERR"; }
     catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
     return {};
   }
@@ -553,17 +555,17 @@ public:
   //    note - previously this function returned std::optional<swr::Subscriber> but
   //           std::optional has been replaced with swr::Optional to support c++14
   //           and unfortunately swr::Optional cannot create an empty optional with
-  //           swr::Subscriber - now client must delete new swr::Subscriber when done
+  //           swr::Subscriber - returns unique_ptr to avoid manual delete
   //
-  swr::Subscriber* subscriber()
+  std::unique_ptr<swr::Subscriber> subscriber()
   {
     try
     {
-      if (_cluster) { return new swr::Subscriber(_cluster->subscriber()); }
-      if (_singler) { return new swr::Subscriber(_singler->subscriber()); }
+      if (_cluster) { return std::make_unique<swr::Subscriber>(_cluster->subscriber()); }
+      if (_singler) { return std::make_unique<swr::Subscriber>(_singler->subscriber()); }
     }
     catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
-    return 0;
+    return nullptr;
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
