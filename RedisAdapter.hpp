@@ -291,6 +291,14 @@ public:
   bool del(const std::string& subKey) { return reconnect(_redis.del(build_key(subKey)) >= 0); }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  exists : check if a home stream key exists
+  //
+  //    subKey : sub key to check
+  //    return : true if the key exists, false otherwise
+  //
+  bool exists(const std::string& subKey) { auto ret = _redis.exists(build_key(subKey)); reconnect(ret != -1); return ret > 0; }
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  ListenSubFn : callback function type for pub/sub notification
   //
   using ListenSubFn = std::function<void(const std::string& baseKey, const std::string& subKey, const std::string& message)>;
