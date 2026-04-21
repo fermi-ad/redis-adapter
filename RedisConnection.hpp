@@ -9,8 +9,8 @@ namespace chr = std::chrono;
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  class RedisConnection
 //
-//  Provides common interface to either a Redis single server or a Redis server cluster
-//  The user will not know which server type is connected
+//  Provides common interface to a Redis single server.
+//  Cluster mode is intentionally not used by redis-pvxs-ioc MVP.
 //  If an exception is thrown in a method, the exception is logged and failure is returned
 //  If a method is called while not connected, failure is returned but not logged
 //
@@ -65,7 +65,7 @@ public:
   RedisConnection(RedisConnection&&) = default;
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  connect : attempt to make either a cluster or single server connection
+  //  connect : attempt to make a single server connection
   //
   //    options : see RedisConnection::Options above
   //    return : true if live server connected
@@ -94,20 +94,18 @@ public:
 
     cpo.size = opts.size;
 
-    try { _cluster = std::make_unique<swr::RedisCluster>(co, cpo); }  //  this one throws
-    catch (...)
-    {
-      try
-      {
-        _singler = std::make_unique<swr::Redis>(co, cpo);   //  this one does not
-        _singler->ping();                                   //  but this one does
-      }
-      catch (...) { _singler.reset(); }   //  reset _singler to null since not really connected
-    }
-    //  a live server is connected, either _cluster OR _singler is valid (but not both)
-    if (_cluster || _singler) return true;
+    _cluster.reset();
+    _singler.reset();
 
-    //  neither server type connected, log the failure and return false
+    try
+    {
+      _singler = std::make_unique<swr::Redis>(co, cpo);   //  this one does not
+      _singler->ping();                                   //  but this one does
+    }
+    catch (...) { _singler.reset(); }   //  reset _singler to null since not really connected
+
+    if (_singler) return true;
+
     if (is_unix_socket)
       syslog(LOG_ERR, "RedisConnection can't connnect to %s", co.path.c_str());
     else
