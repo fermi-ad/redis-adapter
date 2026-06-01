@@ -1,6 +1,11 @@
 # RedisAdapter
 C++ adapter which wraps redis++ to communicate to the instrumentation Redis database
 
+# Protocol Specification
+
+The RedisAdapter v1.0 wire protocol is documented in
+[docs/redis-adapter-implementation-spec.md](docs/redis-adapter-implementation-spec.md).
+
 # Build Instructions CMake
 To build RedisAdapter as a standalone library, including tests and benchmarking (cmake required)
 1. From the root directory:
