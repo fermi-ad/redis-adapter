@@ -13,6 +13,8 @@ using RedisAdapter = MockRedisAdapter;
 #include "ThreadPool.hpp"
 #include <thread>
 #include <atomic>
+#include <mutex>
+#include <condition_variable>
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  define RA_VERSION
@@ -492,6 +494,12 @@ private:
     std::unordered_map<std::string, std::string> keyids;
     std::string stop;
     bool run = false;
+
+    //  used by start_reader() to confirm the reader thread has begun its read loop -
+    //  these live here (in the _reader map) rather than as locals in start_reader()
+    //  so their lifetime safely covers the reader thread's lifetime, not just one call
+    std::mutex start_mx;
+    std::condition_variable start_cv;
   };
   std::unordered_map<uint32_t, reader_info> _reader;
 

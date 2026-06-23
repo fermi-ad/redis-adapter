@@ -324,17 +324,22 @@ bool RedisAdapter::start_reader(uint32_t token)
 
   if (info.thread.joinable()) return false;
 
-  mutex mx; condition_variable cv;        //  use condition_variable to signal when
-  unique_lock<mutex> lk(mx, defer_lock);  //  thread is about to enter read loop
+  //  info.start_mx / info.start_cv live in reader_info (in the _reader map) for as long
+  //  as the reader exists, which safely outlives this function whether or not the wait
+  //  below times out - this avoids a dangling reference to locals that a late-scheduled
+  //  thread might still touch after this function has already returned
+  unique_lock<mutex> lk(info.start_mx);  //  must be locked before cv.wait_for()
 
   //  begin lambda  //////////////////////////////////////////////////
-  info.thread = thread([&]()
+  info.thread = thread([this, &info]()
     {
       bool check_for_dollars = true;
 
-      info.run = true;
-
-      cv.notify_all();  //  notify about to enter loop (NOT in loop)
+      {
+        lock_guard<mutex> notify_lk(info.start_mx);
+        info.run = true;
+      }
+      info.start_cv.notify_all();  //  notify about to enter loop (NOT in loop)
 
       for (Streams out; info.run; out.clear())
       {
@@ -390,9 +395,9 @@ bool RedisAdapter::start_reader(uint32_t token)
   );  //  end lambda  ////////////////////////////////////////////////
 
   //  wait until notified that thread is running (or timeout)
-   bool nto = cv.wait_for(lk, THREAD_START_CONFIRM) == cv_status::no_timeout;
-   if ( ! nto) syslog(LOG_WARNING, "start_reader timeout waiting for thread start");
-   return nto;
+  bool nto = info.start_cv.wait_for(lk, THREAD_START_CONFIRM) == cv_status::no_timeout;
+  if ( ! nto) syslog(LOG_WARNING, "start_reader timeout waiting for thread start");
+  return nto;
 }
 
 bool RedisAdapter::stop_reader(uint32_t token)
