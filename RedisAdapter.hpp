@@ -470,6 +470,8 @@ private:
 
   int32_t reconnect(int32_t result);
   std::atomic_bool _connecting;
+  std::thread _reconnect_thd;
+  std::atomic<bool> _shutdown{false};
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Watchdog
@@ -477,7 +479,7 @@ private:
   std::string _watchdog_key;
   std::thread _watchdog_thd;
   std::condition_variable _watchdog_cv;
-  bool _watchdog_run;
+  std::atomic<bool> _watchdog_run;
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Stream readers
@@ -485,7 +487,9 @@ private:
   bool start_reader(uint32_t token);
   bool stop_reader(uint32_t token);
 
-  bool _readers_defer;
+  std::atomic<bool> _readers_defer;
+
+  std::mutex _reader_mtx;
 
   struct reader_info
   {
