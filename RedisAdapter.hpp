@@ -497,7 +497,7 @@ private:
     std::unordered_map<std::string, std::vector<reader_sub_fn>> subs;
     std::unordered_map<std::string, std::string> keyids;
     std::string stop;
-    bool run = false;
+    std::atomic<bool> run = false;
 
     //  used by start_reader() to confirm the reader thread has begun its read loop -
     //  these live here (in the _reader map) rather than as locals in start_reader()

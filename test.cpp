@@ -545,11 +545,13 @@ TEST(RedisConnection, ConcurrentConnect)
   ASSERT_TRUE(conn.ping());
 
   atomic<bool> stop{false};
+  atomic<int> ready{0};
   vector<thread> users;
   for (int i = 0; i < 8; i++)
   {
     users.emplace_back([&]()
       {
+        ready++;
         while ( ! stop)
         {
           conn.ping();
@@ -558,6 +560,8 @@ TEST(RedisConnection, ConcurrentConnect)
       }
     );
   }
+
+  while (ready < 8) { this_thread::yield(); }  //  don't start hammering connect() until all users are running
 
   for (int i = 0; i < 500; i++) { conn.connect(opts); }
 
