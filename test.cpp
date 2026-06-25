@@ -533,3 +533,38 @@ TEST(RedisAdapter, Watchdog)
   this_thread::sleep_for(milliseconds(600));
   EXPECT_EQ(redis.getWatchdogs().size(), 1);
 }
+
+TEST(RedisConnection, ConcurrentConnect)
+{
+  //  connect() replaces the live _cluster/_singler client objects - if that's not
+  //  synchronized against every other method that dereferences them, hammering
+  //  connect() concurrently with normal traffic from other threads corrupts the
+  //  heap (this is what caused the production data-mover crashes)
+  RedisConnection::Options opts;
+  RedisConnection conn(opts);
+  ASSERT_TRUE(conn.ping());
+
+  atomic<bool> stop{false};
+  atomic<int> ready{0};
+  vector<thread> users;
+  for (int i = 0; i < 8; i++)
+  {
+    users.emplace_back([&]()
+      {
+        ready++;
+        while ( ! stop)
+        {
+          conn.ping();
+          conn.del("redis-connection-concurrent-connect-test-key");
+        }
+      }
+    );
+  }
+
+  while (ready < 8) { this_thread::yield(); }  //  don't start hammering connect() until all users are running
+
+  for (int i = 0; i < 500; i++) { conn.connect(opts); }
+
+  stop = true;
+  for (auto& t : users) { t.join(); }
+}

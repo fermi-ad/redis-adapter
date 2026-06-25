@@ -13,6 +13,8 @@ using RedisAdapter = MockRedisAdapter;
 #include "ThreadPool.hpp"
 #include <thread>
 #include <atomic>
+#include <mutex>
+#include <condition_variable>
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  define RA_VERSION
@@ -468,6 +470,8 @@ private:
 
   int32_t reconnect(int32_t result);
   std::atomic_bool _connecting;
+  std::thread _reconnect_thd;
+  std::atomic<bool> _shutdown{false};
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Watchdog
@@ -475,7 +479,7 @@ private:
   std::string _watchdog_key;
   std::thread _watchdog_thd;
   std::condition_variable _watchdog_cv;
-  bool _watchdog_run;
+  std::atomic<bool> _watchdog_run;
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Stream readers
@@ -483,7 +487,9 @@ private:
   bool start_reader(uint32_t token);
   bool stop_reader(uint32_t token);
 
-  bool _readers_defer;
+  std::atomic<bool> _readers_defer;
+
+  std::mutex _reader_mtx;
 
   struct reader_info
   {
@@ -491,7 +497,13 @@ private:
     std::unordered_map<std::string, std::vector<reader_sub_fn>> subs;
     std::unordered_map<std::string, std::string> keyids;
     std::string stop;
-    bool run = false;
+    std::atomic<bool> run = false;
+
+    //  used by start_reader() to confirm the reader thread has begun its read loop -
+    //  these live here (in the _reader map) rather than as locals in start_reader()
+    //  so their lifetime safely covers the reader thread's lifetime, not just one call
+    std::mutex start_mx;
+    std::condition_variable start_cv;
   };
   std::unordered_map<uint32_t, reader_info> _reader;
 
