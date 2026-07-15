@@ -1,0 +1,26 @@
+services:
+  redis:
+    image: redis:7.4.2-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - type: bind
+        source: /tmp
+        target: /run/redis
+    command:
+      - redis-server
+      - --bind
+      - 0.0.0.0
+      - --appendonly
+      - "no"
+      - --save
+      - ""
+      - --unixsocket
+      - /run/redis/redis.sock
+      - --unixsocketperm
+      - "777"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 1s
+      timeout: 1s
+      retries: 20

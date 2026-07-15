@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 3.14)
-project(redis-adapter LANGUAGES CXX)
+
+file(STRINGS "${CMAKE_CURRENT_LIST_DIR}/VERSION.txt" REDIS_ADAPTER_VERSION LIMIT_COUNT 1)
+if(NOT REDIS_ADAPTER_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
+  message(FATAL_ERROR "VERSION.txt must contain a semantic version, got '${REDIS_ADAPTER_VERSION}'")
+endif()
+
+project(redis-adapter VERSION ${REDIS_ADAPTER_VERSION} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -37,6 +43,7 @@ add_compile_definitions(REDIS_ADAPTER_GIT_COMMIT="${REDIS_ADAPTER_GIT_COMMIT}")
 # Send the lists to the project that wants to include them
 get_directory_property(HAS_PARENT PARENT_DIRECTORY)
 if(HAS_PARENT)
+  set(REDIS_ADAPTER_VERSION ${REDIS_ADAPTER_VERSION} PARENT_SCOPE)
   set(REDIS_ADAPTER_SOURCES ${REDIS_ADAPTER_SOURCES} PARENT_SCOPE)
   set(REDIS_ADAPTER_HEADERS ${REDIS_ADAPTER_HEADERS} PARENT_SCOPE)
   set(REDIS_ADAPTER_LIBRARIES ${REDIS_ADAPTER_LIBRARIES} PARENT_SCOPE)
@@ -83,9 +90,11 @@ endif()
 # Specify on command-line: "cmake -D REDIS_ADAPTER_BENCHMARK=1 .."
 if(REDIS_ADAPTER_BENCHMARK)
   message(STATUS "REDIS_ADAPTER_BENCHMARK")
+  # Build RedisAdapter's benchmark, not Google Benchmark's own test suite.
+  set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "Disable Google Benchmark tests" FORCE)
   # Disable Google Test dependency for benchmark
-  set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "Disable benchmark tests based on Google Test")
-  set(BENCHMARK_USE_BUNDLED_GTEST OFF CACHE BOOL "Disable bundled Google Test in benchmark")
+  set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "Disable benchmark tests based on Google Test" FORCE)
+  set(BENCHMARK_USE_BUNDLED_GTEST OFF CACHE BOOL "Disable bundled Google Test in benchmark" FORCE)
 
   # Add Google Benchmark as a submodule
   add_subdirectory(benchmark)
