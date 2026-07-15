@@ -91,10 +91,10 @@ endif()
 if(REDIS_ADAPTER_BENCHMARK)
   message(STATUS "REDIS_ADAPTER_BENCHMARK")
   # Build RedisAdapter's benchmark, not Google Benchmark's own test suite.
-  set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "Disable Google Benchmark tests")
+  set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "Disable Google Benchmark tests" FORCE)
   # Disable Google Test dependency for benchmark
-  set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "Disable benchmark tests based on Google Test")
-  set(BENCHMARK_USE_BUNDLED_GTEST OFF CACHE BOOL "Disable bundled Google Test in benchmark")
+  set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "Disable benchmark tests based on Google Test" FORCE)
+  set(BENCHMARK_USE_BUNDLED_GTEST OFF CACHE BOOL "Disable bundled Google Test in benchmark" FORCE)
 
   # Add Google Benchmark as a submodule
   add_subdirectory(benchmark)
