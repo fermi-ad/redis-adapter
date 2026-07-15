@@ -1,0 +1,53 @@
+name: Bug report
+description: Report reproducible incorrect behavior in RedisAdapter.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: Do not include credentials, private hostnames, or operational data.
+  - type: input
+    id: version
+    attributes:
+      label: RedisAdapter version or revision
+      placeholder: v0.1.0 or a Git commit
+    validations:
+      required: true
+  - type: input
+    id: redis
+    attributes:
+      label: Redis version and deployment mode
+      placeholder: Redis 7.4.2 standalone, cluster, or Unix socket
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Observed behavior
+      description: What happened, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: Provide the smallest safe example and relevant sanitized logs.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Build and runtime environment
+      placeholder: OS, compiler, CMake version, connection type, and relevant options
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I removed secrets and site-sensitive information.
+          required: true
+        - label: I searched existing issues for this behavior.
+          required: true

@@ -1,62 +1,52 @@
-name: Build, Test, and Benchmark RedisAdapter
+name: Build, test, and benchmark
 
 on:
-#  push:
-#    branches:
-#      - main
-#  pull_request:
-#    branches:
-#      - main
-
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build-test-benchmark:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        submodules: true
+      - name: Check out repository and dependencies
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y cmake g++ libhiredis-dev
+      - name: Start pinned Redis 7.4
+        run: |
+          docker compose -f docker-compose.test.yml up --detach --wait
+          test -S /tmp/redis.sock
 
-    - name: Install latest Redis
-      run: |
-        # Download and build the latest Redis
-        curl -O http://download.redis.io/redis-stable.tar.gz
-        tar xvzf redis-stable.tar.gz
-        cd redis-stable
-        make
-        sudo make install
+      - name: Configure and build
+        run: |
+          cmake -S . -B build \
+            -DREDIS_ADAPTER_TEST=ON \
+            -DREDIS_ADAPTER_BENCHMARK=ON \
+            -DCMAKE_CXX_STANDARD=20
+          cmake --build build --parallel
 
-    - name: Start Redis server
-      run: |
-        chmod +x ./redis-start.sh
-        ./redis-start.sh
+      - name: Run tests
+        run: ctest --test-dir build --output-on-failure
 
-    - name: Configure and Build RedisAdapter
-      run: |
-        cmake -S . -B build -DREDIS_ADAPTER_TEST=1 -DREDIS_ADAPTER_BENCHMARK=1
-        cmake --build build
+      - name: Run TCP benchmarks
+        run: build/redis-adapter-benchmark
+        env:
+          REDIS_ADAPTER_BENCHMARK_HOST: 127.0.0.1
 
-    - name: Run Tests
-      run: |
-        ./build/redis-adapter-test
+      - name: Run Unix-socket benchmarks
+        run: build/redis-adapter-benchmark
+        env:
+          REDIS_ADAPTER_BENCHMARK_HOST: /tmp/redis.sock
 
-    - name: Run Benchmarks (TCP)
-      run: |
-        ./build/redis-adapter-benchmark
-      env:
-        REDIS_ADAPTER_BENCHMARK_HOST: "127.0.0.1" # You can customize this if needed
+      - name: Show Redis logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.test.yml logs
 
-    - name: Run Benchmarks (UNIX Domain Socket)
-      run: |
-        ./build/redis-adapter-benchmark
-      env:
-        REDIS_ADAPTER_BENCHMARK_HOST: "/tmp/redis.sock" # You can customize this if needed
+      - name: Stop Redis
+        if: always()
+        run: docker compose -f docker-compose.test.yml down --volumes

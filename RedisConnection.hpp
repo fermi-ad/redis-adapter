@@ -61,9 +61,9 @@ public:
   RedisConnection& operator=(const RedisConnection&) = delete;
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  RedisConnection : move allowed
+  //  RedisConnection : move construction not allowed
   //
-  RedisConnection(RedisConnection&&) = default;
+  RedisConnection(RedisConnection&&) = delete;
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  connect : attempt to make either a cluster or single server connection

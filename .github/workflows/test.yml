@@ -1,34 +1,58 @@
-name: Build and test redis-adapter
+name: Build and test
 
 on:
-  workflow_dispatch:
-
+  push:
+    branches:
+      - main
   pull_request:
     branches:
-    - main
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with: 
-        submodules: true
+      - name: Check out repository and dependencies
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-    - name: Install redis-server
-      run: |
-        tar xvzf .github/redis-server.tar.gz
-        sudo mv redis-server /usr/local/bin/
+      - name: Validate release metadata
+        run: |
+          VERSION="$(tr -d '\n' < VERSION.txt)"
+          grep -F "project(redis-adapter VERSION \${REDIS_ADAPTER_VERSION}" CMakeLists.txt
+          grep -F "## [${VERSION}]" CHANGELOG.md
+          grep -F "BSD 3-Clause License" LICENSE
+          test -r NOTICE
+          test -r THIRD_PARTY_NOTICES.md
 
-    - name: Start redis-server
-      run: redis-server --daemonize yes --unixsocket /tmp/redis.sock --unixsocketperm 700
+      - name: Start pinned Redis 7.4
+        run: |
+          docker compose -f docker-compose.test.yml up --detach --wait
+          test -S /tmp/redis.sock
 
-    - name: Configure and build redis-adapter
-      run: |
-        cmake -S . -B build -D REDIS_ADAPTER_TEST=1
-        cmake --build build
+      - name: Configure and build
+        run: |
+          cmake -S . -B build -DREDIS_ADAPTER_TEST=ON
+          cmake --build build --parallel
 
-    - name: Run redis-adapter tests
-      run: build/redis-adapter-test
+      - name: Run tests
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Show Redis logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.test.yml logs
+
+      - name: Stop Redis
+        if: always()
+        run: docker compose -f docker-compose.test.yml down --volumes

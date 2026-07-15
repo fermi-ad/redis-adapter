@@ -1,0 +1,140 @@
+name: Publish release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to publish, for example vX.Y.Z.
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  publish-release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+    steps:
+      - name: Check out release tag and dependencies
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref_name }}
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Verify release identity
+        id: meta
+        run: |
+          VERSION="$(tr -d '\n' < VERSION.txt)"
+          EXPECTED_TAG="v${VERSION}"
+
+          if [ "${RELEASE_TAG}" != "${EXPECTED_TAG}" ]; then
+            echo "Release tag ${RELEASE_TAG} must match VERSION.txt ${VERSION} (${EXPECTED_TAG})" >&2
+            exit 1
+          fi
+
+          git fetch origin main --tags
+          TAG_COMMIT="$(git rev-list -n 1 "${RELEASE_TAG}")"
+          HEAD_COMMIT="$(git rev-parse HEAD)"
+          if [ "${HEAD_COMMIT}" != "${TAG_COMMIT}" ]; then
+            echo "Checked-out commit ${HEAD_COMMIT} does not match ${RELEASE_TAG} commit ${TAG_COMMIT}" >&2
+            exit 1
+          fi
+
+          if ! git merge-base --is-ancestor "${TAG_COMMIT}" origin/main; then
+            echo "Release tag ${RELEASE_TAG} is not contained in origin/main" >&2
+            exit 1
+          fi
+
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "tag_commit=${TAG_COMMIT}" >> "${GITHUB_OUTPUT}"
+
+      - name: Start pinned Redis 7.4
+        run: |
+          docker compose -f docker-compose.test.yml up --detach --wait
+          test -S /tmp/redis.sock
+
+      - name: Build and test release
+        run: |
+          cmake -S . -B build -DREDIS_ADAPTER_TEST=ON
+          cmake --build build --parallel
+          ctest --test-dir build --output-on-failure
+
+      - name: Create complete source bundle
+        id: bundle
+        run: |
+          VERSION="${{ steps.meta.outputs.version }}"
+          NAME="redis-adapter-${VERSION}"
+          DIST="${RUNNER_TEMP}/dist"
+          STAGE="${DIST}/${NAME}"
+          mkdir -p "${STAGE}"
+
+          git archive HEAD | tar -x -C "${STAGE}"
+          export STAGE
+          git submodule foreach --recursive \
+            'mkdir -p "${STAGE}/${displaypath}" && git archive HEAD | tar -x -C "${STAGE}/${displaypath}"'
+
+          tar -C "${DIST}" -czf "${NAME}-source.tar.gz" "${NAME}"
+          sha256sum "${NAME}-source.tar.gz" > SHA256SUMS
+
+          tar -tzf "${NAME}-source.tar.gz" | grep -F "${NAME}/LICENSE"
+          tar -tzf "${NAME}-source.tar.gz" | grep -F "${NAME}/NOTICE"
+          tar -tzf "${NAME}-source.tar.gz" | grep -F "${NAME}/THIRD_PARTY_NOTICES.md"
+          tar -tzf "${NAME}-source.tar.gz" | grep -F "${NAME}/hiredis/COPYING"
+          tar -tzf "${NAME}-source.tar.gz" | grep -F "${NAME}/redis-plus-plus/LICENSE"
+          tar -tzf "${NAME}-source.tar.gz" | grep -F "${NAME}/googletest/LICENSE"
+          tar -tzf "${NAME}-source.tar.gz" | grep -F "${NAME}/benchmark/LICENSE"
+
+          echo "archive=${NAME}-source.tar.gz" >> "${GITHUB_OUTPUT}"
+
+      - name: Create or update GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTES_FILE="$(mktemp)"
+          cat > "${NOTES_FILE}" <<EOF
+          # ${RELEASE_TAG}
+
+          RedisAdapter C++ library ${{ steps.meta.outputs.version }}.
+
+          The library release is version ${{ steps.meta.outputs.version }}. The independently
+          versioned RedisAdapter wire protocol remains version 1.0.
+
+          ## Artifacts
+
+          - \`${{ steps.bundle.outputs.archive }}\` is a complete source tree with all pinned submodules.
+          - \`SHA256SUMS\` verifies the complete source bundle.
+
+          ## Validation
+
+          - Verified the tag matches \`VERSION.txt\` and is contained in \`origin/main\`.
+          - Built and ran the full test suite against pinned Redis 7.4.
+          - Verified the source bundle contains project and dependency license notices.
+          EOF
+
+          if gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release edit "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" \
+              --title "${RELEASE_TAG}" --notes-file "${NOTES_FILE}"
+          else
+            gh release create "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" \
+              --target "${{ steps.meta.outputs.tag_commit }}" \
+              --title "${RELEASE_TAG}" --notes-file "${NOTES_FILE}"
+          fi
+
+          gh release upload "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" \
+            "${{ steps.bundle.outputs.archive }}" SHA256SUMS --clobber
+
+      - name: Show Redis logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.test.yml logs
+
+      - name: Stop Redis
+        if: always()
+        run: docker compose -f docker-compose.test.yml down --volumes

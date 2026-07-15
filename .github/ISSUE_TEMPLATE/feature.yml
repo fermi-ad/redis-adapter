@@ -1,0 +1,38 @@
+name: Feature request
+description: Propose a library, protocol, documentation, or tooling improvement.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user or integration problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the API or workflow and its failure behavior.
+    validations:
+      required: true
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Compatibility scope
+      options:
+        - Library implementation only
+        - Optional protocol extension
+        - Core protocol change
+        - Documentation or tooling only
+    validations:
+      required: true
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility considerations
+      description: Identify affected consumers, producers, and protocol sections.
+    validations:
+      required: true
