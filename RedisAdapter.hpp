@@ -79,7 +79,14 @@ struct RA_ArgsGet
 { std::string baseKey; RA_Time minTime; RA_Time maxTime; uint32_t count = 1; };
 
 struct RA_ArgsAdd
-{ RA_Time time; uint32_t trim = 1; };
+{
+  RA_Time time;
+  uint32_t trim = 1;
+  // Redis MAXLEN trimming is approximate by default for compatibility and
+  // throughput. Set false when a hard memory/entry bound is part of the data
+  // contract.
+  bool approximateTrim = true;
+};
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  struct RA_Options
@@ -223,12 +230,14 @@ public:
   //  overload for array and span
   template<template<typename T, size_t S> class C, typename T, size_t S> RA_Time
   addSingleList(const std::string& subKey, const C<T, S>& data, const RA_ArgsAdd& args = {})
-    { return add_single_stream_list_helper(subKey, args.time, data.data(), data.size(), args.trim); }
+    { return add_single_stream_list_helper(subKey, args.time, data.data(), data.size(), args.trim,
+                                           args.approximateTrim); }
 
   //  overload for vector
   template<typename T> RA_Time
   addSingleList(const std::string& subKey, const std::vector<T>& data, const RA_ArgsAdd& args = {})
-    { return add_single_stream_list_helper(subKey, args.time, data.data(), data.size(), args.trim); }
+    { return add_single_stream_list_helper(subKey, args.time, data.data(), data.size(), args.trim,
+                                           args.approximateTrim); }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  connected : test if server is connected and responsive
@@ -459,7 +468,8 @@ private:
   get_single_stream_list_helper(const std::string& baseKey, const std::string& subKey, std::vector<T>& dest, RA_Time maxTime);
 
   template<typename T> RA_Time
-  add_single_stream_list_helper(const std::string& subKey, RA_Time time, const T* data, size_t size, uint32_t trim);
+  add_single_stream_list_helper(const std::string& subKey, RA_Time time, const T* data, size_t size,
+                                uint32_t trim, bool approximateTrim);
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Redis server
