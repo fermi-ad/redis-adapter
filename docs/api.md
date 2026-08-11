@@ -75,6 +75,8 @@ their own freshness expectations.
 
 `RA_ArgsAdd.time` selects an explicit timestamp; zero asks the adapter to use
 host time. `RA_ArgsAdd.trim` defaults to 1, making a stream a latest-value store.
+`RA_ArgsAdd.approximateTrim` defaults to `true`; set it to `false` when the
+stream contract requires a strict maximum entry count.
 Use a larger trim target when the application contract requires history.
 
 The generic typed path stores its binary-safe payload under the `_` stream

@@ -32,7 +32,7 @@ struct RA_Time
 };
 
 struct RA_ArgsAdd
-  { RA_Time time; uint32_t trim = 1; };
+  { RA_Time time; uint32_t trim = 1; bool approximateTrim = true; };
 
 class MockRedisAdapter // Mock
 {

@@ -85,6 +85,24 @@ TEST(RedisAdapter, DataSingle)
   EXPECT_EQ(vi[2], 3);
 }
 
+TEST(RedisAdapter, ExactTrim)
+{
+  RedisAdapter redis("TEST");
+  ASSERT_TRUE(redis.del("exact-trim"));
+
+  for (int value = 0; value < 10; ++value)
+  {
+    EXPECT_TRUE(redis.addSingleValue("exact-trim", value,
+      { .trim = 3, .approximateTrim = false }).ok());
+  }
+
+  const auto values = redis.getValues<int>("exact-trim");
+  ASSERT_EQ(values.size(), 3);
+  EXPECT_EQ(values[0].second, 7);
+  EXPECT_EQ(values[1].second, 8);
+  EXPECT_EQ(values[2].second, 9);
+}
+
 TEST(RedisAdapter, Data)
 {
   RedisAdapter redis("TEST");

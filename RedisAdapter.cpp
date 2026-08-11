@@ -120,7 +120,8 @@ RA_Time RedisAdapter::addSingleDouble(const string& subKey, double data, const R
   string key = build_key(subKey);
   Attrs attrs = default_field_attrs(data);
 
-  string id = args.trim ? _redis.xaddTrim(key, args.time.id_or_now(), attrs.begin(), attrs.end(), args.trim)
+  string id = args.trim ? _redis.xaddTrim(key, args.time.id_or_now(), attrs.begin(), attrs.end(),
+                                         args.trim, args.approximateTrim)
                         : _redis.xadd(key, args.time.id_or_now(), attrs.begin(), attrs.end());
 
   if (reconnect(id.size()) == 0) { return RA_NOT_CONNECTED; }
