@@ -118,13 +118,13 @@ public:
     };
     std::vector<addSingleValue_args> addSingleValue_arguments;
     template<typename T> RA_Time
-    addSingleValue(const std::string& subKey, const T& data, const RA_ArgsAdd& args = {}) {
+    addSingleValue(const std::string& subKey, const T& data, const RA_ArgsAdd& args = {})
+    {
       std::shared_ptr<void> ptr(
-        new T,                   // allocate
-        [](void* p) { delete[] static_cast<T*>(p); } // deleter
+        new T(data),                       // allocate
+        [](void* p) { delete static_cast<T*>(p); } // deleter
       );
-      T* raw = static_cast<T*>(ptr.get());
-      std::copy(&data, &data+sizeof(data), raw);
+
       addSingleValue_args arguments {
         .subKey = subKey,
         .data = ptr,
@@ -132,7 +132,7 @@ public:
       };
       addSingleValue_arguments.push_back(arguments);
 
-      addSingleList_numCalls_vector++;
+      addSingleValue_numCalls++;
       return RA_Time(getTimeNanosTest());
     }
 };
