@@ -92,8 +92,10 @@ public:
     co.user = opts.user;
     co.password = opts.password;
     co.socket_timeout = chr::milliseconds(opts.timeout);
+    co.connect_timeout = chr::milliseconds(opts.timeout);
 
     cpo.size = opts.size;
+    cpo.wait_timeout = chr::milliseconds(opts.timeout);
 
     //  build the new client(s) into locals first, then swap them into the shared
     //  _cluster/_singler under a brief lock - every other method takes its own

@@ -84,6 +84,11 @@ if(REDIS_ADAPTER_TEST)
   add_executable(redis-adapter-test ${REDIS_ADAPTER_SOURCES} test.cpp)
   target_link_libraries(redis-adapter-test ${REDIS_ADAPTER_LIBRARIES} GTest::gtest_main)
   gtest_discover_tests(redis-adapter-test)
+  add_executable(redis-adapter-lifecycle-test ${REDIS_ADAPTER_SOURCES} lifecycle_test.cpp)
+  target_compile_options(redis-adapter-lifecycle-test PRIVATE -UNDEBUG)
+  target_link_libraries(redis-adapter-lifecycle-test ${REDIS_ADAPTER_LIBRARIES})
+  add_test(NAME RedisAdapter.Lifecycle COMMAND redis-adapter-lifecycle-test)
+  set_tests_properties(RedisAdapter.Lifecycle PROPERTIES TIMEOUT 30)
 endif()
 
 # Build redis-adapter-benchmark and googlebenchmark if REDIS_ADAPTER_BENCHMARK is true

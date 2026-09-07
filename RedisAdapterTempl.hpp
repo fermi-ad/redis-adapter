@@ -10,19 +10,20 @@
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  Helper functions for getting DEFAULT_FIELD in Attrs
 //
-template<typename T> auto RedisAdapter::default_field_value(const Attrs& attrs) const
+template<typename T> auto RedisAdapter::default_field_value(const Attrs& attrs)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
   swr::Optional<T> ret;
-  if (attrs.count(DEFAULT_FIELD)) ret = *(const T*)attrs.at(DEFAULT_FIELD).data();
+  T value{};
+  if (decodeScalar(attrs, value)) ret = value;
   return ret;
 }
 //  string specialization
-template<> inline auto RedisAdapter::default_field_value<std::string>(const Attrs& attrs) const
+template<> inline auto RedisAdapter::default_field_value<std::string>(const Attrs& attrs)
 {
   std::string ret;
-  if (attrs.count(DEFAULT_FIELD)) ret = attrs.at(DEFAULT_FIELD);
+  decodeScalar(attrs, ret);
   return ret;
 }
 
@@ -140,11 +141,9 @@ RedisAdapter::get_forward_stream_list_helper(const std::string& baseKey, const s
   TimeVal<std::vector<T>> retItem;
   for (const auto& rawItem : raw)
   {
-    const std::string str = default_field_value<std::string>(rawItem.second);
-    if (str.size())
+    if (decodeArray(rawItem.second, retItem.second))
     {
       retItem.first = RA_Time(rawItem.first);
-      retItem.second.assign((T*)str.data(), (T*)(str.data() + str.size()));
       ret.push_back(retItem);
     }
   }
@@ -238,11 +237,9 @@ RedisAdapter::get_reverse_stream_list_helper(const std::string& baseKey, const s
   TimeVal<std::vector<T>> retItem;
   for (auto rawItem = raw.rbegin(); rawItem != raw.rend(); rawItem++)   //  reverse iterate
   {
-    const std::string str = default_field_value<std::string>(rawItem->second);
-    if (str.size())
+    if (decodeArray(rawItem->second, retItem.second))
     {
       retItem.first = RA_Time(rawItem->first);
-      retItem.second.assign((T*)str.data(), (T*)(str.data() + str.size()));
       ret.push_back(retItem);
     }
   }
@@ -323,10 +320,8 @@ RedisAdapter::get_single_stream_list_helper(const std::string& baseKey, const st
 
   if (raw.size())
   {
-    const std::string str = default_field_value<std::string>(raw.front().second);
-    if (str.size())
+    if (decodeArray(raw.front().second, dest))
     {
-      dest.assign((T*)str.data(), (T*)(str.data() + str.size()));
       return RA_Time(raw.front().first);
     }
   }
@@ -491,7 +486,7 @@ RedisAdapter::make_reader_callback(ReaderSubFn<T> func) const
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
-  return [&, func](const std::string& base, const std::string& sub, const ItemStream& raw)
+  return [func](const std::string& base, const std::string& sub, const ItemStream& raw)
   {
     TimeValList<T> ret;
     TimeVal<T> retItem;
@@ -512,7 +507,7 @@ RedisAdapter::make_reader_callback(ReaderSubFn<T> func) const
 template<> inline RedisAdapter::reader_sub_fn
 RedisAdapter::make_reader_callback(ReaderSubFn<Attrs> func) const
 {
-  return [&, func](const std::string& base, const std::string& sub, const ItemStream& raw)
+  return [func](const std::string& base, const std::string& sub, const ItemStream& raw)
   {
     TimeValList<Attrs> ret;
     TimeVal<Attrs> retItem;
@@ -540,17 +535,15 @@ RedisAdapter::make_list_reader_callback(ReaderSubFn<std::vector<T>> func) const
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
-  return [&, func](const std::string& base, const std::string& sub, const ItemStream& raw)
+  return [func](const std::string& base, const std::string& sub, const ItemStream& raw)
   {
     TimeValList<std::vector<T>> ret;
     TimeVal<std::vector<T>> retItem;
     for (const auto& rawItem : raw)
     {
-      const std::string str = default_field_value<std::string>(rawItem.second);
-      if (str.size())
+      if (decodeArray(rawItem.second, retItem.second))
       {
         retItem.first = RA_Time(rawItem.first);
-        retItem.second.assign((T*)str.data(), (T*)(str.data() + str.size()));
         ret.push_back(retItem);
       }
     }

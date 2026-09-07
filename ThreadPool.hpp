@@ -3,6 +3,8 @@
 #include <condition_variable>
 #include <queue>
 #include <functional>
+#include <syslog.h>
+#include <exception>
 
 class ThreadPool
 {
@@ -17,8 +19,10 @@ public:
   {
     for (auto& w : _workers)
     {
-      //  no need to lock here
-      w._go = false;
+      {
+        std::lock_guard<std::mutex> guard(w._mtx);
+        w._go = false;
+      }
       w._cv.notify_all();
     }
     for (auto& w : _workers)
@@ -44,6 +48,7 @@ public:
     Worker& w = _workers[idx];
 
     std::unique_lock<std::mutex> lk(w._mtx);
+    if (!w._go) return;
     w._jobs.emplace(std::move(func));
     lk.unlock();
 
@@ -75,7 +80,13 @@ private:
           // syslog(LOG_INFO, "worker %u has job", num);
 
           lk.unlock();
-          job();  //  do the job while unlocked
+          try {
+            job();
+          } catch (const std::exception& ex) {
+            syslog(LOG_ERR, "stream callback failed: %s", ex.what());
+          } catch (...) {
+            syslog(LOG_ERR, "stream callback failed with unknown exception");
+          }
           lk.lock();
         }
       }

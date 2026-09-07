@@ -15,6 +15,10 @@ using RedisAdapter = MockRedisAdapter;
 #include <atomic>
 #include <mutex>
 #include <condition_variable>
+#include <cstring>
+#include <limits>
+#include <memory>
+#include <type_traits>
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  define RA_VERSION
@@ -107,12 +111,90 @@ struct RA_Options
 //
 class RedisAdapter
 {
+  struct ReaderOwner;
+  struct ReaderRegistration;
 public:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Containers for stream data suggested by the redis++ readme.md
   //    https://github.com/sewenew/redis-plus-plus#redis-stream
   //
   using Attrs = std::unordered_map<std::string, std::string>;
+
+  // Stream identity is opaque and is independent of the legacy RA_Time encoding.
+  using StreamEntry = std::pair<std::string, Attrs>;
+  using StreamBatch = std::vector<StreamEntry>;
+  using StreamCallback = std::function<void(const std::string&, const std::string&, const StreamBatch&)>;
+  struct StreamSnapshot {
+    bool connected = false;
+    std::string id = "0-0";
+    Attrs fields;
+    bool present() const { return !fields.empty() && id != "0-0"; }
+  };
+
+  // Cancellation prevents queued callbacks from starting. An already executing
+  // callback may finish; consumers must fence their own generation's mutations.
+  class ReaderHandle {
+  public:
+    ReaderHandle() = default;
+    ~ReaderHandle();
+    ReaderHandle(ReaderHandle&& other) noexcept;
+    ReaderHandle& operator=(ReaderHandle&& other) noexcept;
+    ReaderHandle(const ReaderHandle&) = delete;
+    ReaderHandle& operator=(const ReaderHandle&) = delete;
+    void reset() noexcept;
+    explicit operator bool() const;
+  private:
+    friend class RedisAdapter;
+    ReaderHandle(std::weak_ptr<ReaderOwner> owner, std::shared_ptr<ReaderRegistration> registration);
+    std::weak_ptr<ReaderOwner> owner_;
+    std::shared_ptr<ReaderRegistration> registration_;
+  };
+
+  StreamSnapshot getStreamSnapshot(const std::string& subKey, const std::string& baseKey = "");
+  ReaderHandle subscribeStream(const std::string& subKey, StreamCallback callback,
+                               const std::string& afterId = "$", const std::string& baseKey = "");
+  static int compareStreamIds(const std::string& lhs, const std::string& rhs);
+
+  template<typename T>
+  static bool decodeScalar(const Attrs& fields, T& output,
+                           size_t maxBytes = std::numeric_limits<size_t>::max()) {
+    const auto found = fields.find("_");
+    if (found == fields.end() || found->second.size() > maxBytes) return false;
+    const auto& bytes = found->second;
+    if constexpr (std::is_same_v<T, std::string>) {
+      output = bytes;
+    } else {
+      static_assert(std::is_trivial_v<T>, "scalar must be trivial or string");
+      if (bytes.size() != sizeof(T)) return false;
+      if constexpr (std::is_same_v<T, bool>) {
+        if (static_cast<unsigned char>(bytes[0]) > 1u) return false;
+      }
+      std::memcpy(&output, bytes.data(), sizeof(T));
+    }
+    return true;
+  }
+
+  template<typename T>
+  static bool decodeArray(const Attrs& fields, std::vector<T>& output,
+                          size_t maxBytes = std::numeric_limits<size_t>::max()) {
+    static_assert(std::is_trivial_v<T>, "array element must be trivial");
+    const auto found = fields.find("_");
+    if (found == fields.end()) return false;
+    const auto& bytes = found->second;
+    if (bytes.size() > maxBytes || bytes.size() % sizeof(T) != 0u) return false;
+    std::vector<T> decoded(bytes.size() / sizeof(T));
+    if constexpr (std::is_same_v<T, bool>) {
+      for (size_t index = 0; index < decoded.size(); ++index) {
+        const auto raw = static_cast<unsigned char>(bytes[index]);
+        if (raw > 1u) return false;
+        decoded[index] = raw != 0u;
+      }
+    } else if (!bytes.empty()) {
+      std::memcpy(decoded.data(), bytes.data(), bytes.size());
+    }
+    output.swap(decoded);
+    return true;
+  }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Containers for getting/setting data using RedisAdapter methods
@@ -430,6 +512,11 @@ private:
   uint32_t reader_token(const std::string& key);
 
   bool add_reader_helper(const std::string& baseKey, const std::string& subKey, reader_sub_fn func);
+  std::shared_ptr<ReaderRegistration> register_reader(const std::string& key,
+                                                     reader_sub_fn func,
+                                                     const std::string& afterId,
+                                                     bool resolveTail = true);
+  void remove_registration(uint64_t id);
 
   template<typename T> reader_sub_fn make_reader_callback(ReaderSubFn<T> func) const;
 
@@ -440,7 +527,7 @@ private:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Helper functions for getting and setting DEFAULT_FIELD in Attrs
   //
-  template<typename T> auto default_field_value(const Attrs& attrs) const;
+  template<typename T> static auto default_field_value(const Attrs& attrs);
 
   template<typename T> Attrs default_field_attrs(const T* data, size_t size) const;
 
@@ -501,10 +588,24 @@ private:
 
   std::mutex _reader_mtx;
 
+  struct ReaderOwner {
+    std::mutex mutex;
+    RedisAdapter* adapter = nullptr;
+  };
+  struct ReaderRegistration {
+    uint64_t id = 0;
+    std::atomic<bool> active{true};
+    std::mutex mutex;
+    std::string cursor;
+    reader_sub_fn callback;
+  };
+  std::shared_ptr<ReaderOwner> _reader_owner = std::make_shared<ReaderOwner>();
+  uint64_t _next_reader_id = 0;
+
   struct reader_info
   {
     std::thread thread;
-    std::unordered_map<std::string, std::vector<reader_sub_fn>> subs;
+    std::unordered_map<std::string, std::vector<std::shared_ptr<ReaderRegistration>>> subs;
     std::unordered_map<std::string, std::string> keyids;
     std::string stop;
     std::atomic<bool> run = false;
@@ -514,6 +615,7 @@ private:
     //  so their lifetime safely covers the reader thread's lifetime, not just one call
     std::mutex start_mx;
     std::condition_variable start_cv;
+    bool started = false;
   };
   std::unordered_map<uint32_t, reader_info> _reader;
 
