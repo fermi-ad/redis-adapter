@@ -5,29 +5,30 @@
 #include <functional>
 #include <syslog.h>
 #include <exception>
+#include <memory>
+#include <string>
+#include <vector>
 
 class ThreadPool
 {
 public:
   ThreadPool(unsigned short num) : _workers(num)
   {
-    for (auto& w : _workers)
-      { w._thd = std::thread(&Worker::work, &w, --num); }
+    try {
+      for (auto& worker : _workers) {
+        worker = std::make_shared<Worker>();
+        const auto index = --num;
+        worker->_thd = std::thread([keep = worker, index]() { keep->work(index); });
+      }
+    } catch (...) {
+      stop();
+      throw;
+    }
   }
 
-  ~ThreadPool()
-  {
-    for (auto& w : _workers)
-    {
-      {
-        std::lock_guard<std::mutex> guard(w._mtx);
-        w._go = false;
-      }
-      w._cv.notify_all();
-    }
-    for (auto& w : _workers)
-      { if (w._thd.joinable()) w._thd.join(); }
-  }
+  ThreadPool(const ThreadPool&) = delete;
+  ThreadPool& operator=(const ThreadPool&) = delete;
+  ~ThreadPool() { stop(); }
 
   void job(const std::string& name, std::function<void(void)> func)
   {
@@ -45,7 +46,8 @@ public:
       //  assign job to thread deterministically by name hash
       default: idx = hasher(name) % num; break;
     }
-    Worker& w = _workers[idx];
+    const auto keep = _workers[idx];
+    Worker& w = *keep;
 
     std::unique_lock<std::mutex> lk(w._mtx);
     if (!w._go) return;
@@ -72,6 +74,7 @@ private:
         //  note cv unlocks mutex while waiting, relocks when done
         while (_go && _jobs.empty()) { _cv.wait(lk); }
 
+        if (!_go) break;
         if (_jobs.size())
         {
           auto job = std::move(_jobs.front());
@@ -93,5 +96,26 @@ private:
     }
   };
 
-  std::vector<Worker> _workers;
+  void stop() noexcept
+  {
+    for (const auto& worker : _workers) {
+      if (!worker) continue;
+      {
+        std::lock_guard<std::mutex> guard(worker->_mtx);
+        worker->_go = false;
+      }
+      worker->_cv.notify_all();
+    }
+    for (const auto& worker : _workers) {
+      if (!worker || !worker->_thd.joinable()) continue;
+      if (worker->_thd.get_id() == std::this_thread::get_id()) {
+        // The thread's lambda retains this Worker's storage until work() exits.
+        worker->_thd.detach();
+      } else {
+        worker->_thd.join();
+      }
+    }
+  }
+
+  std::vector<std::shared_ptr<Worker>> _workers;
 };

@@ -18,6 +18,21 @@ const auto THREAD_START_CONFIRM = milliseconds(20);
 
 const uint32_t NO_TOKEN = -1;
 
+namespace {
+// Preserve the actual Redis hash tag. Untagged keys containing braces cannot
+// always be represented by a hash tag; those readers use their bounded timeout
+// for shutdown instead of adding a control stream in a different cluster slot.
+std::string stopStreamKey(const std::string& key) {
+  const auto open = key.find('{');
+  const auto close = open == std::string::npos ? std::string::npos : key.find('}', open + 1);
+  if (close != std::string::npos && close > open + 1) return key + ":<$-STOP-$>";
+  if (!key.empty() && key.find_first_of("{}") == std::string::npos)
+    return "{" + key + "}:<$-STOP-$>";
+  return {};
+}
+}
+
+
 static uint64_t nanoseconds_since_epoch()
 {
   return duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
@@ -187,7 +202,12 @@ RedisAdapter::StreamSnapshot RedisAdapter::getStreamSnapshot(const string& subKe
 
 RedisAdapter::ReaderHandle RedisAdapter::subscribeStream(const string& subKey, StreamCallback callback,
                                                          const string& afterId, const string& baseKey) {
-  return ReaderHandle(_reader_owner, register_reader(build_key(subKey, baseKey), std::move(callback), afterId));
+  if (!callback) throw invalid_argument("empty stream callback");
+  const auto base = baseKey.empty() ? _base_key : baseKey;
+  return ReaderHandle(_reader_owner, register_reader(build_key(subKey, baseKey),
+      [base, subKey, callback = std::move(callback)](const auto&, const auto&, const auto& batch) {
+        callback(base, subKey, batch);
+      }, afterId));
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -342,7 +362,10 @@ uint32_t RedisAdapter::reader_token(const std::string& key)
 bool RedisAdapter::add_reader_helper(const string& baseKey, const string& subKey, reader_sub_fn func)
 {
   const auto key = build_key(subKey, baseKey);
-  register_reader(key, std::move(func), "$", false);
+  const auto base = baseKey.empty() ? _base_key : baseKey;
+  register_reader(key, [base, subKey, func = std::move(func)](const auto&, const auto&, const auto& batch) {
+    func(base, subKey, batch);
+  }, "$", false);
   return reader_token(key) != NO_TOKEN;
 }
 
@@ -371,11 +394,8 @@ RedisAdapter::register_reader(const string& key, reader_sub_fn func, const strin
     info.keyids[key] = registration->cursor;
   info.subs[key].push_back(registration);
   if (info.stop.empty()) {
-    // All keys in a bucket share the same Redis cluster slot.
-    const auto parts = split_key(key);
-    info.stop = parts.first.empty() ? build_key(STOP_STUB, key)
-                                    : build_key(parts.second + ":" + STOP_STUB, parts.first);
-    info.keyids[info.stop] = "$";
+    info.stop = stopStreamKey(key);
+    if (!info.stop.empty()) info.keyids[info.stop] = "$";
   }
   start_reader(token);
   return registration;
@@ -519,7 +539,7 @@ bool RedisAdapter::stop_reader(uint32_t token)
   //  will still exit after its timeout expires, do NOT call reconnect() here
   //  since stop_reader is called from within locked sections and spawning a
   //  reconnect thread could cause unnecessary blocking
-  _redis.xaddTrim(info.stop, "*", attrs.begin(), attrs.end(), 1);
+  if (!info.stop.empty()) _redis.xaddTrim(info.stop, "*", attrs.begin(), attrs.end(), 1);
   info.thread.join();
   return true;
 }
@@ -567,9 +587,8 @@ int32_t RedisAdapter::reconnect(int32_t result)
                 info.keyids[key] = cursor;
               if (info.stop.empty())
               {
-                auto part = split_key(key);
-                info.stop = build_key(part.second + ":" + STOP_STUB, part.first);
-                info.keyids[info.stop] = "$";
+                info.stop = stopStreamKey(key);
+                if (!info.stop.empty()) info.keyids[info.stop] = "$";
               }
             }
           }

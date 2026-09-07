@@ -123,5 +123,35 @@ int main() {
     orphan = temporary.subscribeStream("key", [](const auto&, const auto&, const auto&) {}, "0-0");
   }
   orphan.reset();
+
+  Observations alternate;
+  auto other = adapter.subscribeStream("key", [&](const auto& actualBase, const auto& sub, const auto& entries) {
+    assert(actualBase == "other" && sub == "key");
+    alternate.append(entries);
+  }, "0-0", "other");
+  RA otherProducer("other", options);
+  const auto otherId = otherProducer.addSingleDouble("key", 2.);
+  assert(alternate.waitFor(otherId.id()));
+  other.reset();
+
+  // Last-owner destruction can occur when a callback releases its runtime.
+  // The pool must not join its own thread or destroy the executing worker.
+  std::mutex destroyedMutex;
+  std::condition_variable destroyedEvent;
+  bool destroyed = false;
+  auto lastOwner = std::make_shared<RA>(base + "-last-owner", options);
+  auto lastHandle = lastOwner->subscribeStream("key", [&](const auto&, const auto&, const auto&) {
+    lastOwner.reset();
+    std::lock_guard<std::mutex> guard(destroyedMutex);
+    destroyed = true;
+    destroyedEvent.notify_all();
+  }, "0-0");
+  RA lastProducer(base + "-last-owner", options);
+  assert(lastProducer.addSingleDouble("key", 3.).ok());
+  {
+    std::unique_lock<std::mutex> lock(destroyedMutex);
+    assert(destroyedEvent.wait_for(lock, 3s, [&] { return destroyed; }));
+  }
+  lastHandle.reset();
   std::cout << "owned subscriptions, exact cursors, safe decoding and callback lifetime passed\n";
 }
