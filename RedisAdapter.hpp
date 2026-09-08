@@ -113,6 +113,16 @@ class RedisAdapter
 {
   struct ReaderOwner;
   struct ReaderRegistration;
+
+  // Validate the complete native representation before producing a bool. Never
+  // copy untrusted bytes into a bool object, including on wider-bool platforms.
+  static bool decodeBoolean(const char* bytes, bool& output) {
+    const bool falseValue = false, trueValue = true;
+    if (std::memcmp(bytes, &falseValue, sizeof(bool)) == 0) output = false;
+    else if (std::memcmp(bytes, &trueValue, sizeof(bool)) == 0) output = true;
+    else return false;
+    return true;
+  }
 public:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Containers for stream data suggested by the redis++ readme.md
@@ -167,9 +177,10 @@ public:
       static_assert(std::is_trivial_v<T>, "scalar must be trivial or string");
       if (bytes.size() != sizeof(T)) return false;
       if constexpr (std::is_same_v<T, bool>) {
-        if (static_cast<unsigned char>(bytes[0]) > 1u) return false;
+        return decodeBoolean(bytes.data(), output);
+      } else {
+        std::memcpy(&output, bytes.data(), sizeof(T));
       }
-      std::memcpy(&output, bytes.data(), sizeof(T));
     }
     return true;
   }
@@ -185,9 +196,9 @@ public:
     std::vector<T> decoded(bytes.size() / sizeof(T));
     if constexpr (std::is_same_v<T, bool>) {
       for (size_t index = 0; index < decoded.size(); ++index) {
-        const auto raw = static_cast<unsigned char>(bytes[index]);
-        if (raw > 1u) return false;
-        decoded[index] = raw != 0u;
+        bool value;
+        if (!decodeBoolean(bytes.data() + index * sizeof(bool), value)) return false;
+        decoded[index] = value;
       }
     } else if (!bytes.empty()) {
       std::memcpy(decoded.data(), bytes.data(), bytes.size());
