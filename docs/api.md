@@ -32,6 +32,7 @@ standalone connection. Setting `cxn.path` selects a Unix-domain socket and makes
 | `dogname` | `std::string` | empty | If set, maintain a one-second field-TTL watchdog for this name. |
 | `workers` | `uint16_t` | `1` | Worker threads used to dispatch reader callbacks. |
 | `readers` | `uint16_t` | `1` | Reader threads across which stream keys are deterministically sharded. |
+| `readerProbeMs` | `uint32_t` | `1000` | Minimum boundary-inspection interval for owned subscriptions; `0` disables inspection and automatic reset recovery. See [continuity/status](stream-subscriptions.md#continuity-and-status). |
 
 Credentials are passed directly to redis-plus-plus. Keep them out of source
 control and populate `RA_Options` from the consuming application's secret or

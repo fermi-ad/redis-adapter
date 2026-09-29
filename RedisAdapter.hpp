@@ -102,6 +102,8 @@ struct RA_Options
   std::string dogname;
   uint16_t workers = 1;
   uint16_t readers = 1;
+  // Owned readers inspect continuity at this interval; zero disables XINFO.
+  uint32_t readerProbeMs = 1000;
 };
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -142,6 +144,17 @@ public:
     bool present() const { return !fields.empty() && id != "0-0"; }
   };
 
+  struct ReaderStatus {
+    bool active = false, connected = false, inspected = false, hasData = false;
+    RedisConnection::StreamKind stream = RedisConnection::StreamKind::Unknown;
+    std::string cursor = "0-0", observedCursor = "0-0";
+    uint64_t epoch = 1, readFailures = 0, readRejections = 0, socketTimeouts = 0;
+    uint64_t reconnects = 0, streamResets = 0, disappearances = 0, retentionGaps = 0;
+    uint64_t inspectionFailures = 0, inspectionRejections = 0;
+    uint64_t callbacks = 0, entries = 0, callbackErrors = 0;
+    std::chrono::steady_clock::time_point lastReceived{};
+  };
+
   // Cancellation prevents queued callbacks from starting. An already executing
   // callback may finish; consumers must fence their own generation's mutations.
   class ReaderHandle {
@@ -154,6 +167,7 @@ public:
     ReaderHandle& operator=(const ReaderHandle&) = delete;
     void reset() noexcept;
     explicit operator bool() const;
+    ReaderStatus status() const;
   private:
     friend class RedisAdapter;
     ReaderHandle(std::weak_ptr<ReaderOwner> owner, std::shared_ptr<ReaderRegistration> registration);
@@ -611,6 +625,9 @@ private:
     std::atomic<bool> active{true};
     std::mutex mutex;
     std::string cursor;
+    std::string observedCursor;
+    bool inspect = false, everConnected = false, continuityCheck = true;
+    ReaderStatus status;
     reader_sub_fn callback;
   };
   std::shared_ptr<ReaderOwner> _reader_owner = std::make_shared<ReaderOwner>();
@@ -622,6 +639,11 @@ private:
     std::unordered_map<std::string, std::vector<std::shared_ptr<ReaderRegistration>>> subs;
     std::unordered_map<std::string, std::string> keyids;
     std::string stop;
+    struct Boundary {
+      std::chrono::steady_clock::time_point nextProbe{};
+      RedisConnection::StreamKind kind = RedisConnection::StreamKind::Unknown;
+    };
+    std::unordered_map<std::string, Boundary> boundaries;
     std::atomic<bool> run = false;
 
     //  used by start_reader() to confirm the reader thread has begun its read loop -
@@ -632,6 +654,9 @@ private:
     bool started = false;
   };
   std::unordered_map<uint32_t, reader_info> _reader;
+  bool inspect_readers(reader_info& info, const std::vector<std::string>& keys,
+                       size_t& nextProbe, bool force);
+  void reader_result(reader_info& info, RedisConnection::ReadStatus result);
 
   ThreadPool _replier_pool;
 };

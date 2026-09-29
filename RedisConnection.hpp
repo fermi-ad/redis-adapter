@@ -19,6 +19,13 @@ class RedisConnection
 {
 public:
   enum class CommandStatus { Accepted, Rejected, Unavailable };
+  enum class ReadStatus { Accepted, TimedOut, Rejected, Unavailable };
+  enum class StreamKind { Unknown, Missing, Stream, Invalid };
+  struct StreamBounds {
+    CommandStatus status = CommandStatus::Unavailable;
+    StreamKind kind = StreamKind::Unknown;
+    std::string firstId = "0-0", lastGeneratedId = "0-0";
+  };
   struct WriteResult {
     CommandStatus status = CommandStatus::Unavailable;
     std::string id;
@@ -295,17 +302,60 @@ public:
   //    https://redis.io/docs/reference/cluster-spec/
   //
   template<typename Input, typename Output>
-  bool xreadMultiBlock(Input fst, Input lst, uint32_t tmo, Output out)
+  bool xreadMultiBlock(Input fst, Input lst, uint32_t tmo, Output out, ReadStatus* status = nullptr)
   {
+    if (status) *status = ReadStatus::Unavailable;
     auto [cluster, singler] = snapshot();
     try
     {
-      if (cluster) { cluster->xread(fst, lst, chr::milliseconds(tmo), out); return true; }
-      if (singler) { singler->xread(fst, lst, chr::milliseconds(tmo), out); return true; }
+      if (cluster) { cluster->xread(fst, lst, chr::milliseconds(tmo), out); if (status) *status = ReadStatus::Accepted; return true; }
+      if (singler) { singler->xread(fst, lst, chr::milliseconds(tmo), out); if (status) *status = ReadStatus::Accepted; return true; }
     }
-    catch (const swr::TimeoutError&) { return true; }
+    catch (const swr::TimeoutError&) { if (status) *status = ReadStatus::TimedOut; return true; }
+    catch (const swr::ReplyError& e) {
+      if (status) *status = ReadStatus::Rejected;
+      syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what());
+    }
     catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
     return false;
+  }
+
+  // XINFO is read-only and requires no Lua/script privilege. Its first/last
+  // entries are decoded only for IDs; no field payload is copied into the result.
+  StreamBounds streamBounds(const std::string& key) {
+    auto [cluster, singler] = snapshot();
+    if (!cluster && !singler) return {};
+    try {
+      // Route by the actual key, not the XINFO subcommand (STREAM).
+      const auto command = [](swr::Connection& connection, const swr::StringView& name) {
+        connection.send("XINFO STREAM %b", name.data(), name.size());
+      };
+      const auto reply = cluster ? cluster->command(command, key) : singler->command("XINFO", "STREAM", key);
+      StreamBounds result;
+      result.status = CommandStatus::Rejected;
+      if (!reply || reply->type != REDIS_REPLY_ARRAY || reply->elements % 2) return result;
+      const auto text = [](const redisReply* value) {
+        return value && value->type == REDIS_REPLY_STRING ? std::string(value->str, value->len) : std::string{};
+      };
+      bool hasLastId = false;
+      for (size_t i = 0; i < reply->elements; i += 2) {
+        const auto field = text(reply->element[i]);
+        const auto value = reply->element[i + 1];
+        if (field == "last-generated-id") {
+          result.lastGeneratedId = text(value); hasLastId = !result.lastGeneratedId.empty();
+        } else if (field == "first-entry" && value->type == REDIS_REPLY_ARRAY && value->elements)
+          result.firstId = text(value->element[0]);
+      }
+      if (hasLastId) { result.status = CommandStatus::Accepted; result.kind = StreamKind::Stream; }
+      return result;
+    } catch (const swr::ReplyError& error) {
+      const std::string message(error.what());
+      if (message.find("no such key") != std::string::npos)
+        return {CommandStatus::Accepted, StreamKind::Missing};
+      if (message.find("WRONGTYPE") != std::string::npos)
+        return {CommandStatus::Accepted, StreamKind::Invalid};
+      return {CommandStatus::Rejected, StreamKind::Unknown};
+    } catch (const swr::Error&) { return {}; }
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

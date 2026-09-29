@@ -157,6 +157,15 @@ RedisAdapter::ReaderHandle& RedisAdapter::ReaderHandle::operator=(ReaderHandle&&
 RedisAdapter::ReaderHandle::operator bool() const {
   return registration_ && registration_->active.load();
 }
+RedisAdapter::ReaderStatus RedisAdapter::ReaderHandle::status() const {
+  if (!registration_) return {};
+  lock_guard<mutex> lock(registration_->mutex);
+  auto result = registration_->status;
+  result.active = registration_->active && !owner_.expired();
+  result.cursor = registration_->cursor;
+  result.observedCursor = registration_->observedCursor;
+  return result;
+}
 void RedisAdapter::ReaderHandle::reset() noexcept {
   auto registration = std::move(registration_);
   if (!registration) return;
@@ -404,12 +413,14 @@ RedisAdapter::register_reader(const string& key, reader_sub_fn func, const strin
   auto registration = make_shared<ReaderRegistration>();
   registration->id = ++_next_reader_id;
   registration->cursor = afterId;
+  registration->inspect = resolveTail; // only the owned API requests continuity inspection
   registration->callback = std::move(func);
   if (resolveTail && registration->cursor == "$") {
     ItemStream latest;
     if (_redis.xrevrange(key, "+", "-", 1, back_inserter(latest)))
       registration->cursor = latest.empty() ? "0-0" : latest.front().first;
   }
+  registration->observedCursor = registration->cursor;
   auto cursor = info.keyids.find(key);
   if (cursor == info.keyids.end() || cursor->second == "$" ||
       (registration->cursor != "$" && compareStreamIds(registration->cursor, cursor->second) < 0))
@@ -438,6 +449,7 @@ void RedisAdapter::remove_registration(uint64_t id)
       registrations.erase(registration);
       if (registrations.empty()) {
         info.keyids.erase(key->first);
+        info.boundaries.erase(key->first);
         info.subs.erase(key);
       }
       if (info.subs.empty()) _reader.erase(bucket);
@@ -460,11 +472,100 @@ bool RedisAdapter::remove_reader_helper(const string& baseKey, const string& sub
     for (auto& registration : entry->second) registration->active = false;
     info.subs.erase(entry);
     info.keyids.erase(key);
+    info.boundaries.erase(key);
     found = true;
     if (info.subs.empty()) bucket = _reader.erase(bucket);
     else { start_reader(bucket->first); ++bucket; }
   }
   return found;
+}
+
+void RedisAdapter::reader_result(reader_info& info, RedisConnection::ReadStatus result)
+{
+  using Result = RedisConnection::ReadStatus;
+  for (const auto& key : info.subs) for (const auto& registration : key.second) {
+    lock_guard<mutex> lock(registration->mutex);
+    auto& status = registration->status;
+    if (result == Result::TimedOut) { ++status.socketTimeouts; continue; }
+    if (result == Result::Rejected) { ++status.readRejections; continue; }
+    if (result == Result::Unavailable) {
+      ++status.readFailures; status.connected = false; registration->continuityCheck = true;
+    } else {
+      if (!status.connected && registration->everConnected) ++status.reconnects;
+      status.connected = true; registration->everConnected = true;
+    }
+  }
+}
+
+bool RedisAdapter::inspect_readers(reader_info& info, const vector<string>& keys,
+                                   size_t& nextProbe, bool force)
+{
+  if (!_options.readerProbeMs || keys.empty()) return true;
+  using Kind = RedisConnection::StreamKind;
+  using Result = RedisConnection::CommandStatus;
+  // Limit work per pass and stop promptly even if a backend is unavailable.
+  for (size_t checked = 0; checked < min(keys.size(), size_t(64)) && info.run; ++checked) {
+    const auto& key = keys[nextProbe++ % keys.size()];
+    auto& boundary = info.boundaries[key];
+    const auto now = steady_clock::now();
+    if (!force && now < boundary.nextProbe) continue;
+    const auto bounds = _redis.streamBounds(key);
+    boundary.nextProbe = steady_clock::now() + milliseconds(_options.readerProbeMs);
+    bool rewound = false;
+    for (const auto& registration : info.subs.at(key)) {
+      lock_guard<mutex> lock(registration->mutex);
+      auto& status = registration->status;
+      if (bounds.status != Result::Accepted) {
+        status.inspected = false;
+        if (bounds.status == Result::Rejected) ++status.inspectionRejections;
+        else { ++status.inspectionFailures; status.connected = false; registration->continuityCheck = true; }
+        continue;
+      }
+      if (!status.connected && registration->everConnected) ++status.reconnects;
+      status.connected = true; registration->everConnected = true; status.inspected = true;
+      const auto prior = status.stream;
+      status.stream = bounds.kind;
+      status.hasData = bounds.kind == Kind::Stream && bounds.firstId != "0-0";
+      const bool hasCursor = registration->observedCursor != "$" && registration->observedCursor != "0-0";
+      const bool missing = bounds.kind == Kind::Missing || bounds.kind == Kind::Invalid;
+      const bool reset = missing ? (hasCursor || prior == Kind::Stream)
+          : hasCursor && compareStreamIds(bounds.lastGeneratedId, registration->observedCursor) < 0;
+      if (reset) {
+        registration->cursor = registration->observedCursor = "0-0";
+        ++status.epoch; ++status.streamResets;
+        if (bounds.kind == Kind::Missing) ++status.disappearances;
+        rewound = true;
+      } else if (bounds.kind == Kind::Stream && registration->continuityCheck && hasCursor &&
+                 bounds.firstId != "0-0" && compareStreamIds(bounds.firstId, registration->observedCursor) > 0) {
+        // The saved cursor is older than retained history. This is a possible
+        // continuity loss, never an exact count of missed entries.
+        ++status.retentionGaps;
+      }
+      registration->continuityCheck = false;
+    }
+    if (bounds.status == Result::Accepted) {
+      boundary.kind = bounds.kind;
+      reader_result(info, RedisConnection::ReadStatus::Accepted);
+    }
+    if (rewound) {
+      // Rewind the shared read only as far as the registrations require.
+      auto cursor = string("$");
+      for (const auto& registration : info.subs.at(key)) {
+        lock_guard<mutex> lock(registration->mutex);
+        if (registration->cursor != "$" && (cursor == "$" || compareStreamIds(registration->cursor, cursor) < 0))
+          cursor = registration->cursor;
+      }
+      info.keyids[key] = cursor;
+    }
+    if (bounds.status == Result::Unavailable) {
+      for (const auto& other : info.subs) for (const auto& registration : other.second) {
+        lock_guard<mutex> lock(registration->mutex);
+        registration->status.connected = false; registration->continuityCheck = true;
+      }
+      return false;
+    }
+  }
+  return true;
 }
 
 bool RedisAdapter::start_reader(uint32_t token)
@@ -498,7 +599,7 @@ bool RedisAdapter::start_reader(uint32_t token)
     if (info.keyids.at(subscriptions.first) == "$") info.keyids[subscriptions.first] = tail;
     for (const auto& registration : subscriptions.second) {
       lock_guard<mutex> cursorLock(registration->mutex);
-      if (registration->cursor == "$") registration->cursor = tail;
+      if (registration->cursor == "$") registration->cursor = registration->observedCursor = tail;
     }
   }
   info.thread = thread([this, &info]() {
@@ -507,9 +608,30 @@ bool RedisAdapter::start_reader(uint32_t token)
       info.started = true;
     }
     info.start_cv.notify_all();
+    vector<string> probeKeys;
+    for (const auto& key : info.subs)
+      if (any_of(key.second.begin(), key.second.end(), [](const auto& registration) { return registration->inspect; }))
+        probeKeys.push_back(key.first);
+    size_t nextProbe = 0;
+    bool forceProbe = false;
     for (Streams out; info.run; out.clear()) {
-      if (!_redis.xreadMultiBlock(info.keyids.begin(), info.keyids.end(), _options.cxn.timeout,
-                                  inserter(out, out.end()))) {
+      if (!inspect_readers(info, probeKeys, nextProbe, forceProbe)) {
+        forceProbe = true;
+        if (info.run) this_thread::sleep_for(milliseconds(50));
+        continue;
+      }
+      if (!info.run) break;
+      forceProbe = false;
+      auto cursors = info.keyids;
+      for (const auto& boundary : info.boundaries)
+        if (boundary.second.kind == RedisConnection::StreamKind::Invalid) cursors.erase(boundary.first);
+      if (cursors.empty()) { this_thread::sleep_for(milliseconds(50)); continue; }
+      RedisConnection::ReadStatus readStatus;
+      const bool success = _redis.xreadMultiBlock(cursors.begin(), cursors.end(), _options.cxn.timeout,
+                                  inserter(out, out.end()), &readStatus);
+      reader_result(info, readStatus);
+      if (!success) {
+        forceProbe = true;
         // redis++ reconnects its socket on the next read. A transient error must
         // not permanently stop a reader while a separate health PING succeeds.
         if (info.run) this_thread::sleep_for(milliseconds(50));
@@ -524,20 +646,38 @@ bool RedisAdapter::start_reader(uint32_t token)
         const auto sub = parts.first.empty() ? item.first : parts.second;
         auto data = make_shared<const ItemStream>(std::move(item.second));
         for (const auto& registration : subscriptions->second) {
-          _replier_pool.job(item.first, [registration, base, sub, data]() {
+          uint64_t epoch;
+          {
+            lock_guard<mutex> cursorLock(registration->mutex);
+            epoch = registration->status.epoch;
+            if (registration->observedCursor == "$" || compareStreamIds(data->back().first, registration->observedCursor) > 0)
+              registration->observedCursor = data->back().first;
+          }
+          _replier_pool.job(item.first, [registration, base, sub, data, epoch]() {
             if (!registration->active.load()) return;
             ItemStream fresh;
             {
               lock_guard<mutex> cursorLock(registration->mutex);
+              if (registration->status.epoch != epoch) return;
               for (const auto& entry : *data) {
                 if (registration->cursor == "$" || compareStreamIds(entry.first, registration->cursor) > 0) {
                   fresh.push_back(entry);
                   registration->cursor = entry.first;
                 }
               }
+              if (!fresh.empty()) {
+                ++registration->status.callbacks; registration->status.entries += fresh.size();
+                registration->status.lastReceived = steady_clock::now();
+              }
             }
-            if (!fresh.empty() && registration->active.load())
-              registration->callback(base, sub, fresh);
+            if (!fresh.empty() && registration->active.load()) {
+              try { registration->callback(base, sub, fresh); }
+              catch (...) {
+                lock_guard<mutex> lock(registration->mutex);
+                ++registration->status.callbackErrors;
+                throw;
+              }
+            }
           });
         }
       }
