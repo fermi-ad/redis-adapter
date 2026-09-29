@@ -89,6 +89,16 @@ if(REDIS_ADAPTER_TEST)
   target_link_libraries(redis-adapter-lifecycle-test ${REDIS_ADAPTER_LIBRARIES})
   add_test(NAME RedisAdapter.Lifecycle COMMAND redis-adapter-lifecycle-test)
   set_tests_properties(RedisAdapter.Lifecycle PROPERTIES TIMEOUT 30)
+  add_executable(redis-adapter-write-error-test ${REDIS_ADAPTER_SOURCES} write_error_test.cpp)
+  target_compile_options(redis-adapter-write-error-test PRIVATE -UNDEBUG)
+  target_link_libraries(redis-adapter-write-error-test ${REDIS_ADAPTER_LIBRARIES})
+  add_test(NAME RedisAdapter.WriteErrors COMMAND redis-adapter-write-error-test)
+  set_tests_properties(RedisAdapter.WriteErrors PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  add_test(NAME RedisAdapter.WriteTransportFailure
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/write_failure_test.py
+            $<TARGET_FILE:redis-adapter-write-error-test>)
+  set_tests_properties(RedisAdapter.WriteTransportFailure PROPERTIES TIMEOUT 30)
 endif()
 
 # Build redis-adapter-benchmark and googlebenchmark if REDIS_ADAPTER_BENCHMARK is true

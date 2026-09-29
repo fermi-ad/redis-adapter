@@ -64,6 +64,7 @@ struct RA_Time
 };
 
 const RA_Time RA_NOT_CONNECTED(-1);
+const RA_Time RA_REJECTED(-2);
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  struct RA_ArgsGet, struct RA_ArgsAdd
@@ -577,6 +578,8 @@ private:
   std::string _base_key;
 
   int32_t reconnect(int32_t result);
+  RA_Time finishWrite(const RedisConnection::WriteResult& result);
+  void finishBatch(const std::string& key, size_t accepted, uint32_t trim, bool transportFailure);
   std::atomic_bool _connecting;
   std::thread _reconnect_thd;
   std::atomic<bool> _shutdown{false};

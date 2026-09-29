@@ -79,6 +79,23 @@ host time. `RA_ArgsAdd.trim` defaults to 1, making a stream a latest-value store
 stream contract requires a strict maximum entry count.
 Use a larger trim target when the application contract requires history.
 
+Single writes return `RA_REJECTED` (`err() == 2`) when Redis rejects the
+command, including duplicate/backward stream IDs, wrong key types, or denied
+commands. They return `RA_NOT_CONNECTED` (`err() == 1`) when the transport is
+unavailable. A server rejection does not reconnect or replace the supplied
+timestamp. The existing `ok()` success check applies to both error results.
+
+Batches return only the timestamps of accepted items, in input order. Rejected
+or unavailable items are omitted; an empty or all-rejected batch does not imply
+a disconnected server. A transport failure in any item or the final trim still
+initiates connection recovery even if other items succeeded. The returned vector
+does not report per-item error reasons or final trim success. Batches are not
+atomic, and a failed trim does not undo already accepted entries.
+
+No failed write is automatically replayed. In particular, a timeout may follow
+server acceptance: retrying the command could apply it twice. Connection recovery
+prepares future operations and preserves this ambiguity for the caller.
+
 The generic typed path stores its binary-safe payload under the `_` stream
 field. Producer and consumer must agree on type and shape; the core protocol
 does not embed a schema.

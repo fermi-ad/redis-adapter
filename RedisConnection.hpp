@@ -18,6 +18,12 @@ namespace chr = std::chrono;
 class RedisConnection
 {
 public:
+  enum class CommandStatus { Accepted, Rejected, Unavailable };
+  struct WriteResult {
+    CommandStatus status = CommandStatus::Unavailable;
+    std::string id;
+  };
+
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  struct RedisConnection::Options
   //
@@ -315,11 +321,23 @@ public:
   template<typename Input>
   std::string xadd(const std::string& key, const std::string& id, Input fst, Input lst)
   {
+    return xaddResult(key, id, fst, lst).id;
+  }
+
+  // Preserve the difference between a server rejection and an unavailable
+  // transport. A timeout can follow acceptance; neither outcome is replayed.
+  template<typename Input>
+  WriteResult xaddResult(const std::string& key, const std::string& id, Input fst, Input lst)
+  {
     auto [cluster, singler] = snapshot();
     try
     {
-      if (cluster) return cluster->xadd(key, id, fst, lst);
-      if (singler) return singler->xadd(key, id, fst, lst);
+      if (cluster) return {CommandStatus::Accepted, cluster->xadd(key, id, fst, lst)};
+      if (singler) return {CommandStatus::Accepted, singler->xadd(key, id, fst, lst)};
+    }
+    catch (const swr::ReplyError& e) {
+      syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what());
+      return {CommandStatus::Rejected, {}};
     }
     catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
     return {};
@@ -334,13 +352,22 @@ public:
   //    return : the number of trimmed elements if successful
   //             -1 if unsuccsessful or not connected
   //
-  int32_t xtrim(const std::string& key, uint32_t thr, bool apx = true)
+  int32_t xtrim(const std::string& key, uint32_t thr, bool apx = true,
+                CommandStatus* status = nullptr)
   {
+    if (status) *status = CommandStatus::Unavailable;
     auto [cluster, singler] = snapshot();
     try
     {
-      if (cluster) return cluster->xtrim(key, thr, apx);
-      if (singler) return singler->xtrim(key, thr, apx);
+      if (cluster || singler) {
+        const auto count = cluster ? cluster->xtrim(key, thr, apx) : singler->xtrim(key, thr, apx);
+        if (status) *status = CommandStatus::Accepted;
+        return count;
+      }
+    }
+    catch (const swr::ReplyError& e) {
+      syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what());
+      if (status) *status = CommandStatus::Rejected;
     }
     catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
     return -1;
@@ -362,11 +389,22 @@ public:
   std::string xaddTrim(const std::string& key, const std::string& id,
                        Input fst, Input lst, uint32_t thr, bool apx = true)
   {
+    return xaddTrimResult(key, id, fst, lst, thr, apx).id;
+  }
+
+  template<typename Input>
+  WriteResult xaddTrimResult(const std::string& key, const std::string& id,
+                            Input fst, Input lst, uint32_t thr, bool apx = true)
+  {
     auto [cluster, singler] = snapshot();
     try
     {
-      if (cluster) return cluster->xadd(key, id, fst, lst, thr, apx);
-      if (singler) return singler->xadd(key, id, fst, lst, thr, apx);
+      if (cluster) return {CommandStatus::Accepted, cluster->xadd(key, id, fst, lst, thr, apx)};
+      if (singler) return {CommandStatus::Accepted, singler->xadd(key, id, fst, lst, thr, apx)};
+    }
+    catch (const swr::ReplyError& e) {
+      syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what());
+      return {CommandStatus::Rejected, {}};
     }
     catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
     return {};

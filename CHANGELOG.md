@@ -3,6 +3,15 @@
 This project follows [Semantic Versioning](https://semver.org/). Library release
 versions are independent of the RedisAdapter wire-protocol version.
 
+## [Unreleased]
+
+### Fixed
+
+- Distinguish rejected stream writes from unavailable transport. Duplicate or
+  out-of-order timestamps, wrong key types, and all-rejected/empty batches no
+  longer trigger reconnection. Preserve successful batch items when another
+  item fails; never replay a failed or ambiguously accepted write.
+
 ## [0.1.0] - 2026-07-15
 
 Initial public library release.

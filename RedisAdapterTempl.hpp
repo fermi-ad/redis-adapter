@@ -343,17 +343,17 @@ RedisAdapter::addValues(const std::string& subKey, const TimeValList<T>& data, u
 
   std::vector<RA_Time> ret;
   std::string key = build_key(subKey);
+  bool transportFailure = false;
   for (const auto& item : data)
   {
     Attrs attrs = default_field_attrs(item.second);
 
-    std::string id = _redis.xadd(key, item.first.id_or_now(), attrs.begin(), attrs.end());
+    const auto result = _redis.xaddResult(key, item.first.id_or_now(), attrs.begin(), attrs.end());
 
-    if (id.size()) { ret.push_back(RA_Time(id)); }
+    transportFailure |= result.status == RedisConnection::CommandStatus::Unavailable;
+    if (result.status == RedisConnection::CommandStatus::Accepted) ret.emplace_back(result.id);
   }
-  if (trim && ret.size()) { _redis.xtrim(key, std::max(trim, (uint32_t)ret.size())); }
-
-  reconnect(ret.size());
+  finishBatch(key, ret.size(), trim, transportFailure);
   return ret;
 }
 //  Attrs specialization
@@ -362,15 +362,15 @@ RedisAdapter::addValues(const std::string& subKey, const TimeValList<Attrs>& dat
 {
   std::vector<RA_Time> ret;
   std::string key = build_key(subKey);
+  bool transportFailure = false;
   for (const auto& item : data)
   {
-    std::string id = _redis.xadd(key, item.first.id_or_now(), item.second.begin(), item.second.end());
+    const auto result = _redis.xaddResult(key, item.first.id_or_now(), item.second.begin(), item.second.end());
 
-    if (id.size()) { ret.push_back(RA_Time(id)); }
+    transportFailure |= result.status == RedisConnection::CommandStatus::Unavailable;
+    if (result.status == RedisConnection::CommandStatus::Accepted) ret.emplace_back(result.id);
   }
-  if (trim && ret.size()) { _redis.xtrim(key, std::max(trim, (uint32_t)ret.size())); }
-
-  reconnect(ret.size());
+  finishBatch(key, ret.size(), trim, transportFailure);
   return ret;
 }
 
@@ -389,17 +389,17 @@ RedisAdapter::addLists(const std::string& subKey, const TimeValList<std::vector<
 
   std::vector<RA_Time> ret;
   std::string key = build_key(subKey);
+  bool transportFailure = false;
   for (const auto& item : data)
   {
     Attrs attrs = default_field_attrs(item.second.data(), item.second.size());
 
-    std::string id = _redis.xadd(key, item.first.id_or_now(), attrs.begin(), attrs.end());
+    const auto result = _redis.xaddResult(key, item.first.id_or_now(), attrs.begin(), attrs.end());
 
-    if (id.size()) { ret.push_back(RA_Time(id)); }
+    transportFailure |= result.status == RedisConnection::CommandStatus::Unavailable;
+    if (result.status == RedisConnection::CommandStatus::Accepted) ret.emplace_back(result.id);
   }
-  if (trim && ret.size()) { _redis.xtrim(key, std::max(trim, (uint32_t)ret.size())); }
-
-  reconnect(ret.size());
+  finishBatch(key, ret.size(), trim, transportFailure);
   return ret;
 }
 
@@ -421,13 +421,11 @@ RedisAdapter::addSingleValue(const std::string& subKey, const T& data, const RA_
   std::string key = build_key(subKey);
   Attrs attrs = default_field_attrs(data);
 
-  std::string id = args.trim ? _redis.xaddTrim(key, args.time.id_or_now(), attrs.begin(), attrs.end(),
+  const auto result = args.trim ? _redis.xaddTrimResult(key, args.time.id_or_now(), attrs.begin(), attrs.end(),
                                               args.trim, args.approximateTrim)
-                             : _redis.xadd(key, args.time.id_or_now(), attrs.begin(), attrs.end());
+                               : _redis.xaddResult(key, args.time.id_or_now(), attrs.begin(), attrs.end());
 
-  if ( ! reconnect(id.size())) { return RA_NOT_CONNECTED; }
-
-  return RA_Time(id);
+  return finishWrite(result);
 }
 //  Attrs specialization
 template<> inline RA_Time
@@ -435,13 +433,11 @@ RedisAdapter::addSingleValue(const std::string& subKey, const Attrs& data, const
 {
   std::string key = build_key(subKey);
 
-  std::string id = args.trim ? _redis.xaddTrim(key, args.time.id_or_now(), data.begin(), data.end(),
+  const auto result = args.trim ? _redis.xaddTrimResult(key, args.time.id_or_now(), data.begin(), data.end(),
                                               args.trim, args.approximateTrim)
-                             : _redis.xadd(key, args.time.id_or_now(), data.begin(), data.end());
+                               : _redis.xaddResult(key, args.time.id_or_now(), data.begin(), data.end());
 
-  if ( ! reconnect(id.size())) { return RA_NOT_CONNECTED; }
-
-  return RA_Time(id);
+  return finishWrite(result);
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -463,13 +459,11 @@ RedisAdapter::add_single_stream_list_helper(const std::string& subKey, RA_Time t
   std::string key = build_key(subKey);
   Attrs attrs = default_field_attrs(data, size);
 
-  std::string id = trim ? _redis.xaddTrim(key, time.id_or_now(), attrs.begin(), attrs.end(), trim,
+  const auto result = trim ? _redis.xaddTrimResult(key, time.id_or_now(), attrs.begin(), attrs.end(), trim,
                                          approximateTrim)
-                        : _redis.xadd(key, time.id_or_now(), attrs.begin(), attrs.end());
+                           : _redis.xaddResult(key, time.id_or_now(), attrs.begin(), attrs.end());
 
-  if ( ! reconnect(id.size())) { return RA_NOT_CONNECTED; }
-
-  return RA_Time(id);
+  return finishWrite(result);
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
