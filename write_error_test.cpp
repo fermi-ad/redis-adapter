@@ -38,6 +38,7 @@ int main() {
     return 0;
   }
   sw::redis::ConnectionOptions control;
+  control.host = "127.0.0.1";
   control.port = options.cxn.port;
   sw::redis::Redis redis(control);
   const auto base = "write-errors-" + std::to_string(getpid());
