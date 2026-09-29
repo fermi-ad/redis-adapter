@@ -323,14 +323,10 @@ public:
   // XINFO is read-only and requires no Lua/script privilege. Its first/last
   // entries are decoded only for IDs; no field payload is copied into the result.
   StreamBounds streamBounds(const std::string& key) {
-    auto [cluster, singler] = snapshot();
-    if (!cluster && !singler) return {};
+    const auto singler = snapshot().second;
+    if (!singler) return {};
     try {
-      // Route by the actual key, not the XINFO subcommand (STREAM).
-      const auto command = [](swr::Connection& connection, const swr::StringView& name) {
-        connection.send("XINFO STREAM %b", name.data(), name.size());
-      };
-      const auto reply = cluster ? cluster->command(command, key) : singler->command("XINFO", "STREAM", key);
+      const auto reply = singler->command("XINFO", "STREAM", key);
       StreamBounds result;
       result.status = CommandStatus::Rejected;
       if (!reply || reply->type != REDIS_REPLY_ARRAY || reply->elements % 2) return result;

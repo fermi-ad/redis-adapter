@@ -100,14 +100,6 @@ if(REDIS_ADAPTER_TEST)
   add_test(NAME RedisAdapter.WriteErrors COMMAND redis-adapter-write-error-test)
   set_tests_properties(RedisAdapter.WriteErrors PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
-  find_program(REDIS_SERVER_EXECUTABLE redis-server)
-  find_program(REDIS_CLI_EXECUTABLE redis-cli)
-  if(REDIS_SERVER_EXECUTABLE AND REDIS_CLI_EXECUTABLE)
-    add_test(NAME RedisAdapter.ClusterRecovery
-      COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/reader_cluster_test.py
-              ${REDIS_SERVER_EXECUTABLE} ${REDIS_CLI_EXECUTABLE} $<TARGET_FILE:redis-adapter-recovery-test>)
-    set_tests_properties(RedisAdapter.ClusterRecovery PROPERTIES TIMEOUT 75)
-  endif()
   add_test(NAME RedisAdapter.WriteTransportFailure
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/write_failure_test.py
             $<TARGET_FILE:redis-adapter-write-error-test>)

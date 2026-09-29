@@ -44,25 +44,6 @@ int main() {
   options.readerProbeMs = 50;
   sw::redis::ConnectionOptions connection;
   connection.host = "127.0.0.1"; connection.port = options.cxn.port;
-  if (std::getenv("REDIS_ADAPTER_CLUSTER_TEST")) {
-    sw::redis::RedisCluster control(connection);
-    for (const auto& base : {"a", "b", "c"}) {
-      const auto key = "{" + std::string(base) + "}:value";
-      const RedisAdapter::Attrs fields{{"_", "cluster-value"}};
-      control.xadd(key, "1000-0", fields.begin(), fields.end());
-      RedisAdapter adapter(base, options);
-      Observed observed;
-      auto handle = adapter.subscribeStream("value", [&](const auto&, const auto&, const auto& entries) {
-        observed.append(entries);
-      }, "0-0");
-      assert(observed.wait("1000-0") && handle.status().inspected);
-      control.del(key); control.xadd(key, "1-0", fields.begin(), fields.end());
-      assert(observed.wait("1-0") && handle.status().streamResets == 1);
-      assert(handle.status().inspectionRejections == 0);
-    }
-    std::cout << "cluster-routed inspection and reset recovery passed\n";
-    return 0;
-  }
   sw::redis::Redis control(connection);
   const auto base = "stream-recovery-" + std::to_string(getpid());
   const auto key = "{" + base + "}:value";

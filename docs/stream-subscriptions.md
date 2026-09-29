@@ -92,8 +92,5 @@ undetectable when the new stream has already passed the old ID. Consumer frame
 IDs or an application epoch are still needed to establish exact continuity.
 
 `RedisAdapter.Recovery` exercises reset, absence, wrong-type isolation, trim,
-connection recovery, callback fencing and denied inspection permissions. When
-`redis-server` and `redis-cli` are available at configure time,
-`RedisAdapter.ClusterRecovery` also runs against three private loopback nodes.
-Its helper creates a temporary cluster and cleans up only those processes; it
-never adds nodes to an existing cluster.
+connection recovery, callback fencing and denied inspection permissions on
+standalone Redis. Redis Cluster is outside the supported portfolio.
