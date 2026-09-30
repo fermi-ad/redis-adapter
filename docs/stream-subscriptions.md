@@ -5,17 +5,23 @@ registration. Multiple registrations may share a key. Resetting a handle removes
 only that registration; legacy `removeReader()` still removes all registrations
 for the key. A handle may safely outlive its adapter.
 
-Cancellation prevents queued callbacks from starting. An already executing
-callback may finish, so consumers that replace generations must also fence their
-own state changes. Callback exceptions are caught at the worker boundary.
+Cancellation fences callbacks that have not passed their active check. A callback
+that already passed that check may still enter the user function. Consumers that
+replace generations must also fence their own state changes. Callback exceptions are caught at the worker boundary.
 
 Use an exact snapshot cursor to avoid a gap between snapshot and subscription:
 
 ```cpp
 auto snapshot = redis.getStreamSnapshot("temperature");
-// snapshot.connected reports command success; snapshot.present() reports data.
-// The cursor is "0-0" for an empty stream.
-auto handle = redis.subscribeStream("temperature", callback, snapshot.id);
+// connected reports accepted snapshot; rejected reports a server-side rejection.
+// Failure keeps "$" (future-only), while an accepted empty stream uses "0-0".
+if (!snapshot.connected) {
+    // Report snapshot.rejected or retry the snapshot after transport recovery.
+    return;
+}
+RedisAdapter::SubscriptionOptions selection;
+selection.afterId = snapshot.id;
+auto handle = redis.subscribeStream("temperature", callback, selection);
 ```
 
 Callbacks receive the exact Redis ID and raw field map for each new entry. Each
@@ -37,6 +43,30 @@ the destination unchanged on failure. Their optional `maxBytes` argument lets a
 consumer enforce its payload budget before allocation. Raw callbacks allow the
 consumer to report invalid input instead of silently replacing its last value.
 
-Redis connection, socket, and connection-pool waits use the configured timeout.
-Stream readers retry transient read failures; the existing health/reconnect path
-still handles initially disconnected adapters and backend rediscovery.
+A nonempty callback and a valid numeric cursor are required. `subscribeStream()`
+throws `std::invalid_argument` for bad input and `std::runtime_error` during
+shutdown. IDs without a sequence part compare as sequence zero. Retain the
+`[[nodiscard]]` handle; discarding it immediately removes the subscription.
+
+`RA_Options::readerBatchCount` defaults to 64 entries per stream per XREAD (zero
+is normalized to one). This bounds entry count, not payload bytes or total worker
+queue size. Consumers must enforce their own payload and backlog budgets.
+Fresh complete batches share storage across registrations; rewound registrations
+copy only the entries they have not delivered.
+
+Tail resolution is retried after transient failure. Unresolved keys are excluded
+from XREAD instead of repeatedly sending `$`; healthy keys can keep flowing.
+A known missing or wrong-type key starts at `0-0` so a later replacement stream
+can be read. If XREVRANGE is denied, Redis 7.4's XREAD `+` tail lookup is used.
+If both lookups are denied, the key remains pending until access is restored.
+An unavailable initial snapshot cannot guarantee retention from registration time;
+use an accepted explicit snapshot cursor when that guarantee is required.
+
+Blocking reads use the independent reader pool and finite physical cycles from
+the connection policy. Errors retry with bounded backoff and a state-change log.
+Initially disconnected adapters retain registrations through connection recovery.
+
+Legacy single-item typed getters distinguish malformed data with
+`RA_INVALID_PAYLOAD` (`err() == 3`), preserve the destination, and reserve zero
+for an accepted empty result. Range and callback wrappers skip malformed entries;
+they do not fabricate zero values or call back with a fully rejected empty batch.
