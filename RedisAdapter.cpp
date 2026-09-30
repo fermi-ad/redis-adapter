@@ -65,7 +65,7 @@ string RA_Time::id_or_now() const
 //    return  : RedisAdapter
 //
 RedisAdapter::RedisAdapter(const string& baseKey, const RA_Options& options) :
-  _options(options), _redis(options.cxn), _base_key(baseKey), _connecting(false),
+  _options(options), _redis(options.cxn, options.readers), _base_key(baseKey), _connecting(false),
   _watchdog_run(false), _readers_defer(false), _replier_pool(options.workers)
 {
   _watchdog_key = build_key("watchdog");
