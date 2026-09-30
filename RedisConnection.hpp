@@ -19,6 +19,19 @@ namespace chr = std::chrono;
 class RedisConnection
 {
 public:
+  enum class CommandStatus { Accepted, Rejected, Unavailable };
+  struct WriteResult {
+    CommandStatus status = CommandStatus::Unavailable;
+    std::string id;
+    std::string error;
+    bool refreshConnection = false;
+  };
+  struct TrimResult {
+    CommandStatus status = CommandStatus::Unavailable;
+    int64_t count = -1;
+    std::string error;
+    bool refreshConnection = false;
+  };
   enum class ReadStatus { Accepted, TimedOut, Rejected, Unavailable };
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  struct RedisConnection::Options
@@ -372,15 +385,20 @@ public:
   //             empty string if unsuccsessful or not connected
   //
   template<typename Input>
-  std::string xadd(const std::string& key, const std::string& id, Input fst, Input lst)
-  {
+  std::string xadd(const std::string& key, const std::string& id, Input fst, Input lst) {
+    return xaddResult(key, id, fst, lst).id;
+  }
+
+  // Standalone writes are never automatically replayed here. RedisCluster may
+  // retry internally after a lost reply; callers must account for that policy.
+  template<typename Input>
+  WriteResult xaddResult(const std::string& key, const std::string& id, Input fst, Input lst) {
     auto [cluster, singler] = snapshot();
-    try
-    {
-      if (cluster) return cluster->xadd(key, id, fst, lst);
-      if (singler) return singler->xadd(key, id, fst, lst);
-    }
-    catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
+    try {
+      if (cluster) return {CommandStatus::Accepted, cluster->xadd(key, id, fst, lst)};
+      if (singler) return {CommandStatus::Accepted, singler->xadd(key, id, fst, lst)};
+    } catch (const swr::ReplyError& error) { return replyFailure(error); }
+      catch (const swr::Error& error) { return {CommandStatus::Unavailable, {}, error.what()}; }
     return {};
   }
 
@@ -393,16 +411,27 @@ public:
   //    return : the number of trimmed elements if successful
   //             -1 if unsuccsessful or not connected
   //
-  int32_t xtrim(const std::string& key, uint32_t thr, bool apx = true)
-  {
+  TrimResult xtrimResult(const std::string& key, uint32_t threshold, bool approximate = true) {
     auto [cluster, singler] = snapshot();
-    try
-    {
-      if (cluster) return cluster->xtrim(key, thr, apx);
-      if (singler) return singler->xtrim(key, thr, apx);
-    }
-    catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
-    return -1;
+    try {
+      if (cluster) return {CommandStatus::Accepted, cluster->xtrim(key, threshold, approximate)};
+      if (singler) return {CommandStatus::Accepted, singler->xtrim(key, threshold, approximate)};
+    } catch (const swr::ReplyError& error) {
+      const auto rejected = replyFailure(error);
+      return {rejected.status, -1, rejected.error, rejected.refreshConnection};
+    } catch (const swr::Error& error) { return {CommandStatus::Unavailable, -1, error.what()}; }
+    return {};
+  }
+
+  int32_t xtrim(const std::string& key, uint32_t threshold, bool approximate = true,
+                CommandStatus* status = nullptr) {
+    const auto result = xtrimResult(key, threshold, approximate);
+    if (status) *status = result.status;
+    return static_cast<int32_t>(result.count);
+  }
+  // Exact pointer overload prevents a status pointer converting to bool.
+  int32_t xtrim(const std::string& key, uint32_t threshold, CommandStatus* status) {
+    return xtrim(key, threshold, true, status);
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -419,15 +448,19 @@ public:
   //
   template<typename Input>
   std::string xaddTrim(const std::string& key, const std::string& id,
-                       Input fst, Input lst, uint32_t thr, bool apx = true)
-  {
+                       Input fst, Input lst, uint32_t threshold, bool approximate = true) {
+    return xaddTrimResult(key, id, fst, lst, threshold, approximate).id;
+  }
+
+  template<typename Input>
+  WriteResult xaddTrimResult(const std::string& key, const std::string& id,
+                            Input fst, Input lst, uint32_t threshold, bool approximate = true) {
     auto [cluster, singler] = snapshot();
-    try
-    {
-      if (cluster) return cluster->xadd(key, id, fst, lst, thr, apx);
-      if (singler) return singler->xadd(key, id, fst, lst, thr, apx);
-    }
-    catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
+    try {
+      if (cluster) return {CommandStatus::Accepted, cluster->xadd(key, id, fst, lst, threshold, approximate)};
+      if (singler) return {CommandStatus::Accepted, singler->xadd(key, id, fst, lst, threshold, approximate)};
+    } catch (const swr::ReplyError& error) { return replyFailure(error); }
+      catch (const swr::Error& error) { return {CommandStatus::Unavailable, {}, error.what()}; }
     return {};
   }
 
@@ -688,6 +721,13 @@ public:
   }
 
 private:
+  static WriteResult replyFailure(const swr::ReplyError& error) {
+    const std::string message = error.what();
+    const bool refresh = message == "READONLY" || message.rfind("READONLY ", 0) == 0;
+    syslog(LOG_WARNING, "Redis stream command rejected: %s", message.c_str());
+    // READONLY is a known refusal, with topology refresh for later operations.
+    return {CommandStatus::Rejected, {}, message, refresh};
+  }
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  snapshot : copy the current _cluster/_singler shared_ptrs under a brief lock
   //

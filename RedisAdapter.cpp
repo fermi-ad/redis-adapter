@@ -165,13 +165,40 @@ RA_Time RedisAdapter::addSingleDouble(const string& subKey, double data, const R
   string key = build_key(subKey);
   Attrs attrs = default_field_attrs(data);
 
-  string id = args.trim ? _redis.xaddTrim(key, args.time.id_or_now(), attrs.begin(), attrs.end(),
+  const auto result = args.trim ? _redis.xaddTrimResult(key, args.time.id_or_now(), attrs.begin(), attrs.end(),
                                          args.trim, args.approximateTrim)
-                        : _redis.xadd(key, args.time.id_or_now(), attrs.begin(), attrs.end());
+                               : _redis.xaddResult(key, args.time.id_or_now(), attrs.begin(), attrs.end());
 
-  if (reconnect(id.size()) == 0) { return RA_NOT_CONNECTED; }
+  return finishWrite(result);
+}
 
-  return RA_Time(id);
+RA_Time RedisAdapter::finishWrite(const RedisConnection::WriteResult& result)
+{
+  switch (result.status) {
+  case RedisConnection::CommandStatus::Accepted: return RA_Time(result.id);
+  case RedisConnection::CommandStatus::Rejected:
+    if (result.refreshConnection) reconnect(0);
+    return RA_REJECTED;
+  case RedisConnection::CommandStatus::Unavailable:
+    reconnect(0);
+    return RA_NOT_CONNECTED;
+  }
+  return RA_NOT_CONNECTED;
+}
+
+void RedisAdapter::finishBatch(const string& key, size_t accepted, uint32_t trim,
+                               bool refreshNeeded, bool approximateTrim)
+{
+  if (trim && accepted) {
+    const auto result = _redis.xtrimResult(key,
+        std::max(trim, static_cast<uint32_t>(std::min<size_t>(accepted, UINT32_MAX))), approximateTrim);
+    refreshNeeded |= result.status == RedisConnection::CommandStatus::Unavailable || result.refreshConnection;
+    if (result.status == RedisConnection::CommandStatus::Rejected)
+      syslog(LOG_WARNING, "accepted batch entries retained, but final trim rejected: %s", result.error.c_str());
+  }
+  // Accepted timestamps survive item/trim failures. Refresh prepares later
+  // calls; no ambiguous write or trim is replayed on a standalone connection.
+  if (refreshNeeded) reconnect(0);
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

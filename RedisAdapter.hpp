@@ -215,10 +215,10 @@ public:
   //    return : vector of ids of successfully added data items
   //
   template<typename T> std::vector<RA_Time>
-  addValues(const std::string& subKey, const TimeValList<T>& data, uint32_t trim = 1);
+  addValues(const std::string& subKey, const TimeValList<T>& data, uint32_t trim = 1, bool approximateTrim = true);
 
   template<typename T> std::vector<RA_Time>
-  addLists(const std::string& subKey, const TimeValList<std::vector<T>>& data, uint32_t trim = 1);
+  addLists(const std::string& subKey, const TimeValList<std::vector<T>>& data, uint32_t trim = 1, bool approximateTrim = true);
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  addSingleValue  : add a single data item of type T (T is trivial, string or Attrs) at specified/current time
@@ -500,6 +500,8 @@ private:
   std::string _base_key;
 
   int32_t reconnect(int32_t result);
+  RA_Time finishWrite(const RedisConnection::WriteResult& result);
+  void finishBatch(const std::string& key, size_t accepted, uint32_t trim, bool refreshNeeded, bool approximateTrim);
   std::atomic_bool _connecting;
   std::thread _reconnect_thd;
   std::mutex _reconnect_mtx;

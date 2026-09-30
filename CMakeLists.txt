@@ -99,6 +99,19 @@ if(REDIS_ADAPTER_TEST)
   add_executable(redis-adapter-lifecycle-test ${REDIS_ADAPTER_SOURCES} lifecycle_test.cpp)
   target_link_libraries(redis-adapter-lifecycle-test ${REDIS_ADAPTER_LIBRARIES} GTest::gtest_main)
   gtest_discover_tests(redis-adapter-lifecycle-test PROPERTIES TIMEOUT 15 RUN_SERIAL TRUE)
+  add_executable(redis-adapter-write-error-test ${REDIS_ADAPTER_SOURCES} write_error_test.cpp)
+  target_link_libraries(redis-adapter-write-error-test ${REDIS_ADAPTER_LIBRARIES} GTest::gtest)
+  gtest_discover_tests(redis-adapter-write-error-test PROPERTIES TIMEOUT 15)
+  find_package(Python3 COMPONENTS Interpreter)
+  if(Python3_Interpreter_FOUND)
+    add_test(NAME RedisAdapter.WriteTransportFailure
+      COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/write_failure_test.py
+              $<TARGET_FILE:redis-adapter-write-error-test>)
+    set_tests_properties(RedisAdapter.WriteTransportFailure PROPERTIES TIMEOUT 60 RUN_SERIAL TRUE)
+  else()
+    message(WARNING "Python3 not found: write proxy tests disabled; native tests remain enabled")
+  endif()
+
 endif()
 
 # Build redis-adapter-benchmark and googlebenchmark if REDIS_ADAPTER_BENCHMARK is true

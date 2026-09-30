@@ -6,6 +6,8 @@
 TEST(MockStreams, ValidatesWireBytesWithoutAConnection) {
   EXPECT_EQ(RA_Time("1-2").id(), "1-2");
   EXPECT_EQ(RA_Time(-3), RA_INVALID_PAYLOAD);
+  EXPECT_EQ(RA_Time(-2), RA_REJECTED);
+  EXPECT_NE(RA_NOT_CONNECTED, RA_REJECTED);
   int value = 42;
   EXPECT_FALSE(RedisAdapter::decodeScalar<int>({{"_", "bad"}}, value));
   EXPECT_EQ(value, 42);
