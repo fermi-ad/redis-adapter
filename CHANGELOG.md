@@ -3,6 +3,25 @@
 This project follows [Semantic Versioning](https://semver.org/). Library release
 versions are independent of the RedisAdapter wire-protocol version.
 
+## [Unreleased]
+
+### Added
+
+- Owned subscription handles, exact stream snapshots and shared safe wire decoders.
+- Configurable per-stream XREAD entry count and behavior-focused lifecycle tests.
+- Independent connect timeout, dedicated blocking-reader pool, private Redis
+  fixtures and automatic CI for stacked PRs.
+
+### Fixed
+
+- Callback capture cleanup outside worker and reader locks, including exceptions
+  and canceled jobs; peer registrations survive handle removal.
+- Tail resolution retries, rejection-aware snapshots and future-only failure cursors.
+- Exact-width legacy decoding: malformed single items return `RA_INVALID_PAYLOAD`,
+  malformed typed callback entries are skipped, and empty arrays remain valid data.
+- Finite shutdown cycles, startup/shutdown fencing and complete-batch sharing.
+- Failed connection replacements preserve working clients and command availability.
+
 ## [0.1.0] - 2026-07-15
 
 Initial public library release.

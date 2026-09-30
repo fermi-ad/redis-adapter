@@ -30,6 +30,7 @@ private:
 
     void writeBuffer(const RedisAdapter::TimeValList<std::vector<Type>>& entry)
     {
+        if (entry.empty()) return;
         const std::vector<Type>& data = entry.front().second;
         int writeIndex = (readIndex + 1 ) % 2;
 

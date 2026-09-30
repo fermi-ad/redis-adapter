@@ -27,11 +27,20 @@ standalone connection. Setting `cxn.path` selects a Unix-domain socket and makes
 | `cxn.port` | `uint16_t` | `6379` | TCP port. |
 | `cxn.user` | `std::string` | `default` | Redis ACL username. |
 | `cxn.password` | `std::string` | empty | Redis ACL password. |
-| `cxn.timeout` | `uint32_t` | `500` | Socket and blocking-read timeout in milliseconds. |
+| `cxn.timeout` | `uint32_t` | `500` | Command socket timeout and logical reader interval in milliseconds. |
+| `cxn.connectTimeout` | `uint32_t` | `500` | Independent connection timeout; zero disables it. |
 | `cxn.size` | `uint16_t` | `5` | redis-plus-plus connection-pool size. |
 | `dogname` | `std::string` | empty | If set, maintain a one-second field-TTL watchdog for this name. |
 | `workers` | `uint16_t` | `1` | Worker threads used to dispatch reader callbacks. |
-| `readers` | `uint16_t` | `1` | Reader threads across which stream keys are deterministically sharded. |
+| `readers` | `uint16_t` | `1` | Reader threads and dedicated blocking-read pool capacity. |
+| `readerBatchCount` | `uint32_t` | `64` | XREAD entries per stream; zero is normalized to one. |
+
+Blocking reads have their own pool, sized to `readers`, so they do not consume
+command connections. Their physical XREAD interval is at most one second and
+uses socket-deadline slack. Failed replacement attempts preserve established
+clients, which can retry their sockets on the next operation. The command pool
+keeps its default wait policy; `cxn.timeout` does not turn a busy pool into a
+transport failure.
 
 Credentials are passed directly to redis-plus-plus. Keep them out of source
 control and populate `RA_Options` from the consuming application's secret or
@@ -129,7 +138,11 @@ model. Use `connected()` for an explicit health probe.
 ## Error handling
 
 The adapter catches redis-plus-plus errors, records them through syslog, and
-returns status values rather than exposing Redis exceptions as its main API.
+usually returns status values rather than exposing Redis exceptions as its main API.
 Check every returned `RA_Time`, boolean, list, or vector of timestamps. A Redis
 command that loses its connection after transmission may have an unknown
 outcome; applications should make retry behavior explicit.
+
+The owned subscription API validates inputs with standard exceptions; see
+[Owned stream subscriptions](stream-subscriptions.md) for the cancellation fence,
+snapshot outcomes, named options, and batch limits.

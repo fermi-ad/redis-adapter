@@ -7,7 +7,9 @@ endif()
 
 project(redis-adapter VERSION ${REDIS_ADAPTER_VERSION} LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 17)
+endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Find our cmake modules
@@ -15,7 +17,7 @@ set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
 # Create lists of headers and sources with complete path based on our files
 file(GLOB REDIS_ADAPTER_SOURCES RedisAdapter.cpp)
-file(GLOB REDIS_ADAPTER_HEADERS RedisConnection.hpp RedisAdapter.hpp RedisAdapterTempl.hpp RedisCache.hpp ThreadPool.hpp)
+file(GLOB REDIS_ADAPTER_HEADERS RedisConnection.hpp RedisTime.hpp RedisStreamData.hpp RedisAdapter.hpp RedisAdapterTempl.hpp RedisCache.hpp ThreadPool.hpp)
 
 # Create a list of the directories our headers are in
 include(GetDirectoriesOfFiles)
@@ -81,14 +83,22 @@ if(REDIS_ADAPTER_TEST)
   enable_testing()
   add_subdirectory(googletest)
   include(GoogleTest)
+  find_package(Threads REQUIRED)
+  add_executable(redis-connection-policy-test connection_policy_test.cpp)
+  target_link_libraries(redis-connection-policy-test ${REDIS_ADAPTER_LIBRARIES} GTest::gtest_main)
+  gtest_discover_tests(redis-connection-policy-test PROPERTIES TIMEOUT 10)
+  add_executable(redis-adapter-mock-stream-test mock_stream_test.cpp)
+  target_link_libraries(redis-adapter-mock-stream-test GTest::gtest_main)
+  gtest_discover_tests(redis-adapter-mock-stream-test PROPERTIES TIMEOUT 5)
+  add_executable(redis-adapter-threadpool-test thread_pool_test.cpp)
+  target_link_libraries(redis-adapter-threadpool-test GTest::gtest_main Threads::Threads)
+  gtest_discover_tests(redis-adapter-threadpool-test PROPERTIES TIMEOUT 5)
   add_executable(redis-adapter-test ${REDIS_ADAPTER_SOURCES} test.cpp)
   target_link_libraries(redis-adapter-test ${REDIS_ADAPTER_LIBRARIES} GTest::gtest_main)
   gtest_discover_tests(redis-adapter-test)
   add_executable(redis-adapter-lifecycle-test ${REDIS_ADAPTER_SOURCES} lifecycle_test.cpp)
-  target_compile_options(redis-adapter-lifecycle-test PRIVATE -UNDEBUG)
-  target_link_libraries(redis-adapter-lifecycle-test ${REDIS_ADAPTER_LIBRARIES})
-  add_test(NAME RedisAdapter.Lifecycle COMMAND redis-adapter-lifecycle-test)
-  set_tests_properties(RedisAdapter.Lifecycle PROPERTIES TIMEOUT 30)
+  target_link_libraries(redis-adapter-lifecycle-test ${REDIS_ADAPTER_LIBRARIES} GTest::gtest_main)
+  gtest_discover_tests(redis-adapter-lifecycle-test PROPERTIES TIMEOUT 15)
 endif()
 
 # Build redis-adapter-benchmark and googlebenchmark if REDIS_ADAPTER_BENCHMARK is true

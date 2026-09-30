@@ -12,21 +12,13 @@
 //
 template<typename T> auto RedisAdapter::default_field_value(const Attrs& attrs)
 {
-  static_assert(std::is_trivial<T>(), "wrong type T");
+  static_assert(std::is_trivial_v<T> || std::is_same_v<T, std::string>, "wrong type T");
 
   swr::Optional<T> ret;
   T value{};
   if (decodeScalar(attrs, value)) ret = value;
   return ret;
 }
-//  string specialization
-template<> inline auto RedisAdapter::default_field_value<std::string>(const Attrs& attrs)
-{
-  std::string ret;
-  decodeScalar(attrs, ret);
-  return ret;
-}
-
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  Helper functions for setting DEFAULT_FIELD in Attrs
 //
@@ -83,7 +75,7 @@ RedisAdapter::get_forward_stream_helper(const std::string& baseKey, const std::s
     {
       retItem.first = RA_Time(rawItem.first);
       retItem.second = maybe.value();
-      ret.push_back(retItem);
+      ret.push_back(std::move(retItem));
     }
   }
   return ret;
@@ -107,7 +99,7 @@ RedisAdapter::get_forward_stream_helper(const std::string& baseKey, const std::s
   {
     retItem.first = RA_Time(rawItem.first);
     retItem.second = rawItem.second;
-    ret.push_back(retItem);
+    ret.push_back(std::move(retItem));
   }
   return ret;
 }
@@ -144,7 +136,7 @@ RedisAdapter::get_forward_stream_list_helper(const std::string& baseKey, const s
     if (decodeArray(rawItem.second, retItem.second))
     {
       retItem.first = RA_Time(rawItem.first);
-      ret.push_back(retItem);
+      ret.push_back(std::move(retItem));
     }
   }
   return ret;
@@ -182,7 +174,7 @@ RedisAdapter::get_reverse_stream_helper(const std::string& baseKey, const std::s
     {
       retItem.first = RA_Time(rawItem->first);
       retItem.second = maybe.value();
-      ret.push_back(retItem);
+      ret.push_back(std::move(retItem));
     }
   }
   return ret;
@@ -205,7 +197,7 @@ RedisAdapter::get_reverse_stream_helper(const std::string& baseKey, const std::s
   {
     retItem.first = RA_Time(rawItem->first);
     retItem.second = rawItem->second;
-    ret.push_back(retItem);
+    ret.push_back(std::move(retItem));
   }
   return ret;
 }
@@ -240,7 +232,7 @@ RedisAdapter::get_reverse_stream_list_helper(const std::string& baseKey, const s
     if (decodeArray(rawItem->second, retItem.second))
     {
       retItem.first = RA_Time(rawItem->first);
-      ret.push_back(retItem);
+      ret.push_back(std::move(retItem));
     }
   }
   return ret;
@@ -269,12 +261,8 @@ RedisAdapter::get_single_stream_helper(const std::string& baseKey, const std::st
 
   if (raw.size())
   {
-    swr::Optional<T> maybe = default_field_value<T>(raw.front().second);
-    if (maybe)
-    {
-      dest = maybe.value();
-      return RA_Time(raw.front().first);
-    }
+    if (!decodeScalar(raw.front().second, dest)) return RA_INVALID_PAYLOAD;
+    return RA_Time(raw.front().first);
   }
   return {};
 }
@@ -320,10 +308,8 @@ RedisAdapter::get_single_stream_list_helper(const std::string& baseKey, const st
 
   if (raw.size())
   {
-    if (decodeArray(raw.front().second, dest))
-    {
-      return RA_Time(raw.front().first);
-    }
+    if (!decodeArray(raw.front().second, dest)) return RA_INVALID_PAYLOAD;
+    return RA_Time(raw.front().first);
   }
   return {};
 }
@@ -497,10 +483,10 @@ RedisAdapter::make_reader_callback(ReaderSubFn<T> func) const
       {
         retItem.first = RA_Time(rawItem.first);
         retItem.second = maybe.value();
-        ret.push_back(retItem);
+        ret.push_back(std::move(retItem));
       }
     }
-    func(base, sub, ret);
+    if (!ret.empty()) func(base, sub, ret);
   };
 }
 //  Attrs specialization
@@ -515,9 +501,9 @@ RedisAdapter::make_reader_callback(ReaderSubFn<Attrs> func) const
     {
       retItem.first = RA_Time(rawItem.first);
       retItem.second = rawItem.second;
-      ret.push_back(retItem);
+      ret.push_back(std::move(retItem));
     }
-    func(base, sub, ret);
+    if (!ret.empty()) func(base, sub, ret);
   };
 }
 
@@ -544,9 +530,9 @@ RedisAdapter::make_list_reader_callback(ReaderSubFn<std::vector<T>> func) const
       if (decodeArray(rawItem.second, retItem.second))
       {
         retItem.first = RA_Time(rawItem.first);
-        ret.push_back(retItem);
+        ret.push_back(std::move(retItem));
       }
     }
-    func(base, sub, ret);
+    if (!ret.empty()) func(base, sub, ret);
   };
 }

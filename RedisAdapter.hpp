@@ -4,6 +4,8 @@
 //  This file contains the RedisAdapter class definition
 
 #pragma once
+#include "RedisStreamData.hpp"
+#include "RedisTime.hpp"
 
 #if defined(MOCK_REDIS_ADAPTER)
 #include "mock/MockRedisAdapter.hpp"
@@ -34,38 +36,7 @@ using RedisAdapter = MockRedisAdapter;
 #define RA_VERSION STRINGIFY_DEFINE(REDIS_ADAPTER_GIT_COMMIT)
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  struct RA_Time
-//
-//  Nanosecond time since epoch, provided as a result timestamp
-//  for 'get' methods, and specified as a new time for 'add' methods
-//
-//  An RA_Time with value = 0 is illegal (uninitialized)
-//  An RA_Time with value < 0 is illegal (error code)
-//
-struct RA_Time
-{
-  RA_Time(int64_t nanos = 0) : value(nanos) {}
-  RA_Time(const std::string& id);
-
-  bool ok() const { return value > 0; }
-
-  operator int64_t()  const { return ok() ? value : 0; }
-  operator uint64_t() const { return ok() ? value : 0; }
-
-  uint32_t err() const { return ok() ? 0 : -value; }
-
-  std::string id() const;
-  std::string id_or_now() const;
-
-  std::string id_or_min() const { return ok() ? id() : "-"; }
-  std::string id_or_max() const { return ok() ? id() : "+"; }
-
-  int64_t value;
-};
-
-const RA_Time RA_NOT_CONNECTED(-1);
-
-//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  struct RA_ArgsGet, struct RA_ArgsAdd
 //
 //  Parameter packages used as arguments to various RedisAdapter functions, these
@@ -101,6 +72,7 @@ struct RA_Options
   std::string dogname;
   uint16_t workers = 1;
   uint16_t readers = 1;
+  uint32_t readerBatchCount = 64;  // per stream; zero is normalized to one
 };
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -109,40 +81,27 @@ struct RA_Options
 //  Provides a framework for AD Instrumentation front-ends and back-ends to exchange
 //  data, settings, status and control information via a Redis server or cluster
 //
-class RedisAdapter
+class RedisAdapter : public RedisStreamData
 {
   struct ReaderOwner;
   struct ReaderRegistration;
+  struct reader_info;
 
-  // Validate the complete native representation before producing a bool. Never
-  // copy untrusted bytes into a bool object, including on wider-bool platforms.
-  static bool decodeBoolean(const char* bytes, bool& output) {
-    const bool falseValue = false, trueValue = true;
-    if (std::memcmp(bytes, &falseValue, sizeof(bool)) == 0) output = false;
-    else if (std::memcmp(bytes, &trueValue, sizeof(bool)) == 0) output = true;
-    else return false;
-    return true;
-  }
 public:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Containers for stream data suggested by the redis++ readme.md
   //    https://github.com/sewenew/redis-plus-plus#redis-stream
   //
-  using Attrs = std::unordered_map<std::string, std::string>;
-
-  // Stream identity is opaque and is independent of the legacy RA_Time encoding.
-  using StreamEntry = std::pair<std::string, Attrs>;
-  using StreamBatch = std::vector<StreamEntry>;
-  using StreamCallback = std::function<void(const std::string&, const std::string&, const StreamBatch&)>;
   struct StreamSnapshot {
     bool connected = false;
-    std::string id = "0-0";
+    bool rejected = false;
+    std::string id = "$";
     Attrs fields;
-    bool present() const { return !fields.empty() && id != "0-0"; }
+    bool present() const { return connected && !fields.empty() && id != "0-0"; }
   };
 
-  // Cancellation prevents queued callbacks from starting. An already executing
-  // callback may finish; consumers must fence their own generation's mutations.
+  // Cancellation fences callbacks that have not passed their active check. A
+  // callback past that check may still enter; consumers must fence mutations.
   class ReaderHandle {
   public:
     ReaderHandle() = default;
@@ -160,53 +119,19 @@ public:
     std::shared_ptr<ReaderRegistration> registration_;
   };
 
-  StreamSnapshot getStreamSnapshot(const std::string& subKey, const std::string& baseKey = "");
-  ReaderHandle subscribeStream(const std::string& subKey, StreamCallback callback,
+  [[nodiscard]] StreamSnapshot getStreamSnapshot(const std::string& subKey, const std::string& baseKey = "");
+  [[nodiscard]] ReaderHandle subscribeStream(const std::string& subKey, StreamCallback callback,
                                const std::string& afterId = "$", const std::string& baseKey = "");
-  static int compareStreamIds(const std::string& lhs, const std::string& rhs);
-
-  template<typename T>
-  static bool decodeScalar(const Attrs& fields, T& output,
-                           size_t maxBytes = std::numeric_limits<size_t>::max()) {
-    const auto found = fields.find("_");
-    if (found == fields.end() || found->second.size() > maxBytes) return false;
-    const auto& bytes = found->second;
-    if constexpr (std::is_same_v<T, std::string>) {
-      output = bytes;
-    } else {
-      static_assert(std::is_trivial_v<T>, "scalar must be trivial or string");
-      if (bytes.size() != sizeof(T)) return false;
-      if constexpr (std::is_same_v<T, bool>) {
-        return decodeBoolean(bytes.data(), output);
-      } else {
-        std::memcpy(&output, bytes.data(), sizeof(T));
-      }
-    }
-    return true;
+  struct SubscriptionOptions {
+    std::string baseKey;
+    std::string afterId = "$";
+  };
+  // Throws invalid_argument for empty callbacks/invalid IDs and runtime_error
+  // during shutdown. Retain the returned handle for the registration lifetime.
+  [[nodiscard]] ReaderHandle subscribeStream(const std::string& subKey, StreamCallback callback,
+                                              const SubscriptionOptions& options) {
+    return subscribeStream(subKey, std::move(callback), options.afterId, options.baseKey);
   }
-
-  template<typename T>
-  static bool decodeArray(const Attrs& fields, std::vector<T>& output,
-                          size_t maxBytes = std::numeric_limits<size_t>::max()) {
-    static_assert(std::is_trivial_v<T>, "array element must be trivial");
-    const auto found = fields.find("_");
-    if (found == fields.end()) return false;
-    const auto& bytes = found->second;
-    if (bytes.size() > maxBytes || bytes.size() % sizeof(T) != 0u) return false;
-    std::vector<T> decoded(bytes.size() / sizeof(T));
-    if constexpr (std::is_same_v<T, bool>) {
-      for (size_t index = 0; index < decoded.size(); ++index) {
-        bool value;
-        if (!decodeBoolean(bytes.data() + index * sizeof(bool), value)) return false;
-        decoded[index] = value;
-      }
-    } else if (!bytes.empty()) {
-      std::memcpy(decoded.data(), bytes.data(), bytes.size());
-    }
-    output.swap(decoded);
-    return true;
-  }
-
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Containers for getting/setting data using RedisAdapter methods
   //
@@ -501,15 +426,13 @@ private:
   //  Containers for stream data suggested by the redis++ readme.md
   //    https://github.com/sewenew/redis-plus-plus#redis-stream
   //
-  using Item = std::pair<std::string, Attrs>;
-  using ItemStream = std::vector<Item>;
+  using Item = StreamEntry;
+  using ItemStream = StreamBatch;
   using Streams = std::unordered_map<std::string, ItemStream>;
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Redis key and field constants
   //
-  const std::string DEFAULT_FIELD = "_";            //  default field in stream Attrs
-  const std::string STOP_STUB     = "<$-STOP-$>";   //  stream stub to stop reader thread
 
   std::string build_key(const std::string& subKey, const std::string& baseKey = "") const;
 
@@ -579,6 +502,7 @@ private:
   int32_t reconnect(int32_t result);
   std::atomic_bool _connecting;
   std::thread _reconnect_thd;
+  std::mutex _reconnect_mtx;
   std::atomic<bool> _shutdown{false};
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -592,6 +516,7 @@ private:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Stream readers
   //
+  size_t resolve_reader_tails(reader_info& info);
   bool start_reader(uint32_t token);
   bool stop_reader(uint32_t token);
 
