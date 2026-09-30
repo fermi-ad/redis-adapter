@@ -7,6 +7,7 @@
 #include <future>
 #include <mutex>
 #include <stdexcept>
+#include <sstream>
 #include <unistd.h>
 
 using namespace std::chrono_literals;
@@ -338,6 +339,101 @@ TEST_P(Lifecycle, MalformedSingleItemsHaveADistinctStatusAndPreserveDestination)
   EXPECT_EQ(adapter.getSingleList("bad", list), RA_INVALID_PAYLOAD);
   EXPECT_EQ(list, (std::vector<double>{42.}));
   EXPECT_EQ(adapter.getSingleList("absent", list).value, 0);
+}
+
+TEST_P(Lifecycle, ListenOnlyReaderRetriesAfterItsOwnConnectionIsClosed) {
+  Observations seen;
+  RA adapter(base, options);
+  auto handle = adapter.subscribeStream("key", [&](const auto&, const auto&, const auto& batch) { seen.append(batch); }, "0-0");
+  ASSERT_EQ(add("key", "1-0"), "1-0");
+  ASSERT_TRUE(seen.waitFor("1-0"));
+  std::string readerId;
+  const auto end = std::chrono::steady_clock::now() + 2s;
+  do {
+    const auto clients = control->command<std::string>("CLIENT", "LIST");
+    std::istringstream lines(clients);
+    for (std::string line; std::getline(lines, line);) {
+      // The fixture is private and this test is serial. The only XREAD client
+      // belongs to this adapter; kill that returned ID rather than all clients.
+      if (line.find("cmd=xread") != std::string::npos) {
+        const auto begin = line.find("id=") + 3;
+        readerId = line.substr(begin, line.find(' ', begin) - begin);
+      }
+    }
+    if (readerId.empty()) std::this_thread::sleep_for(5ms);
+  } while (readerId.empty() && std::chrono::steady_clock::now() < end);
+  ASSERT_FALSE(readerId.empty());
+  EXPECT_EQ(control->command<long long>("CLIENT", "KILL", "ID", readerId), 1);
+  ASSERT_EQ(add("key", "2-0"), "2-0");
+  ASSERT_TRUE(seen.waitFor("2-0"));
+  EXPECT_EQ(seen.size(), 2u);
+}
+
+TEST_P(Lifecycle, RunningCaptureCleanupCanRetireASiblingRegistration) {
+  for (const bool throwing : {false, true}) {
+    RA adapter(base, options);
+    std::promise<void> entered, release, retired;
+    auto enteredFuture = entered.get_future();
+    auto retiredFuture = retired.get_future();
+    auto gate = release.get_future().share();
+    struct Release { std::promise<void>& release; ~Release() { try { release.set_value(); } catch (...) {} } } finally{release};
+    struct Captured {
+      RA::ReaderHandle sibling;
+      std::promise<void>& retired;
+      ~Captured() { sibling.reset(); retired.set_value(); }
+    };
+    const auto suffix = throwing ? "throw" : "plain";
+    const auto currentKey = std::string("current-") + suffix;
+    std::string siblingKey;
+    for (unsigned i = 0;; ++i) {
+      siblingKey = "sibling-" + std::to_string(i) + "-" + suffix;
+      if (std::hash<std::string>{}(key(siblingKey)) % options.workers ==
+          std::hash<std::string>{}(key(currentKey)) % options.workers) break;
+    }
+    auto state = std::shared_ptr<Captured>(new Captured{
+        adapter.subscribeStream(siblingKey, [](const auto&, const auto&, const auto&) {}, "0-0"), retired});
+    auto current = adapter.subscribeStream(currentKey, [state, &entered, gate, throwing](const auto&, const auto&, const auto&) {
+      entered.set_value(); gate.wait();
+      if (throwing) throw std::runtime_error("intentional captured-state exception");
+    }, "0-0");
+    ASSERT_EQ(add(currentKey, "1-0"), "1-0");
+    ASSERT_EQ(enteredFuture.wait_for(3s), std::future_status::ready);
+    current.reset();
+    state.reset();
+    for (unsigned i = 1; i <= 200; ++i) ASSERT_EQ(add(siblingKey, std::to_string(i) + "-0"), std::to_string(i) + "-0");
+    release.set_value();
+    EXPECT_EQ(retiredFuture.wait_for(3s), std::future_status::ready);
+  }
+}
+
+TEST_P(Lifecycle, LegacyRemovalCannotRestartAReaderDuringDestruction) {
+  std::promise<void> entered, release, callbackDone;
+  auto enteredFuture = entered.get_future();
+  auto callbackFuture = callbackDone.get_future();
+  auto gate = release.get_future().share();
+  std::atomic<bool> removed{false};
+  auto adapter = std::make_unique<RA>(base, options);
+  struct ReleaseEarly { std::promise<void>& release; ~ReleaseEarly() { try { release.set_value(); } catch (...) {} } } releaseOnFailure{release};
+  auto* raw = adapter.get();
+  auto quiet = adapter->subscribeStream("quiet", [](const auto&, const auto&, const auto&) {}, "0-0");
+  auto blocked = adapter->subscribeStream("blocked", [&](const auto&, const auto&, const auto&) {
+    entered.set_value(); gate.wait();
+    removed = raw->removeReader("quiet");
+    callbackDone.set_value();
+  }, "0-0");
+  ASSERT_EQ(add("blocked", "1-0"), "1-0");
+  ASSERT_EQ(enteredFuture.wait_for(3s), std::future_status::ready);
+  std::thread destroying([owned = std::move(adapter)]() mutable { owned.reset(); });
+  struct Finish {
+    std::promise<void>& release; std::thread& thread;
+    ~Finish() { try { release.set_value(); } catch (...) {} if (thread.joinable()) thread.join(); }
+  } finally{release, destroying};
+  const auto deadline = std::chrono::steady_clock::now() + 3s;
+  while (blocked && std::chrono::steady_clock::now() < deadline) std::this_thread::sleep_for(1ms);
+  ASSERT_FALSE(blocked); // destructor has stopped readers and fenced registrations
+  release.set_value();
+  ASSERT_EQ(callbackFuture.wait_for(3s), std::future_status::ready);
+  EXPECT_TRUE(removed.load());
 }
 
 INSTANTIATE_TEST_SUITE_P(Workers, Lifecycle, testing::Values(1u, 4u));
