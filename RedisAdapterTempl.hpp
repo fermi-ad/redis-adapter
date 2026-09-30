@@ -426,7 +426,8 @@ RedisAdapter::addSingleValue(const std::string& subKey, const T& data, const RA_
   std::string key = build_key(subKey);
   Attrs attrs = default_field_attrs(data);
 
-  std::string id = args.trim ? _redis.xaddTrim(key, args.time.id_or_now(), attrs.begin(), attrs.end(), args.trim)
+  std::string id = args.trim ? _redis.xaddTrim(key, args.time.id_or_now(), attrs.begin(), attrs.end(),
+                                              args.trim, args.approximateTrim)
                              : _redis.xadd(key, args.time.id_or_now(), attrs.begin(), attrs.end());
 
   if ( ! reconnect(id.size())) { return RA_NOT_CONNECTED; }
@@ -439,7 +440,8 @@ RedisAdapter::addSingleValue(const std::string& subKey, const Attrs& data, const
 {
   std::string key = build_key(subKey);
 
-  std::string id = args.trim ? _redis.xaddTrim(key, args.time.id_or_now(), data.begin(), data.end(), args.trim)
+  std::string id = args.trim ? _redis.xaddTrim(key, args.time.id_or_now(), data.begin(), data.end(),
+                                              args.trim, args.approximateTrim)
                              : _redis.xadd(key, args.time.id_or_now(), data.begin(), data.end());
 
   if ( ! reconnect(id.size())) { return RA_NOT_CONNECTED; }
@@ -458,14 +460,16 @@ RedisAdapter::addSingleValue(const std::string& subKey, const Attrs& data, const
 //    return : time of the added data item if successful, zero on failure
 //
 template<typename T> RA_Time
-RedisAdapter::add_single_stream_list_helper(const std::string& subKey, RA_Time time, const T* data, size_t size, uint32_t trim)
+RedisAdapter::add_single_stream_list_helper(const std::string& subKey, RA_Time time, const T* data,
+                                            size_t size, uint32_t trim, bool approximateTrim)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
   std::string key = build_key(subKey);
   Attrs attrs = default_field_attrs(data, size);
 
-  std::string id = trim ? _redis.xaddTrim(key, time.id_or_now(), attrs.begin(), attrs.end(), trim)
+  std::string id = trim ? _redis.xaddTrim(key, time.id_or_now(), attrs.begin(), attrs.end(), trim,
+                                         approximateTrim)
                         : _redis.xadd(key, time.id_or_now(), attrs.begin(), attrs.end());
 
   if ( ! reconnect(id.size())) { return RA_NOT_CONNECTED; }
