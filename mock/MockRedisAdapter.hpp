@@ -1,5 +1,7 @@
 #pragma once
-#include "sw/redis++/redis++.h" // maybe pull this out at some point idk.
+#include "../RedisStreamData.hpp"
+#include "../RedisTime.hpp"
+#include <algorithm>
 #include <memory>
 #include <chrono>
 
@@ -10,31 +12,10 @@ inline uint64_t getTimeNanosTest()
     return nanos.time_since_epoch().count();
 }
 
-struct RA_Time
-{
-  RA_Time(int64_t nanos = 0) : value(nanos) {}
-  RA_Time(const std::string& id);
-
-  bool ok() const { return value > 0; }
-
-  operator int64_t()  const { return ok() ? value : 0; }
-  operator uint64_t() const { return ok() ? value : 0; }
-
-  uint32_t err() const { return ok() ? 0 : -value; }
-
-  std::string id() const;
-  std::string id_or_now() const;
-
-  std::string id_or_min() const { return ok() ? id() : "-"; }
-  std::string id_or_max() const { return ok() ? id() : "+"; }
-
-  int64_t value;
-};
-
 struct RA_ArgsAdd
   { RA_Time time; uint32_t trim = 1; bool approximateTrim = true; };
 
-class MockRedisAdapter // Mock
+class MockRedisAdapter : public RedisStreamData // Mock
 {
 public:
   using Attrs = std::unordered_map<std::string, std::string>;
@@ -52,16 +33,16 @@ public:
     struct addSingleList_array_and_span_args {
       std::string subKey;
       std::shared_ptr<void> data; // copy both into a raw array and let the tester deal with the type themself
-      int dataSize; // Size of data in bytes
+      size_t dataSize; // Size of data in bytes
       RA_ArgsAdd args;
     };
     std::vector<addSingleList_array_and_span_args> addSingleList_array_and_span_arguments;
     template<template<typename T, size_t S> class C, typename T, size_t S> RA_Time
     addSingleList(const std::string& subKey, const C<T, S>& data, const RA_ArgsAdd& args = {})
     {
-      int dataSize = data.size_bytes();
+      size_t dataSize = data.size() * sizeof(T);
       std::shared_ptr<void> ptr(
-        new T[dataSize],                   // allocate
+        new T[data.size()],                   // allocate
         [](void* p) { delete[] static_cast<T*>(p); } // deleter
       );
       T* raw = static_cast<T*>(ptr.get());
@@ -83,16 +64,16 @@ public:
     struct addSingleList_vector_args {
       std::string subKey;
       std::shared_ptr<void> data; // copy both into a raw array and let the tester deal with the type themself
-      int dataSize; // Size of data in bytes
+      size_t dataSize; // Size of data in bytes
       RA_ArgsAdd args;
     };
     std::vector<addSingleList_vector_args> addSingleList_vector_arguments;
     template<typename T> RA_Time
     addSingleList(const std::string& subKey, const std::vector<T>& data, const RA_ArgsAdd& args = {})
     {
-      int dataSize = data.size_bytes();
+      size_t dataSize = data.size() * sizeof(T);
       std::shared_ptr<void> ptr(
-        new T[dataSize],                   // allocate
+        new T[data.size()],                   // allocate
         [](void* p) { delete[] static_cast<T*>(p); } // deleter
       );
       T* raw = static_cast<T*>(ptr.get());

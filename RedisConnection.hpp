@@ -19,6 +19,7 @@ namespace chr = std::chrono;
 class RedisConnection
 {
 public:
+  enum class ReadStatus { Accepted, TimedOut, Rejected, Unavailable };
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  struct RedisConnection::Options
   //
@@ -257,15 +258,44 @@ public:
   //
   template<typename Output>
   bool xrevrange(const std::string& key, const std::string& end,
-                 const std::string& beg, uint32_t cnt, Output out)
+                 const std::string& beg, uint32_t cnt, Output out,
+                 ReadStatus* status = nullptr, bool* wrongType = nullptr)
   {
+    if (status) *status = ReadStatus::Unavailable;
+    if (wrongType) *wrongType = false;
     auto [cluster, singler] = snapshot();
-    try
-    {
-      if (cluster) { cluster->xrevrange(key, end, beg, cnt, out); return true; }
-      if (singler) { singler->xrevrange(key, end, beg, cnt, out); return true; }
-    }
-    catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
+    try {
+      if (cluster) cluster->xrevrange(key, end, beg, cnt, out);
+      else if (singler) singler->xrevrange(key, end, beg, cnt, out);
+      else return false;
+      if (status) *status = ReadStatus::Accepted;
+      return true;
+    } catch (const swr::ReplyError& error) {
+      if (status) *status = ReadStatus::Rejected;
+      if (wrongType) *wrongType = std::string(error.what()).rfind("WRONGTYPE", 0) == 0;
+    } catch (const swr::Error&) {}
+    return false;
+  }
+
+  // Redis 7.4 supports '+' as an XREAD tail ID. This fallback uses only XREAD
+  // permission when a consumer is deliberately denied XREVRANGE.
+  template<typename Output>
+  bool xreadTail(const std::string& key, Output out, ReadStatus* status = nullptr,
+                 bool* wrongType = nullptr) {
+    if (status) *status = ReadStatus::Unavailable;
+    if (wrongType) *wrongType = false;
+    auto [cluster, singler] = snapshot();
+    const std::vector<std::pair<std::string, std::string>> keys{{key, "+"}};
+    try {
+      if (cluster) cluster->xread(keys.begin(), keys.end(), 1, out);
+      else if (singler) singler->xread(keys.begin(), keys.end(), 1, out);
+      else return false;
+      if (status) *status = ReadStatus::Accepted;
+      return true;
+    } catch (const swr::ReplyError& error) {
+      if (status) *status = ReadStatus::Rejected;
+      if (wrongType) *wrongType = std::string(error.what()).rfind("WRONGTYPE", 0) == 0;
+    } catch (const swr::Error&) {}
     return false;
   }
 
@@ -308,16 +338,26 @@ public:
   //    https://redis.io/docs/reference/cluster-spec/
   //
   template<typename Input, typename Output>
-  bool xreadMultiBlock(Input fst, Input lst, uint32_t tmo, Output out)
+  bool xreadMultiBlock(Input fst, Input lst, uint32_t tmo, Output out,
+                       ReadStatus* status = nullptr, uint32_t count = 64)
   {
+    if (status) *status = ReadStatus::Unavailable;
     auto [cluster, singler] = snapshot(true);
     const auto block = chr::milliseconds(tmo == 0 ? 1000 : std::min<uint32_t>(tmo, 1000));
-    try
-    {
-      if (cluster) { cluster->xread(fst, lst, block, out); return true; }
-      if (singler) { singler->xread(fst, lst, block, out); return true; }
-    }
-    catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
+    using Fields = std::unordered_map<std::string, std::string>;
+    using Entries = std::vector<std::pair<std::string, Fields>>;
+    std::unordered_map<std::string, Entries> result;
+    try {
+      const auto destination = std::inserter(result, result.end());
+      if (cluster) cluster->xread(fst, lst, block, std::max<uint32_t>(1, count), destination);
+      else if (singler) singler->xread(fst, lst, block, std::max<uint32_t>(1, count), destination);
+      else return false;
+      if (status) *status = result.empty() ? ReadStatus::TimedOut : ReadStatus::Accepted;
+      for (auto& item : result) *out++ = std::move(item);
+      return true;
+    } catch (const swr::ReplyError&) {
+      if (status) *status = ReadStatus::Rejected;
+    } catch (const swr::Error&) {}
     return false;
   }
 
