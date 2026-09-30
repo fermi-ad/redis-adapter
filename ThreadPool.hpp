@@ -65,6 +65,7 @@ private:
     std::thread _thd;
     std::condition_variable _cv;
     std::queue<std::function<void(void)>> _jobs;
+    std::queue<std::function<void(void)>> _cancelled;
 
     void work(unsigned short num)
     {
@@ -90,6 +91,9 @@ private:
           } catch (...) {
             syslog(LOG_ERR, "stream callback failed with unknown exception");
           }
+          // Captures may release this pool or reset another subscription.
+          // Destroy them while unlocked, including when the callback throws.
+          job = nullptr;
           lk.lock();
         }
       }
@@ -103,8 +107,14 @@ private:
       {
         std::lock_guard<std::mutex> guard(worker->_mtx);
         worker->_go = false;
+        worker->_jobs.swap(worker->_cancelled);
       }
       worker->_cv.notify_all();
+    }
+    // Cancelled captures have the same reentrant cleanup requirements as the
+    // running job. Release them before returning, outside every worker lock.
+    for (const auto& worker : _workers) {
+      if (worker) while (!worker->_cancelled.empty()) worker->_cancelled.pop();
     }
     for (const auto& worker : _workers) {
       if (!worker || !worker->_thd.joinable()) continue;

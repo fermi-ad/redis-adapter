@@ -1,161 +1,337 @@
 #include "RedisAdapter.hpp"
-#include <algorithm>
-#include <cassert>
+#include <gtest/gtest.h>
 #include <chrono>
 #include <condition_variable>
 #include <cstdlib>
-#include <iostream>
+#include <future>
 #include <mutex>
-#include <stdexcept>
+#include <thread>
 #include <unistd.h>
 
 using namespace std::chrono_literals;
+using RA = RedisAdapter;
 
-template<class F> void eventually(F predicate) {
-  const auto deadline = std::chrono::steady_clock::now() + 4s;
-  while (!predicate()) {
-    assert(std::chrono::steady_clock::now() < deadline);
-    std::this_thread::sleep_for(5ms);
-  }
+static bool waitUntil(const std::function<bool()>& predicate) {
+  const auto end = std::chrono::steady_clock::now() + 4s;
+  do { if (predicate()) return true; std::this_thread::sleep_for(5ms); } while (std::chrono::steady_clock::now() < end);
+  return predicate();
 }
+#define EVENTUALLY(...) ASSERT_TRUE(waitUntil([&] { return (__VA_ARGS__); })) << #__VA_ARGS__
 
-struct Observed {
+struct Seen {
   std::mutex mutex;
   std::condition_variable changed;
-  std::vector<std::string> ids;
-  void append(const RedisAdapter::StreamBatch& entries) {
-    std::lock_guard<std::mutex> guard(mutex);
-    for (const auto& entry : entries) ids.push_back(entry.first);
+  std::vector<std::pair<std::string, uint64_t>> entries;
+  void append(const RA::StreamBatch& batch, uint64_t epoch = 0) {
+    std::lock_guard<std::mutex> lock(mutex);
+    for (const auto& entry : batch) entries.emplace_back(entry.first, epoch);
     changed.notify_all();
   }
   bool wait(const std::string& id) {
     std::unique_lock<std::mutex> lock(mutex);
-    return changed.wait_for(lock, 4s, [&] { return std::find(ids.begin(), ids.end(), id) != ids.end(); });
+    return changed.wait_for(lock, 4s, [&] { for (const auto& entry : entries) if (entry.first == id) return true; return false; });
   }
-  size_t count(const std::string& id) {
-    std::lock_guard<std::mutex> guard(mutex);
-    return std::count(ids.begin(), ids.end(), id);
+  size_t count(const std::string& id) { std::lock_guard<std::mutex> lock(mutex); size_t result = 0; for (const auto& entry : entries) result += entry.first == id; return result; }
+  size_t size() { std::lock_guard<std::mutex> lock(mutex); return entries.size(); }
+  uint64_t epoch(const std::string& id) { std::lock_guard<std::mutex> lock(mutex); for (const auto& entry : entries) if (entry.first == id) return entry.second; return 0; }
+};
+
+class Recovery : public testing::TestWithParam<unsigned> {
+protected:
+  RA_Options options;
+  std::string base, user;
+  std::unique_ptr<sw::redis::Redis> control;
+  RA::Attrs fields{{"_", "value"}};
+  void SetUp() override {
+    if (!std::getenv("REDIS_ADAPTER_ISOLATED_TEST")) GTEST_SKIP() << "Use the private Redis fixture";
+    options.cxn.port = std::stoi(std::getenv("REDIS_ADAPTER_TEST_PORT"));
+    options.cxn.timeout = 100;
+    options.workers = GetParam();
+    base = "recovery-" + std::to_string(getpid()) + "-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+    user = "WRONGTYPE-reader-" + base;
+    sw::redis::ConnectionOptions co; co.host = "127.0.0.1"; co.port = options.cxn.port;
+    control = std::make_unique<sw::redis::Redis>(co);
+    control->command<void>("ACL", "SETUSER", user, "reset", "on", "nopass", "~{" + base + "}:*", "+@all");
+    options.cxn.user = user;
+  }
+  void TearDown() override {
+    if (!control) return;
+    try { control->command<void>("ACL", "DELUSER", user); } catch (...) {}
+    try { std::vector<std::string> keys; control->keys("*" + base + "*", std::back_inserter(keys)); if (!keys.empty()) control->del(keys.begin(), keys.end()); } catch (...) {}
+  }
+  std::string key(const std::string& sub) const { return "{" + base + "}:" + sub; }
+  void add(const std::string& sub, const std::string& id) { EXPECT_EQ(control->xadd(key(sub), id, fields.begin(), fields.end()), id); }
+  void recreate(const std::string& sub, const std::string& id) {
+    auto transaction = control->transaction();
+    transaction.del(key(sub)).xadd(key(sub), id, fields.begin(), fields.end()).exec();
+  }
+  RA::SubscriptionOptions selection(uint32_t probeMs = 20) {
+    RA::SubscriptionOptions result; result.afterId = "0-0"; result.probeMs = probeMs; return result;
+  }
+  RA::ReaderHandle subscribe(RA& adapter, const std::string& sub, Seen& seen, uint32_t probeMs = 20) {
+    return adapter.subscribeStreamWithEpoch(sub, [&](const auto&, const auto&, const auto& batch, uint64_t epoch) { seen.append(batch, epoch); }, selection(probeMs));
   }
 };
 
-int main() {
-  RA_Options options;
-  if (const auto* port = std::getenv("REDIS_ADAPTER_TEST_PORT")) options.cxn.port = std::stoi(port);
-  options.readerProbeMs = 50;
-  sw::redis::ConnectionOptions connection;
-  connection.host = "127.0.0.1"; connection.port = options.cxn.port;
-  sw::redis::Redis control(connection);
-  const auto base = "stream-recovery-" + std::to_string(getpid());
-  const auto key = "{" + base + "}:value";
-  const RedisAdapter::Attrs fields{{"_", "value"}};
-  control.xadd(key, "1000-0", fields.begin(), fields.end());
-  RedisAdapter adapter(base, options);
-  Observed observed;
-  auto handle = adapter.subscribeStream("value", [&](const auto&, const auto&, const auto& entries) {
-    observed.append(entries);
-  }, "0-0");
-  assert(observed.wait("1000-0"));
-  control.del(key);
-  control.xadd(key, "1-0", fields.begin(), fields.end());
-  assert(observed.wait("1-0") && "recreated stream must resume below the previous cursor");
-  assert(handle.status().streamResets == 1 && handle.status().epoch == 2);
-  control.xadd(key, "2-0", fields.begin(), fields.end());
-  assert(observed.wait("2-0"));
-  assert(handle.status().cursor == "2-0" && handle.status().observedCursor == "2-0");
+TEST_P(Recovery, InspectionIsOptInAndCanBeSelectedPerSubscription) {
+  EXPECT_EQ(options.readerProbeMs, 0u);
+  RA adapter(base, options);
+  Seen scalar, imaging;
+  auto first = subscribe(adapter, "scalar", scalar, 20);
+  auto second = subscribe(adapter, "imaging", imaging, 0);
+  EVENTUALLY(first.status().inspected && second.status().connected);
+  EXPECT_FALSE(second.status().inspected);
+  EXPECT_EQ(first.status().epoch, 1u);
+  EXPECT_EQ(RA::ReaderHandle{}.status().epoch, 0u);
+}
 
-  control.del(key);
-  eventually([&] { return handle.status().stream == RedisConnection::StreamKind::Missing; });
-  assert(handle.status().disappearances == 1 && !handle.status().hasData);
-  control.xadd(key, "3-0", fields.begin(), fields.end());
-  assert(observed.wait("3-0"));
-
-  // A wrong-type key must not stall other readers in the same bucket.
-  Observed healthy;
-  auto other = adapter.subscribeStream("healthy", [&](const auto&, const auto&, const auto& entries) {
-    healthy.append(entries);
-  }, "0-0");
-  control.del(key); control.set(key, "wrong-type");
-  eventually([&] { return handle.status().stream == RedisConnection::StreamKind::Invalid; });
-  control.xadd("{" + base + "}:healthy", "10-0", fields.begin(), fields.end());
-  assert(healthy.wait("10-0"));
-  control.del(key); control.xadd(key, "4-0", fields.begin(), fields.end());
-  assert(observed.wait("4-0"));
-
-  // Connection loss preserves cursors and cannot duplicate prior callbacks.
-  const auto failures = handle.status().readFailures + handle.status().inspectionFailures;
-  const auto resets = handle.status().streamResets;
-  control.command<long long>("CLIENT", "KILL", "TYPE", "normal", "SKIPME", "yes");
-  eventually([&] { const auto status = handle.status(); return status.readFailures + status.inspectionFailures > failures; });
-  eventually([&] { return handle.status().connected && handle.status().reconnects > 0; });
-  control.xadd(key, "5-0", fields.begin(), fields.end());
-  assert(observed.wait("5-0"));
-  assert(observed.count("4-0") == 1 && handle.status().streamResets == resets);
-
-  // A cursor below retained history is a possible gap, not a fabricated count
-  // of missed records. Exact trim keeps the latest stream ID intact.
-  const auto trimmed = "{" + base + "}:trimmed";
-  control.xadd(trimmed, "10-0", fields.begin(), fields.end());
-  control.xadd(trimmed, "20-0", fields.begin(), fields.end());
-  control.xtrim(trimmed, 1, false);
-  Observed retained;
-  auto trim = adapter.subscribeStream("trimmed", [&](const auto&, const auto&, const auto& entries) {
-    retained.append(entries);
-  }, "10-0");
-  assert(retained.wait("20-0"));
-  assert(trim.status().retentionGaps == 1 && trim.status().streamResets == 0);
-  control.xtrim(trimmed, 0, false);
-  eventually([&] { return !trim.status().hasData; });
-  assert(trim.status().streamResets == 0 && trim.status().cursor == "20-0");
-  control.xadd(trimmed, "30-0", fields.begin(), fields.end());
-  assert(retained.wait("30-0"));
-
-  // Fence data already queued from the old stream while a worker is busy.
-  std::mutex mutex;
-  std::condition_variable changed;
-  bool entered = false, release = false;
-  auto blocker = adapter.subscribeStream("blocker", [&](const auto&, const auto&, const auto&) {
-    std::unique_lock<std::mutex> lock(mutex);
-    entered = true; changed.notify_all();
-    assert(changed.wait_for(lock, 10s, [&] { return release; }));
-  }, "0-0");
-  control.xadd("{" + base + "}:blocker", "1-0", fields.begin(), fields.end());
-  { std::unique_lock<std::mutex> lock(mutex); assert(changed.wait_for(lock, 4s, [&] { return entered; })); }
-  const auto fencedKey = "{" + base + "}:fenced";
-  control.xadd(fencedKey, "1000-0", fields.begin(), fields.end());
-  Observed fenced;
-  auto queued = adapter.subscribeStream("fenced", [&](const auto&, const auto&, const auto& entries) {
-    fenced.append(entries);
-  }, "0-0");
-  eventually([&] { return queued.status().observedCursor == "1000-0"; });
-  control.del(fencedKey); control.xadd(fencedKey, "1-0", fields.begin(), fields.end());
-  eventually([&] { return queued.status().streamResets == 1 && queued.status().observedCursor == "1-0"; });
-  { std::lock_guard<std::mutex> lock(mutex); release = true; changed.notify_all(); }
-  assert(fenced.wait("1-0"));
-  assert(fenced.count("1000-0") == 0 && fenced.count("1-0") == 1);
-
-  auto throwing = adapter.subscribeStream("errors", [](const auto&, const auto&, const auto&) {
-    throw std::runtime_error("intentional callback failure");
-  }, "0-0");
-  control.xadd("{" + base + "}:errors", "1-0", fields.begin(), fields.end());
-  eventually([&] { return throwing.status().callbackErrors == 1; });
-
-  // Existing read-only credentials can keep delivering when XINFO is denied;
-  // inspection unavailability is explicit instead of masquerading as continuity.
-  const auto username = "recovery-reader-" + std::to_string(getpid());
-  control.command("ACL", "SETUSER", username, "reset", "on", ">test-only", "~{" + base + "}:*",
-                  "+ping", "+xread", "+xrevrange");
-  {
-    auto restrictedOptions = options;
-    restrictedOptions.cxn.user = username; restrictedOptions.cxn.password = "test-only";
-    RedisAdapter restricted(base, restrictedOptions);
-    Observed permitted;
-    auto read = restricted.subscribeStream("value", [&](const auto&, const auto&, const auto& entries) {
-      permitted.append(entries);
-    }, "0-0");
-    assert(permitted.wait("5-0"));
-    eventually([&] { return read.status().inspectionRejections > 0; });
-    assert(!read.status().inspected && read.status().connected);
+TEST_P(Recovery, LowerIdRecreationIsDetectedWithZeroAndLongCommandTimeouts) {
+  for (const auto timeout : {0u, 3000u}) {
+    options.cxn.timeout = timeout;
+    const auto sub = "value-" + std::to_string(timeout);
+    Seen seen;
+    RA adapter(base, options);
+    add(sub, "1000-0");
+    auto handle = subscribe(adapter, sub, seen);
+    ASSERT_TRUE(seen.wait("1000-0"));
+    recreate(sub, "1-0");
+    ASSERT_TRUE(seen.wait("1-0"));
+    EXPECT_EQ(handle.status().streamResets, 1u);
+    EXPECT_EQ(handle.status().epoch, 2u);
+    EXPECT_EQ(seen.epoch("1-0"), 2u);
   }
-  control.command<long long>("ACL", "DELUSER", username);
-  std::cout << "stream reset, deletion, trim, outage, queue fencing and inspection status passed\n";
+}
+
+TEST_P(Recovery, DeletionIsObservedAndLaterDataResumes) {
+  Seen seen;
+  RA adapter(base, options);
+  add("value", "1000-0");
+  auto handle = subscribe(adapter, "value", seen);
+  ASSERT_TRUE(seen.wait("1000-0"));
+  control->del(key("value"));
+  EVENTUALLY(handle.status().streamKind == RA::StreamKind::Missing);
+  EXPECT_EQ(handle.status().disappearances, 1u);
+  EXPECT_FALSE(handle.status().hasData);
+  add("value", "1-0");
+  ASSERT_TRUE(seen.wait("1-0"));
+}
+
+TEST_P(Recovery, RepairAfterXinfoRevocationStillDelivers) {
+  Seen seen;
+  RA adapter(base, options);
+  control->set(key("value"), "wrong type");
+  auto handle = subscribe(adapter, "value", seen);
+  EVENTUALLY(handle.status().streamKind == RA::StreamKind::Invalid);
+  control->command<void>("ACL", "SETUSER", user, "-xinfo");
+  recreate("value", "1-0");
+  ASSERT_TRUE(seen.wait("1-0"));
+  EXPECT_EQ(seen.count("1-0"), 1u);
+}
+
+TEST_P(Recovery, StillInvalidAfterXinfoRevocationDoesNotBlockItsNeighbour) {
+  Seen bad, healthy;
+  RA adapter(base, options);
+  control->set(key("bad"), "wrong type");
+  auto a = subscribe(adapter, "bad", bad);
+  auto b = subscribe(adapter, "healthy", healthy);
+  EVENTUALLY(a.status().streamKind == RA::StreamKind::Invalid);
+  control->command<void>("ACL", "SETUSER", user, "-xinfo");
+  for (unsigned i = 1; i <= 6; ++i) add("healthy", std::to_string(i) + "-0");
+  ASSERT_TRUE(healthy.wait("6-0"));
+  EXPECT_EQ(healthy.size(), 6u);
+  EXPECT_EQ(b.status().readRejections, 0u);
+}
+
+TEST_P(Recovery, LegacyRegistrationSurvivesRemovalOfItsOwnedInspectingPeer) {
+  Seen legacy;
+  RA adapter(base, options);
+  control->set(key("value"), "wrong type");
+  auto owned = adapter.subscribeStream("value", [](const auto&, const auto&, const auto&) {}, selection());
+  ASSERT_TRUE(adapter.addValuesReader<RA::Attrs>("value", [&](const auto&, const auto&, const auto& batch) {
+    RA::StreamBatch raw; for (const auto& value : batch) raw.emplace_back(value.first.id(), value.second); legacy.append(raw);
+  }));
+  EVENTUALLY(owned.status().streamKind == RA::StreamKind::Invalid);
+  owned.reset();
+  control->del(key("value"));
+  // These IDs are valid legacy nanosecond encodings, unlike arbitrary sequence IDs.
+  for (unsigned i = 1; i <= 20; ++i) add("value", std::to_string(i) + "-0");
+  ASSERT_TRUE(legacy.wait("20-0"));
+  EXPECT_EQ(legacy.size(), 20u);
+}
+
+TEST_P(Recovery, LegacyWrongTypeIsIsolatedWithoutAnyInspectionPermission) {
+  Seen healthy;
+  control->command<void>("ACL", "SETUSER", user, "-xinfo");
+  RA adapter(base, options);
+  control->set(key("legacy"), "wrong type");
+  ASSERT_TRUE(adapter.addValuesReader<RA::Attrs>("legacy", [](const auto&, const auto&, const auto&) {}));
+  auto owned = subscribe(adapter, "healthy", healthy, 0);
+  for (unsigned i = 1; i <= 6; ++i) add("healthy", std::to_string(i) + "-0");
+  ASSERT_TRUE(healthy.wait("6-0"));
+  EXPECT_EQ(healthy.size(), 6u);
+  EXPECT_EQ(owned.status().readRejections, 0u);
+}
+
+TEST_P(Recovery, DeniedMetadataAndIdleReadsKeepAccurateConnectionState) {
+  Seen seen;
+  control->command<void>("ACL", "SETUSER", user, "-xinfo");
+  RA adapter(base, options);
+  auto handle = subscribe(adapter, "value", seen);
+  EVENTUALLY(handle.status().inspectionRejections > 0 && handle.status().connected);
+  std::this_thread::sleep_for(300ms);
+  const auto status = handle.status();
+  EXPECT_FALSE(status.inspected);
+  EXPECT_NE(status.streamKind, RA::StreamKind::Invalid); // username contains WRONGTYPE
+  EXPECT_EQ(status.socketTimeouts, 0u);
+  EXPECT_EQ(status.inspectionRejections, 1u); // denied probes back off
+  add("value", "1-0");
+  ASSERT_TRUE(seen.wait("1-0"));
+}
+
+TEST_P(Recovery, ScopedConnectionKillCountsFailureForEveryRegistrationAndPreservesCursors) {
+  Seen first, second;
+  RA adapter(base, options);
+  auto a = subscribe(adapter, "first", first);
+  auto b = subscribe(adapter, "second", second);
+  add("first", "10-0"); add("second", "10-0");
+  ASSERT_TRUE(first.wait("10-0")); ASSERT_TRUE(second.wait("10-0"));
+  const auto failuresA = a.status().readFailures + a.status().inspectionFailures;
+  const auto failuresB = b.status().readFailures + b.status().inspectionFailures;
+  EXPECT_GT(control->command<long long>("CLIENT", "KILL", "USER", user), 0);
+  EXPECT_TRUE(control->ping() == "PONG"); // bystander admin connection survives
+  EVENTUALLY(a.status().readFailures + a.status().inspectionFailures > failuresA);
+  EVENTUALLY(b.status().readFailures + b.status().inspectionFailures > failuresB);
+  EVENTUALLY(a.status().connected && b.status().connected);
+  add("first", "11-0"); add("second", "11-0");
+  ASSERT_TRUE(first.wait("11-0")); ASSERT_TRUE(second.wait("11-0"));
+  EXPECT_EQ(first.count("10-0"), 1u); EXPECT_EQ(second.count("10-0"), 1u);
+}
+
+TEST_P(Recovery, EmptyRetainedHistoryCountsACertainGapOnce) {
+  Seen seen;
+  RA adapter(base, options);
+  add("value", "10-0");
+  auto handle = subscribe(adapter, "value", seen);
+  ASSERT_TRUE(seen.wait("10-0"));
+  adapter.setDeferReaders(true);
+  add("value", "20-0"); control->xtrim(key("value"), 0, false);
+  adapter.setDeferReaders(false);
+  EVENTUALLY(handle.status().retentionGaps == 1);
+  EXPECT_FALSE(handle.status().hasData);
+  EXPECT_EQ(handle.status().cursor, "10-0");
+  std::this_thread::sleep_for(200ms);
+  EXPECT_EQ(handle.status().retentionGaps, 1u);
+}
+
+TEST_P(Recovery, QueuedOldEpochIsFencedAndCallbacksReceiveTheirCapturedEpoch) {
+  Seen seen;
+  RA adapter(base, options);
+  std::promise<void> entered, release;
+  auto started = entered.get_future(); auto gate = release.get_future().share();
+  struct Release { std::promise<void>& promise; ~Release() { try { promise.set_value(); } catch (...) {} } } finally{release};
+  const auto blocked = std::string("blocker");
+  std::string target;
+  for (unsigned i = 0;; ++i) {
+    target = "fenced-" + std::to_string(i);
+    if (std::hash<std::string>{}(key(target)) % options.workers == std::hash<std::string>{}(key(blocked)) % options.workers) break;
+  }
+  auto blocker = adapter.subscribeStream(blocked, [&](const auto&, const auto&, const auto&) { entered.set_value(); gate.wait(); }, "0-0");
+  add(blocked, "1-0"); ASSERT_EQ(started.wait_for(4s), std::future_status::ready);
+  add(target, "1000-0");
+  auto handle = subscribe(adapter, target, seen);
+  EVENTUALLY(handle.status().observedCursor == "1000-0");
+  EXPECT_EQ(handle.status().entries, 0u);
+  recreate(target, "1-0");
+  EVENTUALLY(handle.status().epoch == 2 && handle.status().observedCursor == "1-0");
+  release.set_value();
+  ASSERT_TRUE(seen.wait("1-0"));
+  EXPECT_EQ(seen.count("1000-0"), 0u);
+  EXPECT_EQ(seen.epoch("1-0"), 2u);
+  EXPECT_EQ(handle.status().entries, 1u);
+}
+
+TEST_P(Recovery, ProbeSchedulingRemainsFairAcrossMoreThan64KeysAndChurn) {
+  RA adapter(base, options);
+  std::vector<RA::ReaderHandle> handles;
+  adapter.setDeferReaders(true);
+  for (unsigned i = 0; i < 80; ++i) handles.push_back(adapter.subscribeStream("key-" + std::to_string(i), [](const auto&, const auto&, const auto&) {}, selection()));
+  adapter.setDeferReaders(false);
+  for (unsigned i = 0; i < 6; ++i) {
+    auto churn = adapter.subscribeStream("churn", [](const auto&, const auto&, const auto&) {}, selection());
+    std::this_thread::sleep_for(20ms); churn.reset();
+  }
+  EVENTUALLY(std::all_of(handles.begin(), handles.end(), [](const auto& handle) { return handle.status().inspected; }));
+}
+
+TEST_P(Recovery, InactiveHandlesClearHealthAndUnresolvedCursorsAreExplicit) {
+  RA::ReaderHandle orphan;
+  { RA adapter(base, options); orphan = adapter.subscribeStream("key", [](const auto&, const auto&, const auto&) {}, selection()); EVENTUALLY(orphan.status().connected); }
+  EXPECT_FALSE(orphan.status().active);
+  EXPECT_FALSE(orphan.status().connected);
+  EXPECT_FALSE(orphan.status().inspected);
+  orphan.reset(); EXPECT_EQ(orphan.status().epoch, 0u);
+  auto unavailable = options; unavailable.cxn.port = 0;
+  RA adapter(base, unavailable);
+  auto pending = adapter.subscribeStream("pending", [](const auto&, const auto&, const auto&) {});
+  EXPECT_TRUE(pending.status().cursor.empty());
+  EXPECT_TRUE(pending.status().observedCursor.empty());
+}
+
+TEST_P(Recovery, CallbackErrorsAreCountedWithoutStoppingDelivery) {
+  Seen seen;
+  RA adapter(base, options);
+  auto bad = adapter.subscribeStream("key", [](const auto&, const auto&, const auto&) { throw std::runtime_error("intentional"); }, selection());
+  auto good = subscribe(adapter, "key", seen);
+  add("key", "1-0"); ASSERT_TRUE(seen.wait("1-0"));
+  EVENTUALLY(bad.status().callbackErrors == 1);
+}
+
+TEST_P(Recovery, RetainedHistoryAboveAnExplicitCursorReportsAPossibleGap) {
+  Seen seen;
+  RA adapter(base, options);
+  add("trimmed", "10-0"); add("trimmed", "20-0");
+  control->xtrim(key("trimmed"), 1, false);
+  auto selected = selection(); selected.afterId = "10-0";
+  auto handle = adapter.subscribeStreamWithEpoch("trimmed", [&](const auto&, const auto&, const auto& entries, uint64_t epoch) { seen.append(entries, epoch); }, selected);
+  ASSERT_TRUE(seen.wait("20-0"));
+  EXPECT_EQ(handle.status().retentionGaps, 1u);
+  EXPECT_EQ(handle.status().streamResets, 0u);
+}
+
+TEST_P(Recovery, AuthenticationFailureClearsConnectedEvenWithoutInspection) {
+  Seen seen;
+  RA adapter(base, options);
+  auto handle = subscribe(adapter, "value", seen, 0);
+  EVENTUALLY(handle.status().connected);
+  control->command<void>("ACL", "SETUSER", user, "resetpass", ">new-test-password");
+  EXPECT_GT(control->command<long long>("CLIENT", "KILL", "USER", user), 0);
+  EVENTUALLY(handle.status().readFailures > 0 && !handle.status().connected);
+  EXPECT_FALSE(handle.status().inspected);
+}
+
+INSTANTIATE_TEST_SUITE_P(Workers, Recovery, testing::Values(1u, 4u));
+
+TEST(ClusterRecovery, UnsupportedInspectionKeepsOwnedAndLegacyReadsFlowing) {
+  const auto* port = std::getenv("REDIS_ADAPTER_CLUSTER_TEST_PORT");
+  if (!port || !std::getenv("REDIS_ADAPTER_ISOLATED_TEST")) GTEST_SKIP() << "Use an isolated Redis Cluster fixture";
+  RA_Options options; options.cxn.port = std::stoi(port); options.cxn.timeout = 100; options.readerProbeMs = 20;
+  const auto base = "cluster-review-" + std::to_string(getpid()) + "-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+  Seen owned, legacy;
+  RA adapter(base, options), producer(base, options);
+  RA::SubscriptionOptions selection; selection.afterId = "0-0";
+  auto handle = adapter.subscribeStream("owned", [&](const auto&, const auto&, const auto& entries) { owned.append(entries); }, selection);
+  ASSERT_TRUE(adapter.addValuesReader<RA::Attrs>("legacy", [&](const auto&, const auto&, const auto& entries) {
+    RA::StreamBatch batch; for (const auto& entry : entries) batch.emplace_back(entry.first.id(), entry.second); legacy.append(batch);
+  }));
+  EVENTUALLY(handle.status().inspectionRejections > 0 && handle.status().connected);
+  for (unsigned i = 1; i <= 6; ++i) {
+    RA_ArgsAdd args; args.time = RA_Time(int64_t(i) * 1000000); args.trim = 0;
+    ASSERT_TRUE(producer.addSingleDouble("owned", 1., args).ok());
+    ASSERT_TRUE(producer.addSingleDouble("legacy", 1., args).ok());
+  }
+  ASSERT_TRUE(owned.wait("6-0")); ASSERT_TRUE(legacy.wait("6-0"));
+  EXPECT_EQ(owned.size(), 6u); EXPECT_EQ(legacy.size(), 6u);
+  EXPECT_FALSE(handle.status().inspected);
+  handle.reset(); adapter.removeReader("legacy");
+  producer.del("owned"); producer.del("legacy");
 }
