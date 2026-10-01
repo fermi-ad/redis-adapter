@@ -28,6 +28,7 @@ RA_Options get_redis_options()
     RA_Options opts;
     opts.cxn.path = get_redis_path();
     opts.cxn.host = get_redis_host();
+    if (const auto* port = std::getenv("REDIS_ADAPTER_BENCHMARK_PORT")) opts.cxn.port = std::stoi(port);
     return opts;
 }
 

@@ -7,7 +7,9 @@ endif()
 
 project(redis-adapter VERSION ${REDIS_ADAPTER_VERSION} LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+if(NOT DEFINED CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 17)
+endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Find our cmake modules
