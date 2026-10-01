@@ -4,7 +4,7 @@
 
 The core library requires:
 
-- CMake 3.14 or newer.
+- CMake 3.15 or newer.
 - A compiler and standard library with C++17 support.
 - Git with submodule support.
 - POSIX threads and syslog support.
@@ -99,7 +99,7 @@ target, include its directories, link its dependencies, and require its language
 level:
 
 ```cmake
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.15)
 project(example LANGUAGES CXX)
 
 add_subdirectory(redis-adapter)
