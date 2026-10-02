@@ -112,6 +112,10 @@ if(REDIS_ADAPTER_TEST)
     message(WARNING "Python3 not found: write proxy tests disabled; native tests remain enabled")
   endif()
 
+  add_executable(redis-adapter-recovery-test ${REDIS_ADAPTER_SOURCES} recovery_test.cpp)
+  target_link_libraries(redis-adapter-recovery-test ${REDIS_ADAPTER_LIBRARIES} GTest::gtest_main)
+  gtest_discover_tests(redis-adapter-recovery-test PROPERTIES TIMEOUT 20 RUN_SERIAL TRUE)
+
 endif()
 
 # Build redis-adapter-benchmark and googlebenchmark if REDIS_ADAPTER_BENCHMARK is true

@@ -112,6 +112,17 @@ RedisAdapter::ReaderHandle& RedisAdapter::ReaderHandle::operator=(ReaderHandle&&
 RedisAdapter::ReaderHandle::operator bool() const {
   return registration_ && registration_->active.load();
 }
+RedisAdapter::ReaderStatus RedisAdapter::ReaderHandle::status() const {
+  if (!registration_) return {};
+  lock_guard<mutex> lock(registration_->mutex);
+  auto result = registration_->status;
+  result.active = registration_->active && !owner_.expired();
+  result.cursor = registration_->cursor == "$" ? "" : registration_->cursor;
+  result.observedCursor = registration_->observedCursor == "$" ? "" : registration_->observedCursor;
+  if (!result.active) { result.connected = result.inspected = result.hasData = false; }
+  return result;
+}
+
 void RedisAdapter::ReaderHandle::reset() noexcept {
   auto registration = std::move(registration_);
   if (!registration) return;
@@ -142,13 +153,34 @@ RedisAdapter::StreamSnapshot RedisAdapter::getStreamSnapshot(const string& subKe
 }
 
 RedisAdapter::ReaderHandle RedisAdapter::subscribeStream(const string& subKey, StreamCallback callback,
-                                                         const string& afterId, const string& baseKey) {
+                                                         const string& afterId, const string& baseKey, uint32_t probeMs) {
   if (!callback) throw invalid_argument("empty stream callback");
   const auto base = baseKey.empty() ? _base_key : baseKey;
   return ReaderHandle(_reader_owner, register_reader(build_key(subKey, baseKey),
       [base, subKey, callback = std::move(callback)](const auto&, const auto&, const auto& batch) {
         callback(base, subKey, batch);
-      }, afterId));
+      }, afterId, true, probeMs));
+}
+
+RedisAdapter::ReaderHandle RedisAdapter::subscribeStreamWithEpoch(const string& subKey, EpochStreamCallback callback,
+                                                                  const SubscriptionOptions& options) {
+  if (!callback) throw invalid_argument("empty stream callback");
+  return subscribeStreamWithMetadata(subKey,
+      [callback = std::move(callback)](const auto& base, const auto& sub, const auto& batch, const auto& metadata) {
+        callback(base, sub, batch, metadata.epoch);
+      }, options);
+}
+
+RedisAdapter::ReaderHandle RedisAdapter::subscribeStreamWithMetadata(const string& subKey, MetadataStreamCallback callback,
+                                                                     const SubscriptionOptions& options) {
+  if (!callback) throw invalid_argument("empty stream callback");
+  const auto base = options.baseKey.empty() ? _base_key : options.baseKey;
+  auto wrapped = [base, subKey, callback = std::move(callback)](const auto&, const auto&, const auto& batch, const auto& metadata) {
+    callback(base, subKey, batch, metadata);
+  };
+  return ReaderHandle(_reader_owner, register_reader(build_key(subKey, options.baseKey),
+      [](const auto&, const auto&, const auto&) {}, options.afterId, true,
+      options.probeMs.value_or(UINT32_MAX), std::move(wrapped)));
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -262,6 +294,8 @@ bool RedisAdapter::removeGenericReader(const string& key)
     retired.push_back(std::move(entry->second));
     info.subs.erase(entry);
     info.keyids.erase(key);
+    info.boundaries.erase(key);
+    info.quarantined.erase(key);
     found = true;
     if (info.subs.empty()) it = _reader.erase(it);
     else { start_reader(it->first); ++it; }
@@ -339,13 +373,16 @@ bool RedisAdapter::add_reader_helper(const string& baseKey, const string& subKey
 }
 
 shared_ptr<RedisAdapter::ReaderRegistration>
-RedisAdapter::register_reader(const string& key, reader_sub_fn func, const string& afterId, bool resolveTail)
+RedisAdapter::register_reader(const string& key, reader_sub_fn func, const string& afterId, bool resolveTail, uint32_t probeMs, MetadataStreamCallback metadataCallback)
 {
   if (!func) throw invalid_argument("empty stream callback");
   if (afterId != "$") compareStreamIds(afterId, "0-0");
   auto registration = make_shared<ReaderRegistration>();
   registration->cursor = afterId;
   registration->callback = std::move(func);
+  registration->metadataCallback = std::move(metadataCallback);
+  registration->probeMs = resolveTail ? (probeMs == UINT32_MAX ? _options.readerProbeMs : probeMs) : 0;
+  registration->status.epoch = 1;
   uint32_t token;
   {
     lock_guard<mutex> lock(_reader_mtx);
@@ -376,6 +413,9 @@ RedisAdapter::register_reader(const string& key, reader_sub_fn func, const strin
       if (!hadCursor || oldCursor == "$" ||
           (registration->cursor != "$" && compareStreamIds(registration->cursor, oldCursor) < 0))
         info.keyids[key] = registration->cursor;
+      registration->observedCursor = registration->cursor;
+      registration->status.connected = info.readConnected;
+      registration->everConnected = info.readConnected;
       info.subs[key].push_back(registration);
       if (info.stop.empty()) {
         info.stop = stopStreamKey(key);
@@ -420,6 +460,8 @@ void RedisAdapter::remove_registration(uint64_t id)
       registrations.erase(registration);
       if (registrations.empty()) {
         info.keyids.erase(key->first);
+        info.boundaries.erase(key->first);
+        info.quarantined.erase(key->first);
         info.subs.erase(key);
       }
       if (info.subs.empty()) _reader.erase(bucket);
@@ -444,6 +486,8 @@ bool RedisAdapter::remove_reader_helper(const string& baseKey, const string& sub
     retired.push_back(std::move(entry->second));
     info.subs.erase(entry);
     info.keyids.erase(key);
+    info.boundaries.erase(key);
+    info.quarantined.erase(key);
     found = true;
     if (info.subs.empty()) bucket = _reader.erase(bucket);
     else { start_reader(bucket->first); ++bucket; }
@@ -476,10 +520,223 @@ size_t RedisAdapter::resolve_reader_tails(reader_info& info)
     if (info.keyids.at(subscriptions.first) == "$") info.keyids[subscriptions.first] = tail;
     for (const auto& registration : subscriptions.second) {
       lock_guard<mutex> cursorLock(registration->mutex);
-      if (registration->cursor == "$") registration->cursor = tail;
+      if (registration->cursor == "$") registration->cursor = registration->observedCursor = tail;
     }
   }
   return unresolved;
+}
+
+void RedisAdapter::reader_result(reader_info& info, RedisConnection::ReadStatus result, bool socketTimedOut)
+{
+  using Result = RedisConnection::ReadStatus;
+  const bool connected = result == Result::Accepted || result == Result::TimedOut;
+  if (connected && info.readConnected) return;
+  if (result == Result::Rejected) return; // identify the rejected key on the read path
+  for (const auto& key : info.subs) for (const auto& registration : key.second) {
+    lock_guard<mutex> lock(registration->mutex);
+    auto& status = registration->status;
+    if (connected) {
+      if (!status.connected && registration->everConnected) ++status.reconnects;
+      status.connected = true; registration->everConnected = true;
+    } else {
+      ++status.readFailures;
+      if (socketTimedOut) ++status.socketTimeouts;
+      status.connected = false; registration->continuityCheck = true;
+    }
+  }
+  info.readConnected = connected;
+}
+
+void RedisAdapter::reset_stream(reader_info& info, const string& key, StreamKind kind, bool allReaders)
+{
+  string minimum = "$";
+  for (const auto& registration : info.subs.at(key)) {
+    lock_guard<mutex> lock(registration->mutex);
+    auto& status = registration->status;
+    if (allReaders || registration->probeMs) {
+      const bool hadCursor = registration->observedCursor != "$" && registration->observedCursor != "0-0";
+      if (hadCursor || status.streamKind == StreamKind::Stream) {
+        ++status.epoch; ++status.streamResets;
+        if (kind == StreamKind::Missing) ++status.disappearances;
+      }
+      registration->cursor = registration->observedCursor = "0-0";
+      registration->gapSignature.clear();
+      status.hasData = false; status.lastReceived = {};
+    }
+    status.streamKind = kind;
+    if (registration->cursor != "$" && (minimum == "$" || compareStreamIds(registration->cursor, minimum) < 0))
+      minimum = registration->cursor;
+  }
+  info.keyids[key] = minimum;
+}
+
+void RedisAdapter::check_readable(reader_info& info, const vector<string>& keys)
+{
+  if (!info.run || keys.empty()) return;
+  const auto checked = _redis.probeReadable(keys);
+  if (checked.status == RedisConnection::ReadStatus::Unavailable) {
+    reader_result(info, checked.status); return;
+  }
+  const auto now = steady_clock::now();
+  if (checked.status == RedisConnection::ReadStatus::Accepted) {
+    for (const auto& key : keys) {
+      const auto bad = info.quarantined.find(key);
+      if (bad != info.quarantined.end()) {
+        if (bad->second.wrongType) reset_stream(info, key, StreamKind::Unknown, true);
+        info.quarantined.erase(bad);
+      }
+      for (const auto& registration : info.subs.at(key)) {
+        lock_guard<mutex> lock(registration->mutex);
+        if (!registration->status.connected && registration->everConnected) ++registration->status.reconnects;
+        registration->status.connected = true; registration->everConnected = true;
+      }
+    }
+    return;
+  }
+  // A command-wide ACL refusal needs no per-key search. Otherwise split the
+  // group to isolate bad keys without K serial round trips for one bad key.
+  const bool commandDenied = checked.error.rfind("NOPERM", 0) == 0 &&
+      checked.error.find("to run the 'xread' command") != string::npos;
+  if (keys.size() > 1 && !commandDenied) {
+    const auto middle = keys.begin() + keys.size() / 2;
+    check_readable(info, vector<string>(keys.begin(), middle));
+    check_readable(info, vector<string>(middle, keys.end()));
+    return;
+  }
+  for (const auto& key : keys) {
+    const auto inserted = info.quarantined.emplace(key, reader_info::Quarantine{});
+    auto& bad = inserted.first->second;
+    if (checked.wrongType && (inserted.second || !bad.wrongType)) reset_stream(info, key, StreamKind::Invalid, true);
+    bad.wrongType |= checked.wrongType;
+    bad.nextCheck = now + milliseconds(checked.wrongType ? 100 : 1000);
+    if (inserted.second) syslog(LOG_WARNING, "stream key quarantined after read rejection: %s", key.c_str());
+    for (const auto& registration : info.subs.at(key)) {
+      lock_guard<mutex> lock(registration->mutex);
+      ++registration->status.readRejections;
+      registration->status.connected = true; registration->everConnected = true;
+    }
+  }
+}
+
+void RedisAdapter::prepare_probes(reader_info& info)
+{
+  info.probes = {};
+  const auto now = steady_clock::now();
+  for (const auto& key : info.subs) {
+    uint32_t interval = UINT32_MAX;
+    for (const auto& registration : key.second) if (registration->probeMs) interval = min(interval, registration->probeMs);
+    auto& boundary = info.boundaries[key.first];
+    if (interval == UINT32_MAX) { boundary.intervalMs = 0; continue; }
+    if (!boundary.intervalMs || boundary.denied || boundary.nextProbe == steady_clock::time_point{}) {
+      boundary.nextProbe = now; boundary.backoff = 1; boundary.denied = false;
+    }
+    boundary.intervalMs = interval;
+    info.probes.push({boundary.nextProbe, ++info.probeOrder, key.first});
+  }
+}
+
+void RedisAdapter::apply_bounds(reader_info& info, const string& key, const RedisConnection::StreamBounds& bounds)
+{
+  using Result = RedisConnection::CommandStatus;
+  if (bounds.status != Result::Accepted) {
+    for (const auto& registration : info.subs.at(key)) if (registration->probeMs) {
+      lock_guard<mutex> lock(registration->mutex);
+      registration->status.inspected = false;
+      if (bounds.status == Result::Rejected) ++registration->status.inspectionRejections;
+    }
+    return;
+  }
+  bool reset = bounds.kind == StreamKind::Missing || bounds.kind == StreamKind::Invalid;
+  if (bounds.kind == StreamKind::Stream) {
+    for (const auto& registration : info.subs.at(key)) if (registration->probeMs) {
+      lock_guard<mutex> lock(registration->mutex);
+      if (registration->observedCursor != "$" && registration->observedCursor != "0-0" &&
+          compareStreamIds(bounds.lastGeneratedId, registration->observedCursor) < 0) reset = true;
+    }
+  }
+  if (reset) reset_stream(info, key, bounds.kind, bounds.kind == StreamKind::Invalid);
+  if (bounds.kind == StreamKind::Invalid) info.quarantined[key] = {steady_clock::now() + milliseconds(100), true};
+  for (const auto& registration : info.subs.at(key)) if (registration->probeMs) {
+    lock_guard<mutex> lock(registration->mutex);
+    auto& status = registration->status;
+    status.inspected = true; status.streamKind = bounds.kind;
+    status.hasData = bounds.kind == StreamKind::Stream && bounds.firstId != "0-0";
+    const auto& cursor = registration->observedCursor;
+    const bool hasCursor = cursor != "$" && cursor != "0-0";
+    const bool gap = !reset && bounds.kind == StreamKind::Stream && hasCursor &&
+        compareStreamIds(bounds.lastGeneratedId, cursor) > 0 &&
+        (bounds.firstId == "0-0" || compareStreamIds(bounds.firstId, cursor) > 0);
+    const auto signature = gap ? cursor + ":" + bounds.firstId + ":" + bounds.lastGeneratedId : string{};
+    if (gap && signature != registration->gapSignature) ++status.retentionGaps;
+    registration->gapSignature = signature;
+    registration->continuityCheck = false;
+  }
+}
+
+void RedisAdapter::inspect_readers(reader_info& info)
+{
+  constexpr size_t maximum = 16;
+  vector<string> due;
+  const auto now = steady_clock::now();
+  while (!info.probes.empty() && info.probes.top().due <= now && due.size() < maximum && info.run) {
+    auto ticket = info.probes.top(); info.probes.pop();
+    auto& boundary = info.boundaries.at(ticket.key);
+    if (!boundary.intervalMs) continue;
+    bool continuity = false;
+    for (const auto& registration : info.subs.at(ticket.key)) if (registration->probeMs) {
+      lock_guard<mutex> lock(registration->mutex);
+      continuity |= registration->continuityCheck;
+    }
+    if (!continuity && boundary.readVersion != boundary.lastProbeVersion) {
+      boundary.lastProbeVersion = boundary.readVersion; boundary.backoff = 1;
+      boundary.nextProbe = now + milliseconds(boundary.intervalMs);
+      info.probes.push({boundary.nextProbe, ++info.probeOrder, ticket.key});
+    } else due.push_back(std::move(ticket.key));
+  }
+  if (due.empty() || !info.run) return;
+  const auto bounds = _redis.streamBoundsBatch(due);
+  bool transportFailure = false;
+  for (size_t index = 0; index < due.size(); ++index) {
+    const auto& key = due[index];
+    auto& boundary = info.boundaries.at(key);
+    const auto& result = bounds[index];
+    apply_bounds(info, key, result);
+    boundary.lastProbeVersion = boundary.readVersion;
+    if (result.status == RedisConnection::CommandStatus::Rejected) {
+      boundary.denied = true;
+      boundary.nextProbe = steady_clock::now() + seconds(60);
+    } else {
+      transportFailure |= result.status == RedisConnection::CommandStatus::Unavailable;
+      boundary.backoff = min<uint32_t>(8, boundary.backoff * 2);
+      boundary.nextProbe = steady_clock::now() + milliseconds(uint64_t(boundary.intervalMs) * boundary.backoff);
+    }
+    info.probes.push({boundary.nextProbe, ++info.probeOrder, key});
+  }
+  if (transportFailure) {
+    // Inspection transport failure affects every registration in the bucket,
+    // independently of which pipelined command first observed it.
+    for (const auto& key : info.subs) for (const auto& registration : key.second) {
+      lock_guard<mutex> lock(registration->mutex);
+      ++registration->status.inspectionFailures;
+      registration->status.inspected = false; registration->status.connected = false;
+      registration->continuityCheck = true;
+    }
+    info.readConnected = false;
+  }
+}
+
+uint32_t RedisAdapter::read_interval(const reader_info& info, bool& blocking) const
+{
+  uint32_t interval = _options.cxn.timeout ? min<uint32_t>(1000, _options.cxn.timeout) : 1000;
+  const auto now = steady_clock::now();
+  blocking = true;
+  const auto shorten = [&](steady_clock::time_point due) {
+    if (due <= now) { blocking = false; interval = 1; }
+    else interval = min<uint32_t>(interval, max<int64_t>(1, duration_cast<milliseconds>(due - now).count()));
+  };
+  if (!info.probes.empty()) shorten(info.probes.top().due);
+  for (const auto& bad : info.quarantined) shorten(bad.second.nextCheck);
+  return interval;
 }
 
 bool RedisAdapter::start_reader(uint32_t token)
@@ -493,6 +750,7 @@ bool RedisAdapter::start_reader(uint32_t token)
   info.started = false;
   info.run = true;
   size_t unresolved = resolve_reader_tails(info);
+  prepare_probes(info);
   try {
     info.thread = thread([this, &info, unresolved]() mutable {
       {
@@ -502,25 +760,49 @@ bool RedisAdapter::start_reader(uint32_t token)
       info.start_cv.notify_all();
       uint32_t delay = 50;
       bool reported = false;
+      vector<string> allKeys;
+      allKeys.reserve(info.subs.size());
+      for (const auto& key : info.subs) allKeys.push_back(key.first);
       for (Streams out; info.run; out.clear()) {
         if (unresolved) unresolved = resolve_reader_tails(info);
+        vector<string> recheck;
+        const auto now = steady_clock::now();
+        for (const auto& bad : info.quarantined) if (bad.second.nextCheck <= now) recheck.push_back(bad.first);
+        if (!recheck.empty()) check_readable(info, recheck);
+        inspect_readers(info);
+        if (!info.run) break;
         // Never send '$' repeatedly. An unresolved tail is excluded until the
         // snapshot succeeds; healthy keys in the bucket continue to flow.
         const auto* cursors = &info.keyids;
         unordered_map<string, string> resolved;
-        if (unresolved) {
-          for (const auto& key : info.keyids) if (key.second != "$") resolved.insert(key);
+        if (unresolved || !info.quarantined.empty() || !info.controlReadable) {
+          for (const auto& key : info.keyids)
+            if (key.second != "$" && !info.quarantined.count(key.first) &&
+                (info.controlReadable || key.first != info.stop)) resolved.insert(key);
           cursors = &resolved;
         }
-        RedisConnection::ReadStatus status;
-        const bool accepted = !cursors->empty() && _redis.xreadMultiBlock(cursors->begin(), cursors->end(),
-            _options.cxn.timeout, inserter(out, out.end()), &status, _options.readerBatchCount);
+        RedisConnection::ReadStatus status = RedisConnection::ReadStatus::TimedOut;
+        bool socketTimedOut = false, blocking;
+        const auto interval = read_interval(info, blocking);
+        const bool accepted = cursors->empty() || _redis.xreadMultiBlock(cursors->begin(), cursors->end(),
+            interval, inserter(out, out.end()), &status, _options.readerBatchCount, &socketTimedOut, blocking);
+        reader_result(info, status, socketTimedOut);
         if (!accepted) {
+          if (status == RedisConnection::ReadStatus::Rejected) {
+            const auto previous = info.quarantined.size();
+            check_readable(info, allKeys);
+            if (previous == info.quarantined.size() && !info.stop.empty() && info.controlReadable) {
+              const auto control = _redis.probeReadable({info.stop});
+              if (control.status == RedisConnection::ReadStatus::Rejected) info.controlReadable = false;
+            }
+          }
           if (!reported) { syslog(LOG_WARNING, "stream reader paused after read rejection or transport failure"); reported = true; }
           if (info.run) this_thread::sleep_for(milliseconds(delay));
           delay = min<uint32_t>(1000, delay * 2);
           continue;
         }
+        if (cursors->empty()) this_thread::sleep_for(milliseconds(min<uint32_t>(interval, 50)));
+        if (reported) syslog(LOG_INFO, "stream reader recovered");
         reported = false;
         delay = 50;
         for (auto& item : out) {
@@ -531,22 +813,48 @@ bool RedisAdapter::start_reader(uint32_t token)
           const auto base = parts.first.empty() ? item.first : parts.first;
           const auto sub = parts.first.empty() ? item.first : parts.second;
           auto data = make_shared<const ItemStream>(std::move(item.second));
+          ++info.boundaries[item.first].readVersion;
           for (const auto& registration : subscriptions->second) {
-            _replier_pool.job(item.first, [registration, base, sub, data]() {
+            StreamBatchMetadata metadata;
+            {
+              lock_guard<mutex> lock(registration->mutex);
+              metadata.epoch = registration->status.epoch;
+              metadata.readRejections = registration->status.readRejections;
+              if (registration->observedCursor == "$" || compareStreamIds(data->back().first, registration->observedCursor) > 0)
+                registration->observedCursor = data->back().first;
+              registration->status.streamKind = StreamKind::Stream;
+              registration->status.hasData = true;
+            }
+            _replier_pool.job(item.first, [registration, base, sub, data, metadata]() {
               if (!registration->active.load()) return;
               size_t first = 0;
               {
                 lock_guard<mutex> cursorLock(registration->mutex);
+                if (registration->status.epoch != metadata.epoch) return;
                 while (first < data->size() && registration->cursor != "$" &&
                        compareStreamIds((*data)[first].first, registration->cursor) <= 0) ++first;
                 if (first == data->size()) return;
                 registration->cursor = data->back().first;
               }
               if (!registration->active.load()) return;
-              if (first == 0) registration->callback(base, sub, *data);
-              else {
-                const ItemStream fresh(data->begin() + first, data->end());
-                registration->callback(base, sub, fresh);
+              {
+                lock_guard<mutex> lock(registration->mutex);
+                if (registration->status.epoch != metadata.epoch) return;
+                ++registration->status.callbacks;
+                registration->status.entries += data->size() - first;
+                registration->status.lastReceived = steady_clock::now();
+              }
+              const auto invoke = [&](const ItemStream& batch) {
+                if (registration->metadataCallback) registration->metadataCallback(base, sub, batch, metadata);
+                else registration->callback(base, sub, batch);
+              };
+              try {
+                if (first == 0) invoke(*data);
+                else { const ItemStream fresh(data->begin() + first, data->end()); invoke(fresh); }
+              } catch (...) {
+                lock_guard<mutex> lock(registration->mutex);
+                ++registration->status.callbackErrors;
+                throw;
               }
             });
           }

@@ -21,6 +21,9 @@ using RedisAdapter = MockRedisAdapter;
 #include <limits>
 #include <memory>
 #include <type_traits>
+#include <queue>
+#include <optional>
+#include <tuple>
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  define RA_VERSION
@@ -72,6 +75,7 @@ struct RA_Options
   std::string dogname;
   uint16_t workers = 1;
   uint16_t readers = 1;
+  uint32_t readerProbeMs = 0;  // optional continuity inspection; per-subscription override
   uint32_t readerBatchCount = 64;  // per stream; zero is normalized to one
 };
 
@@ -100,6 +104,28 @@ public:
     bool present() const { return connected && !fields.empty() && id != "0-0"; }
   };
 
+  using StreamKind = RedisConnection::StreamKind;
+  using EpochStreamCallback = std::function<void(const std::string&, const std::string&, const StreamBatch&, uint64_t)>;
+  struct StreamBatchMetadata {
+    uint64_t epoch = 0;
+    // Captured when this batch is read, before callback queueing. A delayed
+    // callback must not acknowledge rejection evidence from a later read.
+    uint64_t readRejections = 0;
+  };
+  using MetadataStreamCallback = std::function<void(const std::string&, const std::string&,
+                                                   const StreamBatch&, const StreamBatchMetadata&)>;
+  struct ReaderStatus {
+    bool active = false, connected = false, inspected = false, hasData = false;
+    StreamKind streamKind = StreamKind::Unknown;
+    // Empty means an unresolved future-only cursor, never a comparable ID.
+    std::string cursor, observedCursor;
+    uint64_t epoch = 0, readFailures = 0, readRejections = 0, socketTimeouts = 0;
+    uint64_t reconnects = 0, streamResets = 0, disappearances = 0, retentionGaps = 0;
+    uint64_t inspectionFailures = 0, inspectionRejections = 0;
+    uint64_t callbacks = 0, entries = 0, callbackErrors = 0;
+    std::chrono::steady_clock::time_point lastReceived{};
+  };
+
   // Cancellation fences callbacks that have not passed their active check. A
   // callback past that check may still enter; consumers must fence mutations.
   class ReaderHandle {
@@ -112,6 +138,7 @@ public:
     ReaderHandle& operator=(const ReaderHandle&) = delete;
     void reset() noexcept;
     explicit operator bool() const;
+    [[nodiscard]] ReaderStatus status() const;
   private:
     friend class RedisAdapter;
     ReaderHandle(std::weak_ptr<ReaderOwner> owner, std::shared_ptr<ReaderRegistration> registration);
@@ -121,16 +148,28 @@ public:
 
   [[nodiscard]] StreamSnapshot getStreamSnapshot(const std::string& subKey, const std::string& baseKey = "");
   [[nodiscard]] ReaderHandle subscribeStream(const std::string& subKey, StreamCallback callback,
-                               const std::string& afterId = "$", const std::string& baseKey = "");
+                               const std::string& afterId = "$", const std::string& baseKey = "",
+                               uint32_t probeMs = UINT32_MAX);
   struct SubscriptionOptions {
     std::string baseKey;
     std::string afterId = "$";
+    std::optional<uint32_t> probeMs;
   };
   // Throws invalid_argument for empty callbacks/invalid IDs and runtime_error
   // during shutdown. Retain the returned handle for the registration lifetime.
   [[nodiscard]] ReaderHandle subscribeStream(const std::string& subKey, StreamCallback callback,
                                               const SubscriptionOptions& options) {
-    return subscribeStream(subKey, std::move(callback), options.afterId, options.baseKey);
+    return subscribeStream(subKey, std::move(callback), options.afterId, options.baseKey, options.probeMs.value_or(UINT32_MAX));
+  }
+  [[nodiscard]] ReaderHandle subscribeStreamWithEpoch(const std::string& subKey, EpochStreamCallback callback,
+                                                       const SubscriptionOptions& options);
+  [[nodiscard]] ReaderHandle subscribeStreamWithEpoch(const std::string& subKey, EpochStreamCallback callback) {
+    return subscribeStreamWithEpoch(subKey, std::move(callback), SubscriptionOptions{});
+  }
+  [[nodiscard]] ReaderHandle subscribeStreamWithMetadata(const std::string& subKey, MetadataStreamCallback callback,
+                                                          const SubscriptionOptions& options);
+  [[nodiscard]] ReaderHandle subscribeStreamWithMetadata(const std::string& subKey, MetadataStreamCallback callback) {
+    return subscribeStreamWithMetadata(subKey, std::move(callback), SubscriptionOptions{});
   }
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Containers for getting/setting data using RedisAdapter methods
@@ -449,7 +488,8 @@ private:
   std::shared_ptr<ReaderRegistration> register_reader(const std::string& key,
                                                      reader_sub_fn func,
                                                      const std::string& afterId,
-                                                     bool resolveTail = true);
+                                                     bool resolveTail = true, uint32_t probeMs = UINT32_MAX,
+                                                     MetadataStreamCallback metadataCallback = {});
   void remove_registration(uint64_t id);
 
   template<typename T> reader_sub_fn make_reader_callback(ReaderSubFn<T> func) const;
@@ -536,6 +576,11 @@ private:
     std::mutex mutex;
     std::string cursor;
     reader_sub_fn callback;
+    MetadataStreamCallback metadataCallback;
+    uint32_t probeMs = 0;
+    bool everConnected = false, continuityCheck = true;
+    std::string observedCursor, gapSignature;
+    ReaderStatus status;
   };
   std::shared_ptr<ReaderOwner> _reader_owner = std::make_shared<ReaderOwner>();
   uint64_t _next_reader_id = 0;
@@ -546,6 +591,22 @@ private:
     std::unordered_map<std::string, std::vector<std::shared_ptr<ReaderRegistration>>> subs;
     std::unordered_map<std::string, std::string> keyids;
     std::string stop;
+    struct Boundary {
+      std::chrono::steady_clock::time_point nextProbe{};
+      uint32_t intervalMs = 0, backoff = 1;
+      uint64_t readVersion = 0, lastProbeVersion = 0;
+      bool denied = false;
+    };
+    struct Quarantine { std::chrono::steady_clock::time_point nextCheck{}; bool wrongType = false; };
+    struct ProbeTicket { std::chrono::steady_clock::time_point due; uint64_t order; std::string key; };
+    struct ProbeLater {
+      bool operator()(const ProbeTicket& a, const ProbeTicket& b) const { return std::tie(a.due, a.order) > std::tie(b.due, b.order); }
+    };
+    std::unordered_map<std::string, Boundary> boundaries;
+    std::unordered_map<std::string, Quarantine> quarantined;
+    std::priority_queue<ProbeTicket, std::vector<ProbeTicket>, ProbeLater> probes;
+    uint64_t probeOrder = 0;
+    bool readConnected = false, controlReadable = true;
     std::atomic<bool> run = false;
 
     //  used by start_reader() to confirm the reader thread has begun its read loop -
@@ -557,6 +618,13 @@ private:
   };
   std::unordered_map<uint32_t, reader_info> _reader;
 
+  void prepare_probes(reader_info& info);
+  void inspect_readers(reader_info& info);
+  void reader_result(reader_info& info, RedisConnection::ReadStatus result, bool socketTimedOut = false);
+  void check_readable(reader_info& info, const std::vector<std::string>& keys);
+  void reset_stream(reader_info& info, const std::string& key, StreamKind kind, bool allReaders);
+  void apply_bounds(reader_info& info, const std::string& key, const RedisConnection::StreamBounds& bounds);
+  uint32_t read_interval(const reader_info& info, bool& blocking) const;
   ThreadPool _replier_pool;
 };
 

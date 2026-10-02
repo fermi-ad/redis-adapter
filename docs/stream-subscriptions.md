@@ -70,3 +70,57 @@ Legacy single-item typed getters distinguish malformed data with
 `RA_INVALID_PAYLOAD` (`err() == 3`), preserve the destination, and reserve zero
 for an accepted empty result. Range and callback wrappers skip malformed entries;
 they do not fabricate zero values or call back with a fully rejected empty batch.
+
+## Read recovery and inspection
+
+A rejected grouped XREAD is checked with nonblocking `XREAD COUNT 1 STREAMS key
+$`. Only failing keys are quarantined; valid neighbours and legacy registrations
+continue. Excluded keys are rechecked without requiring XINFO. A repaired
+wrong-type key rewinds to the start of its replacement stream. Read transport
+failures preserve cursors and are retried with bounded backoff.
+
+Continuity inspection is opt-in. `RA_Options::readerProbeMs` defaults to zero;
+`SubscriptionOptions::probeMs` overrides it for one owned registration. If any
+registration enables inspection of a shared key, that key is inspected. Periodic
+metadata lookup detects deletion, lower-ID recreation and possible retention
+loss. It is diagnostic evidence, not an exact count of missed entries or a
+promise to observe every delete/recreate between checks.
+
+The scheduler batches at most 16 due XINFO requests through an existing pooled
+connection. `XINFO STREAM FULL COUNT 1` transfers one retained payload, which can
+still be large. Active keys skip unnecessary probes. Idle intervals back off to
+at most eight times the configured interval. Denied or unsupported inspection
+backs off for 60 seconds, or is reconsidered after a subscription/reconnect
+restart. Deadlines and ordering survive reader restarts. A backlogged scheduler
+uses nonblocking read cycles; normal cycles shorten for upcoming checks. Probe
+intervals are minimum intervals, not hard completion deadlines.
+
+Metadata inspection is standalone-only. On Redis Cluster, inspection is reported
+as unavailable evidence while normal owned and legacy XREAD delivery continues.
+Cluster routing/retry behavior remains upstream redis-plus-plus behavior.
+
+`ReaderHandle::status()` separates observed and delivered cursors. An empty
+cursor means unresolved future-only registration; compare IDs only when nonempty.
+`epoch` is a fencing token: zero means no registration, and actual registrations
+start at one. Resetting a handle or destroying its adapter clears its active,
+connected and inspected flags. Transport failures are bucket observations; key
+rejection counters identify the quarantined registration. Idle NIL replies keep
+connection state healthy and do not count as socket timeouts. Inspection failures
+and rejections are separate from read failures.
+
+`subscribeStreamWithEpoch()` supplies the batch's captured epoch as its fourth
+callback argument. It does not infer that token by polling mutable status.
+Queued older-epoch batches are fenced; an already executing callback may complete.
+Three-argument callbacks should use their own frame IDs if reset attribution is
+required. Callback/entry counters record batches handed to the callback, while
+`observedCursor` can advance while a worker is still busy.
+
+`subscribeStreamWithMetadata()` additionally supplies `StreamBatchMetadata`,
+containing the captured epoch and this registration's `readRejections` count at
+the successful read. These values are captured before callback queueing and do
+not change if a later XREAD is rejected while delivery is queued or executing.
+Use that batch-associated counter to acknowledge read rejection recovery; polling
+the mutable status in a delayed callback can incorrectly acknowledge a newer
+rejection. `ReaderStatus::lastReceived` is callback-time receipt, not evidence of
+when Redis accepted the read. The existing three-argument and epoch subscription
+APIs retain their behavior.
