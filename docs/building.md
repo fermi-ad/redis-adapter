@@ -156,3 +156,9 @@ or the dedicated CI fixture; do not point fault tests at a shared Redis service.
 On Linux with Docker, run the private three-master fixture with
 `scripts/run-test-redis-cluster.py -- ctest --test-dir build -R ClusterRecovery
 --output-on-failure`. It binds only loopback ports and removes its own containers.
+
+GoogleTest and hiredis pins are updated manually from upstream releases. Their
+release tags live outside the default branch used by Dependabot, so its submodule
+updater can offer an older pin or miss security patch releases. Review upstream
+release notes, preserve notices/minimum tools, and run the full relevant checks
+before each deliberate update. Benchmark and redis-plus-plus remain automated.
