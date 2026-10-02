@@ -114,3 +114,13 @@ Queued older-epoch batches are fenced; an already executing callback may complet
 Three-argument callbacks should use their own frame IDs if reset attribution is
 required. Callback/entry counters record batches handed to the callback, while
 `observedCursor` can advance while a worker is still busy.
+
+`subscribeStreamWithMetadata()` additionally supplies `StreamBatchMetadata`,
+containing the captured epoch and this registration's `readRejections` count at
+the successful read. These values are captured before callback queueing and do
+not change if a later XREAD is rejected while delivery is queued or executing.
+Use that batch-associated counter to acknowledge read rejection recovery; polling
+the mutable status in a delayed callback can incorrectly acknowledge a newer
+rejection. `ReaderStatus::lastReceived` is callback-time receipt, not evidence of
+when Redis accepted the read. The existing three-argument and epoch subscription
+APIs retain their behavior.

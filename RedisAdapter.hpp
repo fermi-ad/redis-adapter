@@ -106,6 +106,14 @@ public:
 
   using StreamKind = RedisConnection::StreamKind;
   using EpochStreamCallback = std::function<void(const std::string&, const std::string&, const StreamBatch&, uint64_t)>;
+  struct StreamBatchMetadata {
+    uint64_t epoch = 0;
+    // Captured when this batch is read, before callback queueing. A delayed
+    // callback must not acknowledge rejection evidence from a later read.
+    uint64_t readRejections = 0;
+  };
+  using MetadataStreamCallback = std::function<void(const std::string&, const std::string&,
+                                                   const StreamBatch&, const StreamBatchMetadata&)>;
   struct ReaderStatus {
     bool active = false, connected = false, inspected = false, hasData = false;
     StreamKind streamKind = StreamKind::Unknown;
@@ -157,6 +165,11 @@ public:
                                                        const SubscriptionOptions& options);
   [[nodiscard]] ReaderHandle subscribeStreamWithEpoch(const std::string& subKey, EpochStreamCallback callback) {
     return subscribeStreamWithEpoch(subKey, std::move(callback), SubscriptionOptions{});
+  }
+  [[nodiscard]] ReaderHandle subscribeStreamWithMetadata(const std::string& subKey, MetadataStreamCallback callback,
+                                                          const SubscriptionOptions& options);
+  [[nodiscard]] ReaderHandle subscribeStreamWithMetadata(const std::string& subKey, MetadataStreamCallback callback) {
+    return subscribeStreamWithMetadata(subKey, std::move(callback), SubscriptionOptions{});
   }
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Containers for getting/setting data using RedisAdapter methods
@@ -476,7 +489,7 @@ private:
                                                      reader_sub_fn func,
                                                      const std::string& afterId,
                                                      bool resolveTail = true, uint32_t probeMs = UINT32_MAX,
-                                                     EpochStreamCallback epochCallback = {});
+                                                     MetadataStreamCallback metadataCallback = {});
   void remove_registration(uint64_t id);
 
   template<typename T> reader_sub_fn make_reader_callback(ReaderSubFn<T> func) const;
@@ -563,7 +576,7 @@ private:
     std::mutex mutex;
     std::string cursor;
     reader_sub_fn callback;
-    EpochStreamCallback epochCallback;
+    MetadataStreamCallback metadataCallback;
     uint32_t probeMs = 0;
     bool everConnected = false, continuityCheck = true;
     std::string observedCursor, gapSignature;

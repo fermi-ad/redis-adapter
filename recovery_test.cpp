@@ -85,6 +85,45 @@ TEST_P(Recovery, InspectionIsOptInAndCanBeSelectedPerSubscription) {
   EXPECT_EQ(RA::ReaderHandle{}.status().epoch, 0u);
 }
 
+TEST_P(Recovery, BatchMetadataDoesNotAcknowledgeALaterReadRejection) {
+  RA adapter(base, options);
+  std::mutex mutex;
+  std::condition_variable changed;
+  bool entered = false, released = false;
+  std::vector<RA::StreamBatchMetadata> observed;
+  auto handle = adapter.subscribeStreamWithMetadata("value", [&](const auto&, const auto&, const auto& entries, const auto& metadata) {
+    std::unique_lock<std::mutex> lock(mutex);
+    if (entries.front().first == "1-0") {
+      entered = true; changed.notify_all();
+      EXPECT_TRUE(changed.wait_for(lock, 4s, [&] { return released; }));
+    }
+    observed.push_back(metadata); changed.notify_all();
+  }, selection(0));
+  add("value", "1-0");
+  {
+    std::unique_lock<std::mutex> lock(mutex);
+    ASSERT_TRUE(changed.wait_for(lock, 3s, [&] { return entered; }));
+  }
+  control->command<void>("ACL", "SETUSER", user, "-xread");
+  EVENTUALLY(handle.status().readRejections > 0);
+  {
+    std::unique_lock<std::mutex> lock(mutex);
+    released = true; changed.notify_all();
+    ASSERT_TRUE(changed.wait_for(lock, 3s, [&] { return observed.size() == 1; }));
+    EXPECT_EQ(observed[0].readRejections, 0u);
+    EXPECT_EQ(observed[0].epoch, 1u);
+  }
+  EXPECT_GT(handle.status().readRejections, 0u);
+  control->command<void>("ACL", "SETUSER", user, "+xread");
+  add("value", "2-0");
+  {
+    std::unique_lock<std::mutex> lock(mutex);
+    ASSERT_TRUE(changed.wait_for(lock, 3s, [&] { return observed.size() == 2; }));
+    EXPECT_EQ(observed[1].readRejections, handle.status().readRejections);
+    EXPECT_EQ(observed[1].epoch, 1u);
+  }
+}
+
 TEST_P(Recovery, LowerIdRecreationIsDetectedWithZeroAndLongCommandTimeouts) {
   for (const auto timeout : {0u, 3000u}) {
     options.cxn.timeout = timeout;

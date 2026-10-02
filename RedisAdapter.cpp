@@ -165,9 +165,18 @@ RedisAdapter::ReaderHandle RedisAdapter::subscribeStream(const string& subKey, S
 RedisAdapter::ReaderHandle RedisAdapter::subscribeStreamWithEpoch(const string& subKey, EpochStreamCallback callback,
                                                                   const SubscriptionOptions& options) {
   if (!callback) throw invalid_argument("empty stream callback");
+  return subscribeStreamWithMetadata(subKey,
+      [callback = std::move(callback)](const auto& base, const auto& sub, const auto& batch, const auto& metadata) {
+        callback(base, sub, batch, metadata.epoch);
+      }, options);
+}
+
+RedisAdapter::ReaderHandle RedisAdapter::subscribeStreamWithMetadata(const string& subKey, MetadataStreamCallback callback,
+                                                                     const SubscriptionOptions& options) {
+  if (!callback) throw invalid_argument("empty stream callback");
   const auto base = options.baseKey.empty() ? _base_key : options.baseKey;
-  auto wrapped = [base, subKey, callback = std::move(callback)](const auto&, const auto&, const auto& batch, uint64_t epoch) {
-    callback(base, subKey, batch, epoch);
+  auto wrapped = [base, subKey, callback = std::move(callback)](const auto&, const auto&, const auto& batch, const auto& metadata) {
+    callback(base, subKey, batch, metadata);
   };
   return ReaderHandle(_reader_owner, register_reader(build_key(subKey, options.baseKey),
       [](const auto&, const auto&, const auto&) {}, options.afterId, true,
@@ -364,14 +373,14 @@ bool RedisAdapter::add_reader_helper(const string& baseKey, const string& subKey
 }
 
 shared_ptr<RedisAdapter::ReaderRegistration>
-RedisAdapter::register_reader(const string& key, reader_sub_fn func, const string& afterId, bool resolveTail, uint32_t probeMs, EpochStreamCallback epochCallback)
+RedisAdapter::register_reader(const string& key, reader_sub_fn func, const string& afterId, bool resolveTail, uint32_t probeMs, MetadataStreamCallback metadataCallback)
 {
   if (!func) throw invalid_argument("empty stream callback");
   if (afterId != "$") compareStreamIds(afterId, "0-0");
   auto registration = make_shared<ReaderRegistration>();
   registration->cursor = afterId;
   registration->callback = std::move(func);
-  registration->epochCallback = std::move(epochCallback);
+  registration->metadataCallback = std::move(metadataCallback);
   registration->probeMs = resolveTail ? (probeMs == UINT32_MAX ? _options.readerProbeMs : probeMs) : 0;
   registration->status.epoch = 1;
   uint32_t token;
@@ -806,21 +815,22 @@ bool RedisAdapter::start_reader(uint32_t token)
           auto data = make_shared<const ItemStream>(std::move(item.second));
           ++info.boundaries[item.first].readVersion;
           for (const auto& registration : subscriptions->second) {
-            uint64_t epoch;
+            StreamBatchMetadata metadata;
             {
               lock_guard<mutex> lock(registration->mutex);
-              epoch = registration->status.epoch;
+              metadata.epoch = registration->status.epoch;
+              metadata.readRejections = registration->status.readRejections;
               if (registration->observedCursor == "$" || compareStreamIds(data->back().first, registration->observedCursor) > 0)
                 registration->observedCursor = data->back().first;
               registration->status.streamKind = StreamKind::Stream;
               registration->status.hasData = true;
             }
-            _replier_pool.job(item.first, [registration, base, sub, data, epoch]() {
+            _replier_pool.job(item.first, [registration, base, sub, data, metadata]() {
               if (!registration->active.load()) return;
               size_t first = 0;
               {
                 lock_guard<mutex> cursorLock(registration->mutex);
-                if (registration->status.epoch != epoch) return;
+                if (registration->status.epoch != metadata.epoch) return;
                 while (first < data->size() && registration->cursor != "$" &&
                        compareStreamIds((*data)[first].first, registration->cursor) <= 0) ++first;
                 if (first == data->size()) return;
@@ -829,13 +839,13 @@ bool RedisAdapter::start_reader(uint32_t token)
               if (!registration->active.load()) return;
               {
                 lock_guard<mutex> lock(registration->mutex);
-                if (registration->status.epoch != epoch) return;
+                if (registration->status.epoch != metadata.epoch) return;
                 ++registration->status.callbacks;
                 registration->status.entries += data->size() - first;
                 registration->status.lastReceived = steady_clock::now();
               }
               const auto invoke = [&](const ItemStream& batch) {
-                if (registration->epochCallback) registration->epochCallback(base, sub, batch, epoch);
+                if (registration->metadataCallback) registration->metadataCallback(base, sub, batch, metadata);
                 else registration->callback(base, sub, batch);
               };
               try {
