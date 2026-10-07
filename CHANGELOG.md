@@ -3,6 +3,21 @@
 This project follows [Semantic Versioning](https://semver.org/). Library release
 versions are independent of the RedisAdapter wire-protocol version.
 
+## [Unreleased]
+
+### Added
+
+- Independent connection-establishment timeout and an isolated Redis test helper.
+
+### Changed
+
+- Blocking stream reads use a separate pool sized to the configured reader count.
+- Physical XREAD cycles are bounded with socket-deadline slack.
+
+### Fixed
+
+- Failed connection replacement preserves existing clients.
+
 ## [0.1.0] - 2026-07-15
 
 Initial public library release.

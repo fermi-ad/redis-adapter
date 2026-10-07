@@ -27,11 +27,20 @@ standalone connection. Setting `cxn.path` selects a Unix-domain socket and makes
 | `cxn.port` | `uint16_t` | `6379` | TCP port. |
 | `cxn.user` | `std::string` | `default` | Redis ACL username. |
 | `cxn.password` | `std::string` | empty | Redis ACL password. |
-| `cxn.timeout` | `uint32_t` | `500` | Socket and blocking-read timeout in milliseconds. |
-| `cxn.size` | `uint16_t` | `5` | redis-plus-plus connection-pool size. |
+| `cxn.timeout` | `uint32_t` | `500` | Command socket timeout and requested XREAD interval in milliseconds; zero disables the command socket deadline. |
+| `cxn.connectTimeout` | `uint32_t` | `500` | Connection-establishment timeout in milliseconds; zero explicitly disables it. |
+| `cxn.size` | `uint16_t` | `5` | Command connection-pool size; blocking reads use a separate pool sized to `readers`. |
 | `dogname` | `std::string` | empty | If set, maintain a one-second field-TTL watchdog for this name. |
 | `workers` | `uint16_t` | `1` | Worker threads used to dispatch reader callbacks. |
 | `readers` | `uint16_t` | `1` | Reader threads across which stream keys are deterministically sharded. |
+
+Blocking reads do not consume command-pool connections. Their physical XREAD
+cycles are at most one second, including when `cxn.timeout` is zero, and their
+socket deadline includes at least 250 ms of slack. An idle NIL reply is a
+successful read. A socket timeout is a transport failure rather than an idle
+result. Command-pool waiting retains redis-plus-plus's default policy instead
+of being tied to the socket timeout. A failed connection replacement leaves
+the previous clients available; successful replacement swaps both pools.
 
 Credentials are passed directly to redis-plus-plus. Keep them out of source
 control and populate `RA_Options` from the consuming application's secret or

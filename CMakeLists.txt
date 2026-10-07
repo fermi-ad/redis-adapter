@@ -7,7 +7,9 @@ endif()
 
 project(redis-adapter VERSION ${REDIS_ADAPTER_VERSION} LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 17)
+endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Find our cmake modules
@@ -81,6 +83,9 @@ if(REDIS_ADAPTER_TEST)
   enable_testing()
   add_subdirectory(googletest)
   include(GoogleTest)
+  add_executable(redis-connection-policy-test connection_policy_test.cpp)
+  target_link_libraries(redis-connection-policy-test ${REDIS_ADAPTER_LIBRARIES} GTest::gtest_main)
+  gtest_discover_tests(redis-connection-policy-test PROPERTIES TIMEOUT 10)
   add_executable(redis-adapter-test ${REDIS_ADAPTER_SOURCES} test.cpp)
   target_link_libraries(redis-adapter-test ${REDIS_ADAPTER_LIBRARIES} GTest::gtest_main)
   gtest_discover_tests(redis-adapter-test)

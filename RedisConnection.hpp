@@ -3,6 +3,7 @@
 #include "sw/redis++/redis++.h"
 #include <syslog.h>
 #include <mutex>
+#include <algorithm>
 
 namespace swr = sw::redis;
 namespace chr = std::chrono;
@@ -38,6 +39,7 @@ public:
     uint32_t timeout = 500;   //  milliseconds
     uint16_t port = 6379;
     uint16_t size = 5;
+    uint32_t connectTimeout = 500;  // milliseconds; zero explicitly disables it
   };
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -45,7 +47,8 @@ public:
   //
   //    options : see RedisConnection::Options above
   //
-  RedisConnection(const Options& opts)
+  RedisConnection(const Options& opts, uint16_t readerPoolSize = 1)
+    : _reader_pool_size(std::max<uint16_t>(1, readerPoolSize))
   {
     if ( ! connect(opts)) syslog(LOG_ERR, "RedisConnection failed to connect in constructor");
   }
@@ -92,6 +95,7 @@ public:
     co.user = opts.user;
     co.password = opts.password;
     co.socket_timeout = chr::milliseconds(opts.timeout);
+    co.connect_timeout = chr::milliseconds(opts.connectTimeout);
 
     cpo.size = opts.size;
 
@@ -106,6 +110,8 @@ public:
     //  of a blocking redis call can starve a writer under continuous read traffic)
     std::shared_ptr<swr::RedisCluster> cluster;
     std::shared_ptr<swr::Redis> singler;
+    std::shared_ptr<swr::RedisCluster> readerCluster;
+    std::shared_ptr<swr::Redis> readerSingler;
 
     try { cluster = std::make_shared<swr::RedisCluster>(co, cpo); }  //  this one throws
     catch (...)
@@ -118,14 +124,29 @@ public:
       catch (...) { singler.reset(); }   //  reset singler to null since not really connected
     }
 
-    {
-      std::lock_guard<std::mutex> lk(_mtx);
-      _cluster = cluster;
-      _singler = singler;
-    }
-
     //  a live server is connected, either cluster OR singler is valid (but not both)
-    if (cluster || singler) return true;
+    if (cluster || singler) {
+      auto readerOptions = co;
+      // A finite XREAD cycle needs socket-deadline slack so an idle NIL reply
+      // arrives before the client times out. Reader cancellation remains bounded
+      // even when command callers deliberately select timeout == 0.
+      readerOptions.socket_timeout = chr::milliseconds(std::max<uint64_t>(1000, opts.timeout) + 250);
+      auto readerPool = cpo;
+      readerPool.size = _reader_pool_size;
+      try {
+        if (cluster) readerCluster = std::make_shared<swr::RedisCluster>(readerOptions, readerPool);
+        else readerSingler = std::make_shared<swr::Redis>(readerOptions, readerPool);
+      } catch (const swr::Error& error) {
+        syslog(LOG_WARNING, "cannot prepare blocking reader connections: %s", error.what());
+        return false;
+      }
+      std::lock_guard<std::mutex> lk(_mtx);
+      _cluster = std::move(cluster);
+      _singler = std::move(singler);
+      _reader_cluster = std::move(readerCluster);
+      _reader_singler = std::move(readerSingler);
+      return true;
+    }
 
     //  neither server type connected, log the failure and return false
     if (is_unix_socket)
@@ -277,7 +298,7 @@ public:
   //
   //    fst    : the first element of map<string, string> of: stream key -> most recent element id read
   //    lst    : the last element of map<string, string> of: stream key -> most recent element id read
-  //    tmo    : timeout in milliseconds (zero means block indefinitely)
+  //    tmo    : logical read interval; physical cycles are at most one second
   //    out    : the elements read as Streams per https://github.com/sewenew/redis-plus-plus#examples-4
   //    return : true if connected
   //             false if not connected
@@ -289,13 +310,13 @@ public:
   template<typename Input, typename Output>
   bool xreadMultiBlock(Input fst, Input lst, uint32_t tmo, Output out)
   {
-    auto [cluster, singler] = snapshot();
+    auto [cluster, singler] = snapshot(true);
+    const auto block = chr::milliseconds(tmo == 0 ? 1000 : std::min<uint32_t>(tmo, 1000));
     try
     {
-      if (cluster) { cluster->xread(fst, lst, chr::milliseconds(tmo), out); return true; }
-      if (singler) { singler->xread(fst, lst, chr::milliseconds(tmo), out); return true; }
+      if (cluster) { cluster->xread(fst, lst, block, out); return true; }
+      if (singler) { singler->xread(fst, lst, block, out); return true; }
     }
-    catch (const swr::TimeoutError&) { return true; }
     catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
     return false;
   }
@@ -636,13 +657,17 @@ private:
   //  while still guaranteeing the client object a caller obtains stays alive for the whole
   //  call even if connect() replaces _cluster/_singler concurrently
   //
-  std::pair<std::shared_ptr<swr::RedisCluster>, std::shared_ptr<swr::Redis>> snapshot()
+  std::pair<std::shared_ptr<swr::RedisCluster>, std::shared_ptr<swr::Redis>> snapshot(bool blocking = false)
   {
     std::lock_guard<std::mutex> lk(_mtx);
-    return { _cluster, _singler };
+    return blocking ? std::make_pair(_reader_cluster, _reader_singler)
+                    : std::make_pair(_cluster, _singler);
   }
 
   std::mutex _mtx;
   std::shared_ptr<swr::RedisCluster> _cluster;
   std::shared_ptr<swr::Redis>        _singler;
+  std::shared_ptr<swr::RedisCluster> _reader_cluster;
+  std::shared_ptr<swr::Redis> _reader_singler;
+  const uint16_t _reader_pool_size;
 };
