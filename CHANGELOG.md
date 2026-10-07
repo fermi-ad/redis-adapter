@@ -7,16 +7,20 @@ versions are independent of the RedisAdapter wire-protocol version.
 
 ### Added
 
-- Independent connection-establishment timeout and an isolated Redis test helper.
-
-### Changed
-
-- Blocking stream reads use a separate pool sized to the configured reader count.
-- Physical XREAD cycles are bounded with socket-deadline slack.
+- Owned subscription handles, exact stream snapshots and shared safe wire decoders.
+- Configurable per-stream XREAD entry count and behavior-focused lifecycle tests.
+- Independent connect timeout, dedicated blocking-reader pool, private Redis
+  fixtures and automatic CI for stacked PRs.
 
 ### Fixed
 
-- Failed connection replacement preserves existing clients.
+- Callback capture cleanup outside worker and reader locks, including exceptions
+  and canceled jobs; peer registrations survive handle removal.
+- Tail resolution retries, rejection-aware snapshots and future-only failure cursors.
+- Exact-width legacy decoding: malformed single items return `RA_INVALID_PAYLOAD`,
+  malformed typed callback entries are skipped, and empty arrays remain valid data.
+- Finite shutdown cycles, startup/shutdown fencing and complete-batch sharing.
+- Failed connection replacements preserve working clients and command availability.
 
 ## [0.1.0] - 2026-07-15
 
