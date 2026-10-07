@@ -90,14 +90,19 @@ The scheduler batches at most 16 due XINFO requests through an existing pooled
 connection. `XINFO STREAM FULL COUNT 1` transfers one retained payload, which can
 still be large. Active keys skip unnecessary probes. Idle intervals back off to
 at most eight times the configured interval. Denied or unsupported inspection
-backs off for 60 seconds, or is reconsidered after a subscription/reconnect
+is reconsidered after its scheduled 60-second backoff or a subscription-topology
 restart. Deadlines and ordering survive reader restarts. A backlogged scheduler
 uses nonblocking read cycles; normal cycles shorten for upcoming checks. Probe
 intervals are minimum intervals, not hard completion deadlines.
 
-Metadata inspection is standalone-only. On Redis Cluster, inspection is reported
-as unavailable evidence while normal owned and legacy XREAD delivery continues.
-Cluster routing/retry behavior remains upstream redis-plus-plus behavior.
+Subscriptions and metadata inspection use standalone Redis over TCP or a
+Unix-domain socket. Redis Cluster is unsupported. After the first successful
+`PING`, a one-time `CLUSTER INFO` check rejects detected Cluster endpoints. A
+server refusal, including ACL denial, accepts the endpoint without proving it is
+standalone. The decision is cached, and reconnects never repeat detection;
+transport failure leaves the check pending for the next connection attempt.
+Cluster users must migrate their endpoint and data to standalone Redis before
+upgrading.
 
 `ReaderHandle::status()` separates observed and delivered cursors. An empty
 cursor means unresolved future-only registration; compare IDs only when nonempty.

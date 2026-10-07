@@ -11,8 +11,7 @@ namespace chr = std::chrono;
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  class RedisConnection
 //
-//  Provides common interface to either a Redis single server or a Redis server cluster
-//  The user will not know which server type is connected
+//  Provides a common interface to a standalone Redis server
 //  If an exception is thrown in a method, the exception is logged and failure is returned
 //  If a method is called while not connected, failure is returned but not logged
 //
@@ -94,7 +93,7 @@ public:
   RedisConnection(RedisConnection&&) = delete;
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  connect : attempt to make either a cluster or single server connection
+  //  connect : attempt to make a standalone server connection
   //
   //    options : see RedisConnection::Options above
   //    return : true if live server connected
@@ -124,33 +123,21 @@ public:
 
     cpo.size = opts.size;
 
-    //  build the new client(s) into locals first, then swap them into the shared
-    //  _cluster/_singler under a brief lock - every other method takes its own
-    //  brief lock just to copy these shared_ptrs before using them (see snapshot()
-    //  below), so the old client object stays alive (via the old shared_ptr's
-    //  refcount) for as long as any in-flight call is still using it, even after
-    //  we replace _cluster/_singler here - this avoids both the original bug
-    //  (destroying a live client out from under a concurrent caller) and a
-    //  reader/writer-lock starvation problem (a lock held for the entire duration
-    //  of a blocking redis call can starve a writer under continuous read traffic)
-    std::shared_ptr<swr::RedisCluster> cluster;
-    std::shared_ptr<swr::Redis> singler;
-    std::shared_ptr<swr::RedisCluster> readerCluster;
-    std::shared_ptr<swr::Redis> readerSingler;
+    // Build both clients before taking the lock. A failed replacement leaves
+    // the established clients intact, and snapshots keep clients alive for
+    // in-flight calls after a successful replacement.
+    std::shared_ptr<swr::Redis> client;
+    std::shared_ptr<swr::Redis> reader;
 
-    try { cluster = std::make_shared<swr::RedisCluster>(co, cpo); }  //  this one throws
-    catch (...)
+    try
     {
-      try
-      {
-        singler = std::make_shared<swr::Redis>(co, cpo);   //  this one does not
-        singler->ping();                                   //  but this one does
-      }
-      catch (...) { singler.reset(); }   //  reset singler to null since not really connected
+      client = std::make_shared<swr::Redis>(co, cpo);
+      client->ping();
     }
+    catch (...) { client.reset(); }
 
-    //  a live server is connected, either cluster OR singler is valid (but not both)
-    if (cluster || singler) {
+    if (client) {
+      if (!acceptStandalone(client)) return false;
       auto readerOptions = co;
       // A finite XREAD cycle needs socket-deadline slack so an idle NIL reply
       // arrives before the client times out. Reader cancellation remains bounded
@@ -159,21 +146,18 @@ public:
       auto readerPool = cpo;
       readerPool.size = _reader_pool_size;
       try {
-        if (cluster) readerCluster = std::make_shared<swr::RedisCluster>(readerOptions, readerPool);
-        else readerSingler = std::make_shared<swr::Redis>(readerOptions, readerPool);
+        reader = std::make_shared<swr::Redis>(readerOptions, readerPool);
       } catch (const swr::Error& error) {
         syslog(LOG_WARNING, "cannot prepare blocking reader connections: %s", error.what());
         return false;
       }
       std::lock_guard<std::mutex> lk(_mtx);
-      _cluster = std::move(cluster);
-      _singler = std::move(singler);
-      _reader_cluster = std::move(readerCluster);
-      _reader_singler = std::move(readerSingler);
+      _client = std::move(client);
+      _reader = std::move(reader);
       return true;
     }
 
-    //  neither server type connected, log the failure and return false
+    // No server connected; log the failure and retain established clients.
     if (is_unix_socket)
       syslog(LOG_ERR, "RedisConnection can't connnect to %s", co.path.c_str());
     else
@@ -190,11 +174,11 @@ public:
   //
   bool ping(const std::string& key = "ping")
   {
-    auto [cluster, singler] = snapshot();
+    (void)key;  // Retained for source compatibility.
+    auto client = snapshot();
     try
     {
-      if (cluster) return cluster->redis(key, false).ping().compare("PONG") == 0;
-      if (singler) return singler->ping().compare("PONG") == 0;
+      if (client) return client->ping().compare("PONG") == 0;
     }
     catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
     return false;
@@ -210,11 +194,10 @@ public:
   //
   int32_t del(const std::string& key)
   {
-    auto [cluster, singler] = snapshot();
+    auto client = snapshot();
     try
     {
-      if (cluster) return cluster->del(key);
-      if (singler) return singler->del(key);
+      if (client) return client->del(key);
     }
     catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
     return -1;
@@ -235,11 +218,10 @@ public:
   bool xrange(const std::string& key, const std::string& beg,
               const std::string& end, uint32_t cnt, Output out)
   {
-    auto [cluster, singler] = snapshot();
+    auto client = snapshot();
     try
     {
-      if (cluster) { cluster->xrange(key, beg, end, cnt, out); return true; }
-      if (singler) { singler->xrange(key, beg, end, cnt, out); return true; }
+      if (client) { client->xrange(key, beg, end, cnt, out); return true; }
     }
     catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
     return false;
@@ -259,11 +241,10 @@ public:
   bool xrange(const std::string& key, const std::string& beg,
               const std::string& end, Output out)
   {
-    auto [cluster, singler] = snapshot();
+    auto client = snapshot();
     try
     {
-      if (cluster) { cluster->xrange(key, beg, end, out); return true; }
-      if (singler) { singler->xrange(key, beg, end, out); return true; }
+      if (client) { client->xrange(key, beg, end, out); return true; }
     }
     catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
     return false;
@@ -287,10 +268,9 @@ public:
   {
     if (status) *status = ReadStatus::Unavailable;
     if (wrongType) *wrongType = false;
-    auto [cluster, singler] = snapshot();
+    auto client = snapshot();
     try {
-      if (cluster) cluster->xrevrange(key, end, beg, cnt, out);
-      else if (singler) singler->xrevrange(key, end, beg, cnt, out);
+      if (client) client->xrevrange(key, end, beg, cnt, out);
       else return false;
       if (status) *status = ReadStatus::Accepted;
       return true;
@@ -308,11 +288,10 @@ public:
                  bool* wrongType = nullptr) {
     if (status) *status = ReadStatus::Unavailable;
     if (wrongType) *wrongType = false;
-    auto [cluster, singler] = snapshot();
+    auto client = snapshot();
     const std::vector<std::pair<std::string, std::string>> keys{{key, "+"}};
     try {
-      if (cluster) cluster->xread(keys.begin(), keys.end(), 1, out);
-      else if (singler) singler->xread(keys.begin(), keys.end(), 1, out);
+      if (client) client->xread(keys.begin(), keys.end(), 1, out);
       else return false;
       if (status) *status = ReadStatus::Accepted;
       return true;
@@ -337,11 +316,10 @@ public:
   bool xrevrange(const std::string& key, const std::string& end,
                  const std::string& beg, Output out)
   {
-    auto [cluster, singler] = snapshot();
+    auto client = snapshot();
     try
     {
-      if (cluster) { cluster->xrevrange(key, end, beg, out); return true; }
-      if (singler) { singler->xrevrange(key, end, beg, out); return true; }
+      if (client) { client->xrevrange(key, end, beg, out); return true; }
     }
     catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
     return false;
@@ -357,10 +335,6 @@ public:
   //    return : true if connected
   //             false if not connected
   //
-  //  Note that this method will fail on a cluster unless the specified keys all hash to the same slot
-  //    https://stackoverflow.com/questions/38042629/redis-cross-slot-error
-  //    https://redis.io/docs/reference/cluster-spec/
-  //
   template<typename Input, typename Output>
   bool xreadMultiBlock(Input fst, Input lst, uint32_t tmo, Output out,
                        ReadStatus* status = nullptr, uint32_t count = 64,
@@ -368,19 +342,16 @@ public:
   {
     if (status) *status = ReadStatus::Unavailable;
     if (socketTimedOut) *socketTimedOut = false;
-    auto [cluster, singler] = snapshot(true);
+    auto client = snapshot(true);
     const auto block = chr::milliseconds(tmo == 0 ? 1000 : std::min<uint32_t>(tmo, 1000));
     using Fields = std::unordered_map<std::string, std::string>;
     using Entries = std::vector<std::pair<std::string, Fields>>;
     std::unordered_map<std::string, Entries> result;
     try {
       const auto destination = std::inserter(result, result.end());
-      if (cluster) {
-        if (blocking) cluster->xread(fst, lst, block, std::max<uint32_t>(1, count), destination);
-        else cluster->xread(fst, lst, std::max<uint32_t>(1, count), destination);
-      } else if (singler) {
-        if (blocking) singler->xread(fst, lst, block, std::max<uint32_t>(1, count), destination);
-        else singler->xread(fst, lst, std::max<uint32_t>(1, count), destination);
+      if (client) {
+        if (blocking) client->xread(fst, lst, block, std::max<uint32_t>(1, count), destination);
+        else client->xread(fst, lst, std::max<uint32_t>(1, count), destination);
       }
       else return false;
       if (status) *status = result.empty() ? ReadStatus::TimedOut : ReadStatus::Accepted;
@@ -410,7 +381,7 @@ public:
   // and type contract that a shared blocking read needs.
   ReadProbe probeReadable(const std::vector<std::string>& keys) {
     if (keys.empty()) return {ReadStatus::Accepted};
-    auto [cluster, singler] = snapshot();
+    auto client = snapshot();
     std::vector<std::pair<std::string, std::string>> cursors;
     cursors.reserve(keys.size());
     for (const auto& key : keys) cursors.emplace_back(key, "$" );
@@ -419,8 +390,7 @@ public:
     std::unordered_map<std::string, Entries> ignored;
     try {
       auto out = std::inserter(ignored, ignored.end());
-      if (cluster) cluster->xread(cursors.begin(), cursors.end(), 1, out);
-      else if (singler) singler->xread(cursors.begin(), cursors.end(), 1, out);
+      if (client) client->xread(cursors.begin(), cursors.end(), 1, out);
       else return {};
       return {ReadStatus::Accepted};
     } catch (const swr::ReplyError& error) {
@@ -432,18 +402,13 @@ public:
   }
 
   // Bounded pipeline depth is chosen by the scheduler. FULL COUNT 1 transfers
-  // one retained payload rather than both first/last payloads. Cluster metadata
-  // inspection is unsupported, independently of its working XREAD path.
+  // one retained payload rather than both first/last payloads.
   std::vector<StreamBounds> streamBoundsBatch(const std::vector<std::string>& keys) {
     std::vector<StreamBounds> result(keys.size());
-    auto [cluster, singler] = snapshot();
-    if (cluster) {
-      for (auto& item : result) item.status = CommandStatus::Rejected;
-      return result;
-    }
-    if (!singler) return result;
+    auto client = snapshot();
+    if (!client) return result;
     try {
-      auto pipeline = singler->pipeline(false);
+      auto pipeline = client->pipeline(false);
       for (const auto& key : keys) pipeline.command("XINFO", "STREAM", key, "FULL", "COUNT", 1);
       auto replies = pipeline.exec();
       for (size_t index = 0; index < keys.size(); ++index) {
@@ -465,14 +430,12 @@ public:
     return xaddResult(key, id, fst, lst).id;
   }
 
-  // Standalone writes are never automatically replayed here. RedisCluster may
-  // retry internally after a lost reply; callers must account for that policy.
+  // Writes are never automatically replayed here after a lost reply.
   template<typename Input>
   WriteResult xaddResult(const std::string& key, const std::string& id, Input fst, Input lst) {
-    auto [cluster, singler] = snapshot();
+    auto client = snapshot();
     try {
-      if (cluster) return {CommandStatus::Accepted, cluster->xadd(key, id, fst, lst)};
-      if (singler) return {CommandStatus::Accepted, singler->xadd(key, id, fst, lst)};
+      if (client) return {CommandStatus::Accepted, client->xadd(key, id, fst, lst)};
     } catch (const swr::ReplyError& error) { return replyFailure(error); }
       catch (const swr::Error& error) { return {CommandStatus::Unavailable, {}, error.what()}; }
     return {};
@@ -488,10 +451,9 @@ public:
   //             -1 if unsuccsessful or not connected
   //
   TrimResult xtrimResult(const std::string& key, uint32_t threshold, bool approximate = true) {
-    auto [cluster, singler] = snapshot();
+    auto client = snapshot();
     try {
-      if (cluster) return {CommandStatus::Accepted, cluster->xtrim(key, threshold, approximate)};
-      if (singler) return {CommandStatus::Accepted, singler->xtrim(key, threshold, approximate)};
+      if (client) return {CommandStatus::Accepted, client->xtrim(key, threshold, approximate)};
     } catch (const swr::ReplyError& error) {
       const auto rejected = replyFailure(error);
       return {rejected.status, -1, rejected.error, rejected.refreshConnection};
@@ -531,10 +493,9 @@ public:
   template<typename Input>
   WriteResult xaddTrimResult(const std::string& key, const std::string& id,
                             Input fst, Input lst, uint32_t threshold, bool approximate = true) {
-    auto [cluster, singler] = snapshot();
+    auto client = snapshot();
     try {
-      if (cluster) return {CommandStatus::Accepted, cluster->xadd(key, id, fst, lst, threshold, approximate)};
-      if (singler) return {CommandStatus::Accepted, singler->xadd(key, id, fst, lst, threshold, approximate)};
+      if (client) return {CommandStatus::Accepted, client->xadd(key, id, fst, lst, threshold, approximate)};
     } catch (const swr::ReplyError& error) { return replyFailure(error); }
       catch (const swr::Error& error) { return {CommandStatus::Unavailable, {}, error.what()}; }
     return {};
@@ -550,31 +511,10 @@ public:
   //
   int32_t exists(const std::string& key)
   {
-    auto [cluster, singler] = snapshot();
+    auto client = snapshot();
     try
     {
-      if (cluster) return cluster->exists(key);
-      if (singler) return singler->exists(key);
-    }
-    catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
-    return -1;
-  }
-
-  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  keyslot : find the cluster slot for a key
-  //
-  //    key    : the key to find a slot for
-  //    return : the slot number if successful
-  //             0 if connected to a single redis
-  //            -1 if unsuccsessful or not connected
-  //
-  int32_t keyslot(const std::string& key)
-  {
-    auto [cluster, singler] = snapshot();
-    try
-    {
-      if (cluster) return cluster->command<long long>("cluster", "keyslot", key);
-      if (singler) return 0;
+      if (client) return client->exists(key);
     }
     catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
     return -1;
@@ -588,23 +528,16 @@ public:
   //    return : 1 if key copied
   //             0 if key not copied
   //            -1 if error or not connected
-  //            -2 if CROSSSLOT error
-  //
-  //  Note that this method will fail on a cluster unless src and dst hash to the same slot
-  //    https://stackoverflow.com/questions/38042629/redis-cross-slot-error
-  //    https://redis.io/docs/reference/cluster-spec/
   //
   int32_t copy(const std::string& src, const std::string& dst)
   {
-    auto [cluster, singler] = snapshot();
+    auto client = snapshot();
     try
     {
-      if (cluster) return cluster->command<long long>("copy", src, dst);
-      if (singler) return singler->command<long long>("copy", src, dst);
+      if (client) return client->command<long long>("copy", src, dst);
     }
     catch (const swr::Error& e)
     {
-      if (std::string(e.what()).find("CROSSSLOT") != std::string::npos) return -2;
       syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what());
     }
     return -1;
@@ -618,17 +551,12 @@ public:
   //    return : true if connected
   //             false if not connected
   //
-  //  Note that this method will fail on a cluster unless src and dst hash to the same slot
-  //    https://stackoverflow.com/questions/38042629/redis-cross-slot-error
-  //    https://redis.io/docs/reference/cluster-spec/
-  //
   bool rename(const std::string& src, const std::string& dst)
   {
-    auto [cluster, singler] = snapshot();
+    auto client = snapshot();
     try
     {
-      if (cluster) { cluster->rename(src, dst); return true; }
-      if (singler) { singler->rename(src, dst); return true; }
+      if (client) { client->rename(src, dst); return true; }
     }
     catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
     return false;
@@ -641,12 +569,12 @@ public:
   //
   std::vector<std::string> time(const std::string& key = "time")
   {
-    auto [cluster, singler] = snapshot();
+    (void)key;  // Retained for source compatibility.
+    auto client = snapshot();
     std::vector<std::string> ret;
     try
     {
-      if (cluster) cluster->redis(key, false).command("time", std::back_inserter(ret));
-      if (singler) singler->command("time", std::back_inserter(ret));
+      if (client) client->command("time", std::back_inserter(ret));
     }
     catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
     return ret;
@@ -663,11 +591,10 @@ public:
   //
   int32_t hexists(const std::string& key, const std::string& fld)
   {
-    auto [cluster, singler] = snapshot();
+    auto client = snapshot();
     try
     {
-      if (cluster) return cluster->hexists(key, fld);
-      if (singler) return singler->hexists(key, fld);
+      if (client) return client->hexists(key, fld);
     }
     catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
     return -1;
@@ -684,11 +611,10 @@ public:
   //
   bool hset(const std::string& key, const std::string& fld, const std::string& val)
   {
-    auto [cluster, singler] = snapshot();
+    auto client = snapshot();
     try
     {
-      if (cluster) return cluster->hset(key, fld, val) >= 0;
-      if (singler) return singler->hset(key, fld, val) >= 0;
+      if (client) return client->hset(key, fld, val) >= 0;
     }
     catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
     return false;
@@ -709,12 +635,11 @@ public:
   //
   int32_t hexpire(const std::string& key, const std::string& fld, uint32_t sec)
   {
-    auto [cluster, singler] = snapshot();
+    auto client = snapshot();
     std::vector<long long> ret;
     try
     {
-      if (cluster) cluster->command("hexpire", key, std::to_string(sec), "fields", "1", fld, std::back_inserter(ret));
-      if (singler) singler->command("hexpire", key, std::to_string(sec), "fields", "1", fld, std::back_inserter(ret));
+      if (client) client->command("hexpire", key, std::to_string(sec), "fields", "1", fld, std::back_inserter(ret));
     }
     catch (const swr::Error& e)
     {
@@ -742,12 +667,11 @@ public:
   //
    std::vector<std::string> hkeys(const std::string& key)
   {
-    auto [cluster, singler] = snapshot();
+    auto client = snapshot();
     std::vector<std::string> ret;
     try
     {
-      if (cluster) cluster->hkeys(key, std::back_inserter(ret));
-      if (singler) singler->hkeys(key, std::back_inserter(ret));
+      if (client) client->hkeys(key, std::back_inserter(ret));
     }
     catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
     return ret;
@@ -766,11 +690,10 @@ public:
   //
   swr::Subscriber* subscriber()
   {
-    auto [cluster, singler] = snapshot();
+    auto client = snapshot();
     try
     {
-      if (cluster) { return new swr::Subscriber(cluster->subscriber()); }
-      if (singler) { return new swr::Subscriber(singler->subscriber()); }
+      if (client) { return new swr::Subscriber(client->subscriber()); }
     }
     catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
     return 0;
@@ -786,17 +709,44 @@ public:
   //
   int32_t publish(const std::string& chn, const std::string& msg)
   {
-    auto [cluster, singler] = snapshot();
+    auto client = snapshot();
     try
     {
-      if (cluster) return cluster->publish(chn, msg);
-      if (singler) return singler->publish(chn, msg);
+      if (client) return client->publish(chn, msg);
     }
     catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
     return -1;
   }
 
 private:
+  enum class InitialServer { Unchecked, Accepted, Unsupported };
+
+  // Probe only the first reachable server. This separate lock serializes
+  // concurrent initial connects without holding the client snapshot lock
+  // during network I/O. Transport failures leave the probe pending.
+  bool acceptStandalone(const std::shared_ptr<swr::Redis>& client) {
+    std::lock_guard<std::mutex> lock(_probe_mtx);
+    if (_initial_server != InitialServer::Unchecked)
+      return _initial_server == InitialServer::Accepted;
+    try {
+      client->command<std::string>("CLUSTER", "INFO");
+      _initial_server = InitialServer::Unsupported;
+      syslog(LOG_ERR, "RedisConnection does not support Redis Cluster; use a standalone Redis server");
+      return false;
+    } catch (const swr::ReplyError& error) {
+      const std::string message = error.what();
+      // Standalone Redis rejects CLUSTER INFO. Restricted users may receive
+      // NOPERM instead; that is inconclusive and must not reject the server.
+      if (message.find("cluster support disabled") == std::string::npos)
+        syslog(LOG_WARNING, "RedisConnection cannot determine server mode; proceeding with standalone commands: %s", error.what());
+      _initial_server = InitialServer::Accepted;
+      return true;
+    } catch (const swr::Error& error) {
+      syslog(LOG_WARNING, "RedisConnection initial server mode probe failed: %s", error.what());
+      return false;
+    }
+  }
+
   static StreamBounds rejectedBounds(const std::string& message) {
     if (message.rfind("ERR no such key", 0) == 0) return {CommandStatus::Accepted, StreamKind::Missing};
     if (message.rfind("WRONGTYPE", 0) == 0) return {CommandStatus::Accepted, StreamKind::Invalid};
@@ -830,25 +780,22 @@ private:
     return {CommandStatus::Rejected, {}, message, refresh};
   }
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  snapshot : copy the current _cluster/_singler shared_ptrs under a brief lock
+  //  snapshot : copy the selected client shared_ptr under a brief lock
   //
-  //  The lock is only held long enough to bump a refcount (a few instructions), never for
-  //  the duration of a redis call (which can block for hundreds of ms) - this is what lets
-  //  connect() safely swap in new clients without starving callers under continuous traffic,
-  //  while still guaranteeing the client object a caller obtains stays alive for the whole
-  //  call even if connect() replaces _cluster/_singler concurrently
+  //  The lock only protects the refcount copy, never a Redis call. This lets
+  //  connect() replace clients without starving callers and keeps the selected
+  //  client alive for the full call even during concurrent replacement.
   //
-  std::pair<std::shared_ptr<swr::RedisCluster>, std::shared_ptr<swr::Redis>> snapshot(bool blocking = false)
+  std::shared_ptr<swr::Redis> snapshot(bool blocking = false)
   {
     std::lock_guard<std::mutex> lk(_mtx);
-    return blocking ? std::make_pair(_reader_cluster, _reader_singler)
-                    : std::make_pair(_cluster, _singler);
+    return blocking ? _reader : _client;
   }
 
   std::mutex _mtx;
-  std::shared_ptr<swr::RedisCluster> _cluster;
-  std::shared_ptr<swr::Redis>        _singler;
-  std::shared_ptr<swr::RedisCluster> _reader_cluster;
-  std::shared_ptr<swr::Redis> _reader_singler;
+  std::mutex _probe_mtx;
+  InitialServer _initial_server = InitialServer::Unchecked;
+  std::shared_ptr<swr::Redis> _client;
+  std::shared_ptr<swr::Redis> _reader;
   const uint16_t _reader_pool_size;
 };

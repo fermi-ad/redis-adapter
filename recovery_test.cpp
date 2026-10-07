@@ -349,28 +349,3 @@ TEST_P(Recovery, AuthenticationFailureClearsConnectedEvenWithoutInspection) {
 }
 
 INSTANTIATE_TEST_SUITE_P(Workers, Recovery, testing::Values(1u, 4u));
-
-TEST(ClusterRecovery, UnsupportedInspectionKeepsOwnedAndLegacyReadsFlowing) {
-  const auto* port = std::getenv("REDIS_ADAPTER_CLUSTER_TEST_PORT");
-  if (!port || !std::getenv("REDIS_ADAPTER_ISOLATED_TEST")) GTEST_SKIP() << "Use an isolated Redis Cluster fixture";
-  RA_Options options; options.cxn.port = std::stoi(port); options.cxn.timeout = 100; options.readerProbeMs = 20;
-  const auto base = "cluster-review-" + std::to_string(getpid()) + "-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
-  Seen owned, legacy;
-  RA adapter(base, options), producer(base, options);
-  RA::SubscriptionOptions selection; selection.afterId = "0-0";
-  auto handle = adapter.subscribeStream("owned", [&](const auto&, const auto&, const auto& entries) { owned.append(entries); }, selection);
-  ASSERT_TRUE(adapter.addValuesReader<RA::Attrs>("legacy", [&](const auto&, const auto&, const auto& entries) {
-    RA::StreamBatch batch; for (const auto& entry : entries) batch.emplace_back(entry.first.id(), entry.second); legacy.append(batch);
-  }));
-  EVENTUALLY(handle.status().inspectionRejections > 0 && handle.status().connected);
-  for (unsigned i = 1; i <= 6; ++i) {
-    RA_ArgsAdd args; args.time = RA_Time(int64_t(i) * 1000000); args.trim = 0;
-    ASSERT_TRUE(producer.addSingleDouble("owned", 1., args).ok());
-    ASSERT_TRUE(producer.addSingleDouble("legacy", 1., args).ok());
-  }
-  ASSERT_TRUE(owned.wait("6-0")); ASSERT_TRUE(legacy.wait("6-0"));
-  EXPECT_EQ(owned.size(), 6u); EXPECT_EQ(legacy.size(), 6u);
-  EXPECT_FALSE(handle.status().inspected);
-  handle.reset(); adapter.removeReader("legacy");
-  producer.del("owned"); producer.del("legacy");
-}

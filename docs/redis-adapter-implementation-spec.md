@@ -10,6 +10,15 @@ format, and baseline recovery behavior for RedisAdapter-compatible primary data 
 RedisAdapter itself is the reference implementation. This document is the protocol description for
 interoperation with that ecosystem.
 
+The reference implementation supports standalone Redis over TCP or Unix-domain sockets only.
+Redis Cluster is unsupported. After the first successful `PING`, the adapter sends `CLUSTER INFO`
+before making the connection available. A successful reply rejects the endpoint as Cluster; a server
+refusal, including ACL denial, accepts it without proving it is standalone. The decision is cached,
+and reconnects never repeat detection. A transport failure leaves detection pending for the next
+connection attempt. Users of a Cluster deployment must migrate their endpoint and data to standalone
+Redis before upgrading. This implementation change leaves the version 1.0 wire protocol and its key
+format unchanged.
+
 ## 1. Scope
 
 This specification covers:
@@ -85,8 +94,9 @@ Where:
 - `<baseKey>` is a producer-defined device or subsystem namespace.
 - `<subKey>` identifies a specific function or data class.
 
-The curly braces are REQUIRED. They force Redis Cluster hash tagging so keys with the same base key
-reside in the same cluster slot.
+The literal curly braces are REQUIRED for compatibility with the existing wire protocol, stored data
+and producers. They remain part of the key format even though the reference implementation supports
+only standalone Redis.
 
 ### 5.2 Allowed Characters
 

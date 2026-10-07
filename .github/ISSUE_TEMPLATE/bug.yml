@@ -17,8 +17,15 @@ body:
   - type: input
     id: redis
     attributes:
-      label: Redis version and deployment mode
-      placeholder: Redis 7.4.2 standalone, cluster, or Unix socket
+      label: Redis version and connection type
+      description: >-
+        Standalone Redis over TCP or a Unix-domain socket is supported.
+        Redis Cluster is unsupported. A one-time CLUSTER INFO check after PING
+        rejects detected Cluster endpoints; server refusal, including ACL denial,
+        accepts the endpoint without proving it is standalone. The decision is
+        cached and reconnects never repeat the check. A transport failure leaves
+        detection pending for the next connection attempt.
+      placeholder: Redis 7.4.2 standalone over TCP or Unix socket
     validations:
       required: true
   - type: textarea

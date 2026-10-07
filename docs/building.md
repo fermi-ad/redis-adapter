@@ -10,8 +10,8 @@ The core library requires:
 - POSIX threads and syslog support.
 - The pinned hiredis and redis-plus-plus submodules.
 
-Tests additionally require GoogleTest and a running Redis server. The complete
-suite, including watchdog behavior, requires Redis 7.4 or newer because it uses
+Tests additionally require GoogleTest and a running standalone Redis server. The
+complete suite, including watchdog behavior, requires Redis 7.4 or newer because it uses
 the `HEXPIRE` command. Benchmarks require Google Benchmark. Those dependencies
 are pinned as submodules and are fetched by a recursive clone.
 
@@ -152,10 +152,6 @@ Recovery tests require an isolated Redis fixture with ACL administration and
 CLIENT KILL privileges. They create unique users/keys, terminate only the test
 user's clients, and clean up their namespace. Run through the private test helper
 or the dedicated CI fixture; do not point fault tests at a shared Redis service.
-
-On Linux with Docker, run the private three-master fixture with
-`scripts/run-test-redis-cluster.py -- ctest --test-dir build -R ClusterRecovery
---output-on-failure`. It binds only loopback ports and removes its own containers.
 
 GoogleTest and hiredis pins are updated manually from upstream releases. Their
 release tags live outside the default branch used by Dependabot, so its submodule

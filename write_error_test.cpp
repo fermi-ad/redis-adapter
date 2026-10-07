@@ -129,7 +129,16 @@ static int proxyScenario(const std::string& mode) {
     sw::redis::Redis& control; std::string base;
     ~Keys() { try { std::vector<std::string> keys; control.keys("*" + base + "*", std::back_inserter(keys)); if (!keys.empty()) control.del(keys.begin(), keys.end()); } catch (...) {} }
   } cleanup{control, base};
-  if (mode == "fault") {
+  if (mode == "constructor") {
+    RA adapter(base, options);
+    expect(adapter.addSingleDouble("healthy", 1.).ok(), "constructor must publish a usable standalone connection");
+  } else if (mode == "cluster-refusal") {
+    RedisConnection connection(options.cxn);
+    expect(!connection.connect(options.cxn), "detected Cluster mode must remain unsupported on reconnect");
+    const RA::Attrs attrs{{"_", "value"}};
+    expect(connection.xaddResult("{" + base + "}:unsupported", "1-0", attrs.begin(), attrs.end()).status ==
+           RedisConnection::CommandStatus::Unavailable, "unsupported Cluster connection must not publish a writer");
+  } else if (mode == "fault") {
     { RA adapter(base, options); expect(adapter.addSingleDouble("lost-reply", 1.) == RA_NOT_CONNECTED, "lost reply must remain ambiguous"); }
     {
       RA adapter(base, options);

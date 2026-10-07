@@ -16,9 +16,17 @@ options.cxn.password = "secret";
 RedisAdapter redis("BPM01", options);
 ```
 
-`RedisAdapter` first attempts a Redis Cluster connection and falls back to a
-standalone connection. Setting `cxn.path` selects a Unix-domain socket and makes
-`host` and `port` inapplicable.
+`RedisAdapter` supports standalone Redis over TCP or a Unix-domain socket only.
+Setting `cxn.path` selects a Unix-domain socket and makes `host` and `port`
+inapplicable. Redis Cluster is unsupported. After the first successful `PING`,
+the adapter sends `CLUSTER INFO` before making clients available. Any successful
+reply rejects the endpoint as Cluster. A server refusal, including a standalone
+server's disabled-Cluster response or ACL denial, accepts the endpoint; this does
+not prove it is standalone. Unexpected refusals are logged. The decision is
+cached, and reconnects never repeat the probe. A transport failure fails that
+connection attempt and leaves detection pending for the next successful attempt.
+Users of a Cluster deployment must migrate their endpoint and data to standalone
+Redis before upgrading.
 
 | Option | Type | Default | Meaning |
 | --- | --- | --- | --- |
@@ -50,8 +58,9 @@ configuration mechanism.
 ## Keys and timestamps
 
 An adapter constructed with base key `BPM01` and called with sub-key `position`
-uses `{BPM01}:position`. The braces are Redis Cluster hash tags, keeping streams
-with the same base key in one slot.
+uses `{BPM01}:position`. The literal braces remain required for compatibility
+with the existing wire protocol, data and producers. They do not imply support
+for Redis Cluster.
 
 `RA_Time` contains nanoseconds since the Unix epoch. Positive values are valid;
 zero is uninitialized and negative values are errors. Use `ok()` before using a
@@ -104,11 +113,9 @@ initiates connection recovery even if other items succeeded. The returned vector
 does not report per-item error reasons or final trim success. Batches are not
 atomic, and a failed trim does not undo already accepted entries.
 
-On a standalone connection, no failed stream write is automatically replayed. In particular, a timeout may follow
-server acceptance: retrying the command could apply it twice. Connection recovery
-prepares future operations and preserves this ambiguity for the caller.
-RedisCluster can retry commands internally after a lost reply; the standalone
-no-replay guarantee does not cover that upstream Cluster policy.
+No failed stream write is automatically replayed. In particular, a timeout may
+follow server acceptance: retrying the command could apply it twice. Connection
+recovery prepares future operations and preserves this ambiguity for the caller.
 
 `RA_REJECTED` also covers transient server refusals such as OOM, BUSY and
 LOADING. It does not mean every rejected item is permanently invalid. A READONLY
@@ -155,10 +162,11 @@ applications.
 Unavailable stream writes and READONLY topology refusals prepare a background
 connection attempt when another attempt is not already active. Ordinary stream
 write/snapshot rejections do not rebuild connections. Legacy boolean operations
-and explicit health probes retain their existing reconnect behavior. After a successful reconnect, registered
-stream readers are rebuilt and restarted. A failed call is not automatically
-replayed; callers must decide whether retrying a write is safe for their data
-model. Use `connected()` for an explicit health probe.
+and explicit health probes retain their existing reconnect behavior. A successful
+reconnect atomically replaces the clients. Existing reader loops take fresh
+client snapshots while preserving their cursors and probe state. A failed call
+is not automatically replayed; callers must decide whether retrying a write is
+safe for their data model. Use `connected()` for an explicit health probe.
 
 ## Other helpers
 

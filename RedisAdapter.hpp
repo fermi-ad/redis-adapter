@@ -74,7 +74,7 @@ struct RA_Options
   RedisConnection::Options cxn;
   std::string dogname;
   uint16_t workers = 1;
-  uint16_t readers = 1;
+  uint16_t readers = 1;  // local stream-reader buckets, selected by key hash
   uint32_t readerProbeMs = 0;  // optional continuity inspection; per-subscription override
   uint32_t readerBatchCount = 64;  // per stream; zero is normalized to one
 };
@@ -83,7 +83,7 @@ struct RA_Options
 //  class RedisAdapter
 //
 //  Provides a framework for AD Instrumentation front-ends and back-ends to exchange
-//  data, settings, status and control information via a Redis server or cluster
+//  data, settings, status and control information via a standalone Redis server
 //
 class RedisAdapter : public RedisStreamData
 {
@@ -147,6 +147,7 @@ public:
   };
 
   [[nodiscard]] StreamSnapshot getStreamSnapshot(const std::string& subKey, const std::string& baseKey = "");
+  // Registration is local and remains active while Redis is unavailable.
   [[nodiscard]] ReaderHandle subscribeStream(const std::string& subKey, StreamCallback callback,
                                const std::string& afterId = "$", const std::string& baseKey = "",
                                uint32_t probeMs = UINT32_MAX);
@@ -423,7 +424,7 @@ public:
   //    baseKey : the base key to read from
   //    subKey  : the sub key to read from
   //    func    : the function to call when information is read on a key
-  //    return  : true on success, false on failure
+  //    return  : true if registered locally, including while disconnected
   //
   template<typename T>
   bool addValuesReader(const std::string& subKey, ReaderSubFn<T> func, const std::string& baseKey = "")
@@ -438,7 +439,7 @@ public:
   //
   //    key     : the key to add (must NOT be a RedisAdapter schema key)
   //    func    : function to call when data is read - data will be Attrs
-  //    return  : true if reader started, false if reader failed to start
+  //    return  : true if registered locally, including while disconnected
   //
   bool addGenericReader(const std::string& key, ReaderSubFn<Attrs> func);
 
@@ -482,7 +483,7 @@ private:
   //
   using reader_sub_fn = std::function<void(const std::string& baseKey, const std::string& subKey, const ItemStream& data)>;
 
-  uint32_t reader_token(const std::string& key);
+  uint32_t reader_token(const std::string& key) const;
 
   bool add_reader_helper(const std::string& baseKey, const std::string& subKey, reader_sub_fn func);
   std::shared_ptr<ReaderRegistration> register_reader(const std::string& key,
