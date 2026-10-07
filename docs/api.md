@@ -27,11 +27,21 @@ standalone connection. Setting `cxn.path` selects a Unix-domain socket and makes
 | `cxn.port` | `uint16_t` | `6379` | TCP port. |
 | `cxn.user` | `std::string` | `default` | Redis ACL username. |
 | `cxn.password` | `std::string` | empty | Redis ACL password. |
-| `cxn.timeout` | `uint32_t` | `500` | Socket and blocking-read timeout in milliseconds. |
+| `cxn.timeout` | `uint32_t` | `500` | Command socket timeout and logical reader interval in milliseconds. |
+| `cxn.connectTimeout` | `uint32_t` | `500` | Independent connection timeout; zero disables it. |
 | `cxn.size` | `uint16_t` | `5` | redis-plus-plus connection-pool size. |
 | `dogname` | `std::string` | empty | If set, maintain a one-second field-TTL watchdog for this name. |
 | `workers` | `uint16_t` | `1` | Worker threads used to dispatch reader callbacks. |
-| `readers` | `uint16_t` | `1` | Reader threads across which stream keys are deterministically sharded. |
+| `readers` | `uint16_t` | `1` | Reader threads and dedicated blocking-read pool capacity. |
+| `readerProbeMs` | `uint32_t` | `0` | Optional continuity inspection; per-subscription override available. |
+| `readerBatchCount` | `uint32_t` | `64` | XREAD entries per stream; zero is normalized to one. |
+
+Blocking reads have their own pool, sized to `readers`, so they do not consume
+command connections. Their physical XREAD interval is at most one second and
+uses socket-deadline slack. Failed replacement attempts preserve established
+clients, which can retry their sockets on the next operation. The command pool
+keeps its default wait policy; `cxn.timeout` does not turn a busy pool into a
+transport failure.
 
 Credentials are passed directly to redis-plus-plus. Keep them out of source
 control and populate `RA_Options` from the consuming application's secret or
@@ -79,6 +89,39 @@ host time. `RA_ArgsAdd.trim` defaults to 1, making a stream a latest-value store
 stream contract requires a strict maximum entry count.
 Use a larger trim target when the application contract requires history.
 
+Single writes return `RA_REJECTED` (`err() == 2`) when Redis rejects the
+command, including duplicate/backward stream IDs, wrong key types, or denied
+commands. They return `RA_NOT_CONNECTED` (`err() == 1`) when the transport is
+unavailable. A server rejection does not reconnect or replace the supplied
+timestamp. The existing `ok()` success check applies to both error results.
+
+Batches return only the timestamps of accepted items, in input order. Known
+ordinary rejections are omitted. A batch stops at the first unavailable item or
+READONLY refusal, leaving later items unattempted so their IDs are not advanced
+past the failure; an empty or all-rejected batch does not imply
+a disconnected server. A transport failure in any item or the final trim still
+initiates connection recovery even if other items succeeded. The returned vector
+does not report per-item error reasons or final trim success. Batches are not
+atomic, and a failed trim does not undo already accepted entries.
+
+On a standalone connection, no failed stream write is automatically replayed. In particular, a timeout may follow
+server acceptance: retrying the command could apply it twice. Connection recovery
+prepares future operations and preserves this ambiguity for the caller.
+RedisCluster can retry commands internally after a lost reply; the standalone
+no-replay guarantee does not cover that upstream Cluster policy.
+
+`RA_REJECTED` also covers transient server refusals such as OOM, BUSY and
+LOADING. It does not mean every rejected item is permanently invalid. A READONLY
+refusal remains a known rejection but refreshes connections for later calls.
+The low-level `WriteResult` and `TrimResult` include server error text and the
+refresh decision.
+
+Batch trimming is approximate by default. Pass the fourth `approximateTrim`
+argument as `false` for an exact bound. The retention target is at least the
+number accepted by that batch. A rejected final trim is logged and does not undo
+accepted entries; the legacy timestamp vector cannot report trim success. Use
+`RedisConnection::xtrimResult()` when the retention outcome must be inspected.
+
 The generic typed path stores its binary-safe payload under the `_` stream
 field. Producer and consumer must agree on type and shape; the core protocol
 does not embed a schema.
@@ -109,8 +152,10 @@ applications.
 
 ## Reconnection behavior
 
-Failed Redis operations trigger a throttled background connection attempt when
-another attempt is not already active. After a successful reconnect, registered
+Unavailable stream writes and READONLY topology refusals prepare a background
+connection attempt when another attempt is not already active. Ordinary stream
+write/snapshot rejections do not rebuild connections. Legacy boolean operations
+and explicit health probes retain their existing reconnect behavior. After a successful reconnect, registered
 stream readers are rebuilt and restarted. A failed call is not automatically
 replayed; callers must decide whether retrying a write is safe for their data
 model. Use `connected()` for an explicit health probe.
@@ -129,7 +174,11 @@ model. Use `connected()` for an explicit health probe.
 ## Error handling
 
 The adapter catches redis-plus-plus errors, records them through syslog, and
-returns status values rather than exposing Redis exceptions as its main API.
+usually returns status values rather than exposing Redis exceptions as its main API.
 Check every returned `RA_Time`, boolean, list, or vector of timestamps. A Redis
 command that loses its connection after transmission may have an unknown
 outcome; applications should make retry behavior explicit.
+
+The owned subscription API validates inputs with standard exceptions; see
+[Owned stream subscriptions](stream-subscriptions.md) for the cancellation fence,
+snapshot outcomes, named options, and batch limits.

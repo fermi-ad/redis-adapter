@@ -9,12 +9,16 @@ updates:
 
   - package-ecosystem: gitsubmodule
     directory: /
+    # Release tags on non-default branches require deliberate manual updates.
+    ignore:
+      - dependency-name: googletest
+      - dependency-name: hiredis
     schedule:
       interval: monthly
     labels:
       - dependencies
 
-  - package-ecosystem: docker
+  - package-ecosystem: docker-compose
     directory: /
     schedule:
       interval: monthly

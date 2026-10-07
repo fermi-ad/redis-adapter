@@ -10,22 +10,15 @@
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  Helper functions for getting DEFAULT_FIELD in Attrs
 //
-template<typename T> auto RedisAdapter::default_field_value(const Attrs& attrs) const
+template<typename T> auto RedisAdapter::default_field_value(const Attrs& attrs)
 {
-  static_assert(std::is_trivial<T>(), "wrong type T");
+  static_assert(std::is_trivial_v<T> || std::is_same_v<T, std::string>, "wrong type T");
 
   swr::Optional<T> ret;
-  if (attrs.count(DEFAULT_FIELD)) ret = *(const T*)attrs.at(DEFAULT_FIELD).data();
+  T value{};
+  if (decodeScalar(attrs, value)) ret = value;
   return ret;
 }
-//  string specialization
-template<> inline auto RedisAdapter::default_field_value<std::string>(const Attrs& attrs) const
-{
-  std::string ret;
-  if (attrs.count(DEFAULT_FIELD)) ret = attrs.at(DEFAULT_FIELD);
-  return ret;
-}
-
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  Helper functions for setting DEFAULT_FIELD in Attrs
 //
@@ -82,7 +75,7 @@ RedisAdapter::get_forward_stream_helper(const std::string& baseKey, const std::s
     {
       retItem.first = RA_Time(rawItem.first);
       retItem.second = maybe.value();
-      ret.push_back(retItem);
+      ret.push_back(std::move(retItem));
     }
   }
   return ret;
@@ -106,7 +99,7 @@ RedisAdapter::get_forward_stream_helper(const std::string& baseKey, const std::s
   {
     retItem.first = RA_Time(rawItem.first);
     retItem.second = rawItem.second;
-    ret.push_back(retItem);
+    ret.push_back(std::move(retItem));
   }
   return ret;
 }
@@ -140,12 +133,10 @@ RedisAdapter::get_forward_stream_list_helper(const std::string& baseKey, const s
   TimeVal<std::vector<T>> retItem;
   for (const auto& rawItem : raw)
   {
-    const std::string str = default_field_value<std::string>(rawItem.second);
-    if (str.size())
+    if (decodeArray(rawItem.second, retItem.second))
     {
       retItem.first = RA_Time(rawItem.first);
-      retItem.second.assign((T*)str.data(), (T*)(str.data() + str.size()));
-      ret.push_back(retItem);
+      ret.push_back(std::move(retItem));
     }
   }
   return ret;
@@ -183,7 +174,7 @@ RedisAdapter::get_reverse_stream_helper(const std::string& baseKey, const std::s
     {
       retItem.first = RA_Time(rawItem->first);
       retItem.second = maybe.value();
-      ret.push_back(retItem);
+      ret.push_back(std::move(retItem));
     }
   }
   return ret;
@@ -206,7 +197,7 @@ RedisAdapter::get_reverse_stream_helper(const std::string& baseKey, const std::s
   {
     retItem.first = RA_Time(rawItem->first);
     retItem.second = rawItem->second;
-    ret.push_back(retItem);
+    ret.push_back(std::move(retItem));
   }
   return ret;
 }
@@ -238,12 +229,10 @@ RedisAdapter::get_reverse_stream_list_helper(const std::string& baseKey, const s
   TimeVal<std::vector<T>> retItem;
   for (auto rawItem = raw.rbegin(); rawItem != raw.rend(); rawItem++)   //  reverse iterate
   {
-    const std::string str = default_field_value<std::string>(rawItem->second);
-    if (str.size())
+    if (decodeArray(rawItem->second, retItem.second))
     {
       retItem.first = RA_Time(rawItem->first);
-      retItem.second.assign((T*)str.data(), (T*)(str.data() + str.size()));
-      ret.push_back(retItem);
+      ret.push_back(std::move(retItem));
     }
   }
   return ret;
@@ -272,12 +261,8 @@ RedisAdapter::get_single_stream_helper(const std::string& baseKey, const std::st
 
   if (raw.size())
   {
-    swr::Optional<T> maybe = default_field_value<T>(raw.front().second);
-    if (maybe)
-    {
-      dest = maybe.value();
-      return RA_Time(raw.front().first);
-    }
+    if (!decodeScalar(raw.front().second, dest)) return RA_INVALID_PAYLOAD;
+    return RA_Time(raw.front().first);
   }
   return {};
 }
@@ -307,7 +292,7 @@ RedisAdapter::get_single_stream_helper(const std::string& baseKey, const std::st
 //    subKey  : sub key to get data from
 //    dest    : destination to copy data to
 //    maxTime : time that equals or exceeds the data to get
-//    return  : id of the data item if successful, empty string on failure
+//    return  : time if accepted; RA_REJECTED or RA_NOT_CONNECTED on failure
 //
 template<typename T> RA_Time
 RedisAdapter::get_single_stream_list_helper(const std::string& baseKey, const std::string& subKey,
@@ -323,12 +308,8 @@ RedisAdapter::get_single_stream_list_helper(const std::string& baseKey, const st
 
   if (raw.size())
   {
-    const std::string str = default_field_value<std::string>(raw.front().second);
-    if (str.size())
-    {
-      dest.assign((T*)str.data(), (T*)(str.data() + str.size()));
-      return RA_Time(raw.front().first);
-    }
+    if (!decodeArray(raw.front().second, dest)) return RA_INVALID_PAYLOAD;
+    return RA_Time(raw.front().first);
   }
   return {};
 }
@@ -342,40 +323,42 @@ RedisAdapter::get_single_stream_list_helper(const std::string& baseKey, const st
 //    return : vector of ids of successfully added data items
 //
 template<typename T> std::vector<RA_Time>
-RedisAdapter::addValues(const std::string& subKey, const TimeValList<T>& data, uint32_t trim)
+RedisAdapter::addValues(const std::string& subKey, const TimeValList<T>& data, uint32_t trim, bool approximateTrim)
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
   std::vector<RA_Time> ret;
   std::string key = build_key(subKey);
+  bool transportFailure = false;
   for (const auto& item : data)
   {
     Attrs attrs = default_field_attrs(item.second);
 
-    std::string id = _redis.xadd(key, item.first.id_or_now(), attrs.begin(), attrs.end());
+    const auto result = _redis.xaddResult(key, item.first.id_or_now(), attrs.begin(), attrs.end());
 
-    if (id.size()) { ret.push_back(RA_Time(id)); }
+    transportFailure |= result.status == RedisConnection::CommandStatus::Unavailable || result.refreshConnection;
+    if (result.status == RedisConnection::CommandStatus::Accepted) ret.emplace_back(result.id);
+    if (result.status == RedisConnection::CommandStatus::Unavailable || result.refreshConnection) break;
   }
-  if (trim && ret.size()) { _redis.xtrim(key, std::max(trim, (uint32_t)ret.size())); }
-
-  reconnect(ret.size());
+  finishBatch(key, ret.size(), trim, transportFailure, approximateTrim);
   return ret;
 }
 //  Attrs specialization
 template<> inline std::vector<RA_Time>
-RedisAdapter::addValues(const std::string& subKey, const TimeValList<Attrs>& data, uint32_t trim)
+RedisAdapter::addValues(const std::string& subKey, const TimeValList<Attrs>& data, uint32_t trim, bool approximateTrim)
 {
   std::vector<RA_Time> ret;
   std::string key = build_key(subKey);
+  bool transportFailure = false;
   for (const auto& item : data)
   {
-    std::string id = _redis.xadd(key, item.first.id_or_now(), item.second.begin(), item.second.end());
+    const auto result = _redis.xaddResult(key, item.first.id_or_now(), item.second.begin(), item.second.end());
 
-    if (id.size()) { ret.push_back(RA_Time(id)); }
+    transportFailure |= result.status == RedisConnection::CommandStatus::Unavailable || result.refreshConnection;
+    if (result.status == RedisConnection::CommandStatus::Accepted) ret.emplace_back(result.id);
+    if (result.status == RedisConnection::CommandStatus::Unavailable || result.refreshConnection) break;
   }
-  if (trim && ret.size()) { _redis.xtrim(key, std::max(trim, (uint32_t)ret.size())); }
-
-  reconnect(ret.size());
+  finishBatch(key, ret.size(), trim, transportFailure, approximateTrim);
   return ret;
 }
 
@@ -388,23 +371,24 @@ RedisAdapter::addValues(const std::string& subKey, const TimeValList<Attrs>& dat
 //    return : vector of ids of successfully added data items
 //
 template<typename T> std::vector<RA_Time>
-RedisAdapter::addLists(const std::string& subKey, const TimeValList<std::vector<T>>& data, uint32_t trim)
+RedisAdapter::addLists(const std::string& subKey, const TimeValList<std::vector<T>>& data, uint32_t trim, bool approximateTrim)
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
   std::vector<RA_Time> ret;
   std::string key = build_key(subKey);
+  bool transportFailure = false;
   for (const auto& item : data)
   {
     Attrs attrs = default_field_attrs(item.second.data(), item.second.size());
 
-    std::string id = _redis.xadd(key, item.first.id_or_now(), attrs.begin(), attrs.end());
+    const auto result = _redis.xaddResult(key, item.first.id_or_now(), attrs.begin(), attrs.end());
 
-    if (id.size()) { ret.push_back(RA_Time(id)); }
+    transportFailure |= result.status == RedisConnection::CommandStatus::Unavailable || result.refreshConnection;
+    if (result.status == RedisConnection::CommandStatus::Accepted) ret.emplace_back(result.id);
+    if (result.status == RedisConnection::CommandStatus::Unavailable || result.refreshConnection) break;
   }
-  if (trim && ret.size()) { _redis.xtrim(key, std::max(trim, (uint32_t)ret.size())); }
-
-  reconnect(ret.size());
+  finishBatch(key, ret.size(), trim, transportFailure, approximateTrim);
   return ret;
 }
 
@@ -426,13 +410,11 @@ RedisAdapter::addSingleValue(const std::string& subKey, const T& data, const RA_
   std::string key = build_key(subKey);
   Attrs attrs = default_field_attrs(data);
 
-  std::string id = args.trim ? _redis.xaddTrim(key, args.time.id_or_now(), attrs.begin(), attrs.end(),
+  const auto result = args.trim ? _redis.xaddTrimResult(key, args.time.id_or_now(), attrs.begin(), attrs.end(),
                                               args.trim, args.approximateTrim)
-                             : _redis.xadd(key, args.time.id_or_now(), attrs.begin(), attrs.end());
+                               : _redis.xaddResult(key, args.time.id_or_now(), attrs.begin(), attrs.end());
 
-  if ( ! reconnect(id.size())) { return RA_NOT_CONNECTED; }
-
-  return RA_Time(id);
+  return finishWrite(result);
 }
 //  Attrs specialization
 template<> inline RA_Time
@@ -440,13 +422,11 @@ RedisAdapter::addSingleValue(const std::string& subKey, const Attrs& data, const
 {
   std::string key = build_key(subKey);
 
-  std::string id = args.trim ? _redis.xaddTrim(key, args.time.id_or_now(), data.begin(), data.end(),
+  const auto result = args.trim ? _redis.xaddTrimResult(key, args.time.id_or_now(), data.begin(), data.end(),
                                               args.trim, args.approximateTrim)
-                             : _redis.xadd(key, args.time.id_or_now(), data.begin(), data.end());
+                               : _redis.xaddResult(key, args.time.id_or_now(), data.begin(), data.end());
 
-  if ( ! reconnect(id.size())) { return RA_NOT_CONNECTED; }
-
-  return RA_Time(id);
+  return finishWrite(result);
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -468,13 +448,11 @@ RedisAdapter::add_single_stream_list_helper(const std::string& subKey, RA_Time t
   std::string key = build_key(subKey);
   Attrs attrs = default_field_attrs(data, size);
 
-  std::string id = trim ? _redis.xaddTrim(key, time.id_or_now(), attrs.begin(), attrs.end(), trim,
+  const auto result = trim ? _redis.xaddTrimResult(key, time.id_or_now(), attrs.begin(), attrs.end(), trim,
                                          approximateTrim)
-                        : _redis.xadd(key, time.id_or_now(), attrs.begin(), attrs.end());
+                           : _redis.xaddResult(key, time.id_or_now(), attrs.begin(), attrs.end());
 
-  if ( ! reconnect(id.size())) { return RA_NOT_CONNECTED; }
-
-  return RA_Time(id);
+  return finishWrite(result);
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -491,7 +469,7 @@ RedisAdapter::make_reader_callback(ReaderSubFn<T> func) const
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
 
-  return [&, func](const std::string& base, const std::string& sub, const ItemStream& raw)
+  return [func](const std::string& base, const std::string& sub, const ItemStream& raw)
   {
     TimeValList<T> ret;
     TimeVal<T> retItem;
@@ -502,17 +480,17 @@ RedisAdapter::make_reader_callback(ReaderSubFn<T> func) const
       {
         retItem.first = RA_Time(rawItem.first);
         retItem.second = maybe.value();
-        ret.push_back(retItem);
+        ret.push_back(std::move(retItem));
       }
     }
-    func(base, sub, ret);
+    if (!ret.empty()) func(base, sub, ret);
   };
 }
 //  Attrs specialization
 template<> inline RedisAdapter::reader_sub_fn
 RedisAdapter::make_reader_callback(ReaderSubFn<Attrs> func) const
 {
-  return [&, func](const std::string& base, const std::string& sub, const ItemStream& raw)
+  return [func](const std::string& base, const std::string& sub, const ItemStream& raw)
   {
     TimeValList<Attrs> ret;
     TimeVal<Attrs> retItem;
@@ -520,9 +498,9 @@ RedisAdapter::make_reader_callback(ReaderSubFn<Attrs> func) const
     {
       retItem.first = RA_Time(rawItem.first);
       retItem.second = rawItem.second;
-      ret.push_back(retItem);
+      ret.push_back(std::move(retItem));
     }
-    func(base, sub, ret);
+    if (!ret.empty()) func(base, sub, ret);
   };
 }
 
@@ -540,20 +518,18 @@ RedisAdapter::make_list_reader_callback(ReaderSubFn<std::vector<T>> func) const
 {
   static_assert(std::is_trivial<T>(), "wrong type T");
 
-  return [&, func](const std::string& base, const std::string& sub, const ItemStream& raw)
+  return [func](const std::string& base, const std::string& sub, const ItemStream& raw)
   {
     TimeValList<std::vector<T>> ret;
     TimeVal<std::vector<T>> retItem;
     for (const auto& rawItem : raw)
     {
-      const std::string str = default_field_value<std::string>(rawItem.second);
-      if (str.size())
+      if (decodeArray(rawItem.second, retItem.second))
       {
         retItem.first = RA_Time(rawItem.first);
-        retItem.second.assign((T*)str.data(), (T*)(str.data() + str.size()));
-        ret.push_back(retItem);
+        ret.push_back(std::move(retItem));
       }
     }
-    func(base, sub, ret);
+    if (!ret.empty()) func(base, sub, ret);
   };
 }
