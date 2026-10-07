@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.15)
 
 file(STRINGS "${CMAKE_CURRENT_LIST_DIR}/VERSION.txt" REDIS_ADAPTER_VERSION LIMIT_COUNT 1)
 if(NOT REDIS_ADAPTER_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
