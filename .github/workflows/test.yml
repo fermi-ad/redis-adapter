@@ -51,6 +51,9 @@ jobs:
           REDIS_ADAPTER_TEST_SOCKET: /tmp/redis.sock
           REDIS_ADAPTER_ISOLATED_TEST: 1
 
+      - name: Verify owned and legacy reads on Redis Cluster
+        run: python3 scripts/run-test-redis-cluster.py -- ctest --test-dir build -R ClusterRecovery --output-on-failure
+
       - name: Show Redis logs on failure
         if: failure()
         run: docker compose -f docker-compose.test.yml logs

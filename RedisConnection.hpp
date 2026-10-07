@@ -19,7 +19,19 @@ namespace chr = std::chrono;
 class RedisConnection
 {
 public:
+  enum class ReadStatus { Accepted, TimedOut, Rejected, Unavailable };
   enum class CommandStatus { Accepted, Rejected, Unavailable };
+  enum class StreamKind { Unknown, Missing, Stream, Invalid };
+  struct StreamBounds {
+    CommandStatus status = CommandStatus::Unavailable;
+    StreamKind kind = StreamKind::Unknown;
+    std::string firstId = "0-0", lastGeneratedId = "0-0", error;
+  };
+  struct ReadProbe {
+    ReadStatus status = ReadStatus::Unavailable;
+    bool wrongType = false;
+    std::string error;
+  };
   struct WriteResult {
     CommandStatus status = CommandStatus::Unavailable;
     std::string id;
@@ -32,7 +44,6 @@ public:
     std::string error;
     bool refreshConnection = false;
   };
-  enum class ReadStatus { Accepted, TimedOut, Rejected, Unavailable };
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  struct RedisConnection::Options
   //
@@ -352,9 +363,11 @@ public:
   //
   template<typename Input, typename Output>
   bool xreadMultiBlock(Input fst, Input lst, uint32_t tmo, Output out,
-                       ReadStatus* status = nullptr, uint32_t count = 64)
+                       ReadStatus* status = nullptr, uint32_t count = 64,
+                       bool* socketTimedOut = nullptr, bool blocking = true)
   {
     if (status) *status = ReadStatus::Unavailable;
+    if (socketTimedOut) *socketTimedOut = false;
     auto [cluster, singler] = snapshot(true);
     const auto block = chr::milliseconds(tmo == 0 ? 1000 : std::min<uint32_t>(tmo, 1000));
     using Fields = std::unordered_map<std::string, std::string>;
@@ -362,14 +375,23 @@ public:
     std::unordered_map<std::string, Entries> result;
     try {
       const auto destination = std::inserter(result, result.end());
-      if (cluster) cluster->xread(fst, lst, block, std::max<uint32_t>(1, count), destination);
-      else if (singler) singler->xread(fst, lst, block, std::max<uint32_t>(1, count), destination);
+      if (cluster) {
+        if (blocking) cluster->xread(fst, lst, block, std::max<uint32_t>(1, count), destination);
+        else cluster->xread(fst, lst, std::max<uint32_t>(1, count), destination);
+      } else if (singler) {
+        if (blocking) singler->xread(fst, lst, block, std::max<uint32_t>(1, count), destination);
+        else singler->xread(fst, lst, std::max<uint32_t>(1, count), destination);
+      }
       else return false;
       if (status) *status = result.empty() ? ReadStatus::TimedOut : ReadStatus::Accepted;
       for (auto& item : result) *out++ = std::move(item);
       return true;
-    } catch (const swr::ReplyError&) {
-      if (status) *status = ReadStatus::Rejected;
+    } catch (const swr::ReplyError& error) {
+      const std::string message = error.what();
+      if (status) *status = message.rfind("WRONGPASS", 0) == 0 || message.rfind("NOAUTH", 0) == 0
+          ? ReadStatus::Unavailable : ReadStatus::Rejected;
+    } catch (const swr::TimeoutError&) {
+      if (socketTimedOut) *socketTimedOut = true;
     } catch (const swr::Error&) {}
     return false;
   }
@@ -384,6 +406,60 @@ public:
   //    return : the id of the new element if successful
   //             empty string if unsuccsessful or not connected
   //
+  // A nonblocking '$' XREAD returns no payload and tests exactly the permission
+  // and type contract that a shared blocking read needs.
+  ReadProbe probeReadable(const std::vector<std::string>& keys) {
+    if (keys.empty()) return {ReadStatus::Accepted};
+    auto [cluster, singler] = snapshot();
+    std::vector<std::pair<std::string, std::string>> cursors;
+    cursors.reserve(keys.size());
+    for (const auto& key : keys) cursors.emplace_back(key, "$" );
+    using Fields = std::unordered_map<std::string, std::string>;
+    using Entries = std::vector<std::pair<std::string, Fields>>;
+    std::unordered_map<std::string, Entries> ignored;
+    try {
+      auto out = std::inserter(ignored, ignored.end());
+      if (cluster) cluster->xread(cursors.begin(), cursors.end(), 1, out);
+      else if (singler) singler->xread(cursors.begin(), cursors.end(), 1, out);
+      else return {};
+      return {ReadStatus::Accepted};
+    } catch (const swr::ReplyError& error) {
+      const std::string message = error.what();
+      const bool auth = message.rfind("WRONGPASS", 0) == 0 || message.rfind("NOAUTH", 0) == 0;
+      return {auth ? ReadStatus::Unavailable : ReadStatus::Rejected,
+              message.rfind("WRONGTYPE", 0) == 0, message};
+    } catch (const swr::Error& error) { return {ReadStatus::Unavailable, false, error.what()}; }
+  }
+
+  // Bounded pipeline depth is chosen by the scheduler. FULL COUNT 1 transfers
+  // one retained payload rather than both first/last payloads. Cluster metadata
+  // inspection is unsupported, independently of its working XREAD path.
+  std::vector<StreamBounds> streamBoundsBatch(const std::vector<std::string>& keys) {
+    std::vector<StreamBounds> result(keys.size());
+    auto [cluster, singler] = snapshot();
+    if (cluster) {
+      for (auto& item : result) item.status = CommandStatus::Rejected;
+      return result;
+    }
+    if (!singler) return result;
+    try {
+      auto pipeline = singler->pipeline(false);
+      for (const auto& key : keys) pipeline.command("XINFO", "STREAM", key, "FULL", "COUNT", 1);
+      auto replies = pipeline.exec();
+      for (size_t index = 0; index < keys.size(); ++index) {
+        try { result[index] = parseBounds(replies.get(index)); }
+        catch (const swr::ReplyError& error) { result[index] = rejectedBounds(error.what()); }
+      }
+    } catch (const swr::Error& error) {
+      for (auto& item : result) { item.status = CommandStatus::Unavailable; item.error = error.what(); }
+    }
+    return result;
+  }
+
+  StreamBounds streamBounds(const std::string& key) {
+    return streamBoundsBatch({key}).front();
+  }
+
   template<typename Input>
   std::string xadd(const std::string& key, const std::string& id, Input fst, Input lst) {
     return xaddResult(key, id, fst, lst).id;
@@ -721,6 +797,31 @@ public:
   }
 
 private:
+  static StreamBounds rejectedBounds(const std::string& message) {
+    if (message.rfind("ERR no such key", 0) == 0) return {CommandStatus::Accepted, StreamKind::Missing};
+    if (message.rfind("WRONGTYPE", 0) == 0) return {CommandStatus::Accepted, StreamKind::Invalid};
+    return {CommandStatus::Rejected, StreamKind::Unknown, "0-0", "0-0", message};
+  }
+  static StreamBounds parseBounds(const redisReply& reply) {
+    StreamBounds result;
+    result.status = CommandStatus::Rejected;
+    if (reply.type != REDIS_REPLY_ARRAY || reply.elements % 2) return result;
+    const auto text = [](const redisReply* value) {
+      return value && value->type == REDIS_REPLY_STRING ? std::string(value->str, value->len) : std::string{};
+    };
+    bool hasLast = false;
+    for (size_t index = 0; index < reply.elements; index += 2) {
+      const auto field = text(reply.element[index]);
+      const auto* value = reply.element[index + 1];
+      if (field == "last-generated-id") { result.lastGeneratedId = text(value); hasLast = !result.lastGeneratedId.empty(); }
+      else if (field == "entries" && value && value->type == REDIS_REPLY_ARRAY && value->elements) {
+        const auto* first = value->element[0];
+        if (first && first->type == REDIS_REPLY_ARRAY && first->elements) result.firstId = text(first->element[0]);
+      }
+    }
+    if (hasLast) { result.status = CommandStatus::Accepted; result.kind = StreamKind::Stream; }
+    return result;
+  }
   static WriteResult replyFailure(const swr::ReplyError& error) {
     const std::string message = error.what();
     const bool refresh = message == "READONLY" || message.rfind("READONLY ", 0) == 0;

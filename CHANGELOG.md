@@ -7,6 +7,8 @@ versions are independent of the RedisAdapter wire-protocol version.
 
 ### Added
 
+- Read-side status, observed/delivered cursors and captured-epoch callbacks.
+- Opt-in per-subscription continuity inspection with a bounded, persistent scheduler.
 - `RA_REJECTED` and structured stream write/trim results with error text and a
   topology-refresh decision, available to real and mock consumers.
 - Owned subscription handles, exact stream snapshots and shared safe wire decoders.
@@ -26,6 +28,11 @@ versions are independent of the RedisAdapter wire-protocol version.
 
 ### Fixed
 
+- Wrong-type/read-denied quarantine uses XREAD permissions and keeps healthy
+  neighbours flowing, including legacy registrations after an owned peer is removed.
+- Unsupported/denied inspection cannot suppress normal Cluster or standalone reads.
+- Idle replies, socket failures, empty retention loss and inactive-handle status
+  have distinct diagnostics; queued older-epoch batches are fenced.
 - READONLY refreshes future connections while preserving its known-rejection status.
 - Callback capture cleanup outside worker and reader locks, including exceptions
   and canceled jobs; peer registrations survive handle removal.

@@ -33,6 +33,7 @@ standalone connection. Setting `cxn.path` selects a Unix-domain socket and makes
 | `dogname` | `std::string` | empty | If set, maintain a one-second field-TTL watchdog for this name. |
 | `workers` | `uint16_t` | `1` | Worker threads used to dispatch reader callbacks. |
 | `readers` | `uint16_t` | `1` | Reader threads and dedicated blocking-read pool capacity. |
+| `readerProbeMs` | `uint32_t` | `0` | Optional continuity inspection; per-subscription override available. |
 | `readerBatchCount` | `uint32_t` | `64` | XREAD entries per stream; zero is normalized to one. |
 
 Blocking reads have their own pool, sized to `readers`, so they do not consume

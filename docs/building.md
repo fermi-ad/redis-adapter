@@ -147,3 +147,12 @@ Python 3 enables the write proxy/fault tests. Native GoogleTest cases remain
 available when Python is absent. Use `scripts/run-test-redis.py -- ctest
 --test-dir build --output-on-failure` for a private native Redis fixture, or the
 pinned Redis 7.4 CI fixture for field-TTL and XREAD-tail coverage.
+
+Recovery tests require an isolated Redis fixture with ACL administration and
+CLIENT KILL privileges. They create unique users/keys, terminate only the test
+user's clients, and clean up their namespace. Run through the private test helper
+or the dedicated CI fixture; do not point fault tests at a shared Redis service.
+
+On Linux with Docker, run the private three-master fixture with
+`scripts/run-test-redis-cluster.py -- ctest --test-dir build -R ClusterRecovery
+--output-on-failure`. It binds only loopback ports and removes its own containers.
