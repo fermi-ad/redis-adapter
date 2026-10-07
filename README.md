@@ -19,9 +19,8 @@ of hiredis and redis-plus-plus.
   stream readers after Redis returns.
 - Batched reader topology changes through `setDeferReaders()`, avoiding repeated
   thread teardown while a configuration is replaced.
-- Redis Cluster-aware `{baseKey}:subKey` construction, which keeps a device's
-  streams in one hash slot.
-- Standalone Redis or Redis Cluster connections over TCP or a Unix-domain
+- Wire-compatible `{baseKey}:subKey` construction with the required literal braces.
+- Standalone Redis connections over TCP or a Unix-domain
   socket, with username/password authentication and connection pooling.
 - Pub/sub helpers, generic readers for non-RedisAdapter streams, key lifecycle
   helpers, and field-TTL watchdogs.
@@ -30,6 +29,17 @@ of hiredis and redis-plus-plus.
 
 The wire protocol is version 1.0. The C++ library is version 0.1.0; these are
 separate compatibility promises.
+
+Redis Cluster is unsupported. After the first successful `PING`, the adapter
+sends `CLUSTER INFO` before making the connection available. A successful reply
+rejects the endpoint as Cluster; a server refusal, including ACL denial, accepts
+the endpoint without proving it is standalone. The decision is cached and
+reconnects never repeat the check. A transport failure leaves detection pending
+for the next connection attempt. Applications using
+a Cluster deployment must migrate their endpoint and data to standalone Redis
+before upgrading. The `{baseKey}:subKey` key format, including its braces, remains
+unchanged for compatibility with existing data and producers; this change does
+not bump the library or wire-protocol version.
 
 ## Quick start
 

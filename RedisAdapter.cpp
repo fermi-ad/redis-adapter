@@ -14,12 +14,9 @@ using namespace sw::redis;
 
 const auto THREAD_START_CONFIRM = milliseconds(20);
 
-const uint32_t NO_TOKEN = -1;
-
 namespace {
-// Preserve the actual Redis hash tag. Untagged keys containing braces cannot
-// always be represented by a hash tag; those readers use their bounded timeout
-// for shutdown instead of adding a control stream in a different cluster slot.
+// Preserve the established control-stream names. Keys with unmatched or empty
+// braces use the bounded read timeout for cancellation.
 std::string stopStreamKey(const std::string& key) {
   const auto open = key.find('{');
   const auto close = open == std::string::npos ? std::string::npos : key.find('}', open + 1);
@@ -264,13 +261,12 @@ bool RedisAdapter::setDeferReaders(bool defer)
 //
 //    key     : the key to add (must NOT be a RedisAdapter schema key)
 //    func    : function to call when data is read - data will be RedisAdapter::Attrs
-//    return  : true if reader started, false if reader failed to start
+//    return  : true if registered locally, including while disconnected
 //
 bool RedisAdapter::addGenericReader(const string& key, ReaderSubFn<Attrs> func)
 {
   if (split_key(key).first.size()) return false;
-  register_reader(key, make_reader_callback(func), "$", false);
-  return reader_token(key) != NO_TOKEN;
+  return bool(register_reader(key, make_reader_callback(func), "$", false));
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -308,11 +304,7 @@ bool RedisAdapter::removeGenericReader(const string& key)
 //
 string RedisAdapter::build_key(const string& subKey, const string& baseKey) const
 {
-  //  surround base key with {} to locate keys with same base key in same cluster slot
-  //  this mitgates CROSSSLOT errors for copyKey and renameKey but also puts all keys
-  //  for a base key onto the same reader thread (this could be mitigated with an additional
-  //  load balancing strategy of mutiple threads per slot if necessary)
-  //  NOTE - none of this has ANY effect for single instance (non-cluster) Redis servers
+  // Preserve the persisted RedisAdapter key schema: {base}:sub.
   return "{" + (baseKey.size() ? baseKey : _base_key) + "}" + (subKey.size() ? ":" + subKey : "");
 }
 
@@ -330,46 +322,23 @@ bool RedisAdapter::copy(const string& srcSubKey, const string& dstSubKey, const 
   string srcKey = build_key(srcSubKey, baseKey);
   string dstKey = build_key(dstSubKey);
 
-  int32_t ret = _redis.copy(srcKey, dstKey);
-
-  //  WARNING - this cross-slot copy brings ALL the data from srcKey to the client computer for
-  //            manual re-add to dstKey - this is potentially network, memory and cpu intensive!
-  if (ret == -2 && _redis.exists(dstKey) == 0)
-  {
-    ItemStream raw;
-    if (_redis.xrange(srcKey, "-", "+", back_inserter(raw)))
-    {
-      string id;
-      for (auto& it : raw) { id = _redis.xadd(dstKey, it.first, it.second.begin(), it.second.end()); }
-      ret = id.size();
-    }
-  }
+  const int32_t ret = _redis.copy(srcKey, dstKey);
   reconnect(ret != -1);   //  if ret == -1, pass 0 to reconnect
   return ret > 0;
 }
 
-uint32_t RedisAdapter::reader_token(const std::string& key)
+uint32_t RedisAdapter::reader_token(const std::string& key) const
 {
-  static hash<string> hasher;
-
-  int32_t slot = _redis.keyslot(key);
-  if (slot < 0) return NO_TOKEN;
-
-  uint32_t token = slot << 16;
-  if (_options.readers > 1)
-    { token += hasher(key) % _options.readers; }
-
-  return token;
+  return _options.readers > 1 ? hash<string>{}(key) % _options.readers : 0;
 }
 
 bool RedisAdapter::add_reader_helper(const string& baseKey, const string& subKey, reader_sub_fn func)
 {
   const auto key = build_key(subKey, baseKey);
   const auto base = baseKey.empty() ? _base_key : baseKey;
-  register_reader(key, [base, subKey, func = std::move(func)](const auto&, const auto&, const auto& batch) {
+  return bool(register_reader(key, [base, subKey, func = std::move(func)](const auto&, const auto&, const auto& batch) {
     func(base, subKey, batch);
-  }, "$", false);
-  return reader_token(key) != NO_TOKEN;
+  }, "$", false));
 }
 
 shared_ptr<RedisAdapter::ReaderRegistration>
@@ -421,7 +390,7 @@ RedisAdapter::register_reader(const string& key, reader_sub_fn func, const strin
         info.stop = stopStreamKey(key);
         if (!info.stop.empty()) info.keyids[info.stop] = "0-0";
       }
-      if (!start_reader(token) && token != NO_TOKEN && !_readers_defer && !_shutdown)
+      if (!start_reader(token) && !_readers_defer && !_shutdown)
         throw runtime_error("reader thread did not start");
     } catch (...) {
       registration->active = false;
@@ -439,7 +408,6 @@ RedisAdapter::register_reader(const string& key, reader_sub_fn func, const strin
       throw;
     }
   }
-  if (token == NO_TOKEN) reconnect(false);
   return registration;
 }
 
@@ -515,7 +483,11 @@ size_t RedisAdapter::resolve_reader_tails(reader_info& info)
       const auto tail = tails.find(subscriptions.first);
       if (tail != tails.end()) latest = std::move(tail->second);
     }
-    if (!resolved && !wrongType) { ++unresolved; continue; }
+    if (!resolved && !wrongType) {
+      if (status == RedisConnection::ReadStatus::Unavailable) reconnect(0);
+      ++unresolved;
+      continue;
+    }
     const auto tail = latest.empty() ? "0-0" : latest.back().first;
     if (info.keyids.at(subscriptions.first) == "$") info.keyids[subscriptions.first] = tail;
     for (const auto& registration : subscriptions.second) {
@@ -743,7 +715,7 @@ bool RedisAdapter::start_reader(uint32_t token)
 {
   if (_shutdown) return false;
   if (_readers_defer) return true;
-  if (token == NO_TOKEN || _reader.count(token) == 0) return false;
+  if (_reader.count(token) == 0) return false;
   reader_info& info = _reader.at(token);
   if (info.thread.joinable()) return false;
   unique_lock<mutex> lk(info.start_mx);
@@ -788,6 +760,7 @@ bool RedisAdapter::start_reader(uint32_t token)
             interval, inserter(out, out.end()), &status, _options.readerBatchCount, &socketTimedOut, blocking);
         reader_result(info, status, socketTimedOut);
         if (!accepted) {
+          if (status == RedisConnection::ReadStatus::Unavailable) reconnect(0);
           if (status == RedisConnection::ReadStatus::Rejected) {
             const auto previous = info.quarantined.size();
             check_readable(info, allKeys);
@@ -870,7 +843,7 @@ bool RedisAdapter::start_reader(uint32_t token)
 
 bool RedisAdapter::stop_reader(uint32_t token)
 {
-  if (token == NO_TOKEN || _reader.count(token) == 0) return false;
+  if (_reader.count(token) == 0) return false;
 
   reader_info& info = _reader.at(token);
   if ( ! info.thread.joinable()) return false;
@@ -900,45 +873,9 @@ int32_t RedisAdapter::reconnect(int32_t result)
 
     _reconnect_thd = thread([this]()
       {
-        if (_redis.connect(_options.cxn))
-        {
-          std::lock_guard<std::mutex> lk(_reader_mtx);
-
-          //  stop any waiting readers
-          for (const auto& rdr : _reader) { stop_reader(rdr.first); }
-          //  if any NO_TOKEN readers exist move them to valid tokens
-          if (_reader.count(NO_TOKEN))
-          {
-            //  move just the subs out (not the whole reader_info - it's non-movable
-            //  now that it holds a mutex/condition_variable) and erase NO_TOKEN first,
-            //  so that if reader_token() ever yields NO_TOKEN again below, _reader[token]
-            //  creates a fresh entry instead of aliasing the map we're iterating over
-            auto subs_map = std::move(_reader.at(NO_TOKEN).subs);
-            auto cursors = std::move(_reader.at(NO_TOKEN).keyids);
-            _reader.erase(NO_TOKEN);
-
-            for (const auto& subs : subs_map)
-            {
-              string key = subs.first;
-              uint32_t token = reader_token(key);
-              reader_info& info = _reader[token];
-              for (const auto& func : subs.second) { info.subs[key].push_back(func); }
-              auto prior = info.keyids.find(key);
-              const auto cursor = cursors.at(key);
-              if (prior == info.keyids.end() || prior->second == "$" ||
-                  (cursor != "$" && compareStreamIds(cursor, prior->second) < 0))
-                info.keyids[key] = cursor;
-              if (info.stop.empty())
-              {
-                info.stop = stopStreamKey(key);
-                if (!info.stop.empty()) info.keyids[info.stop] = "0-0";
-              }
-            }
-          }
-          //  restart all readers
-          for (const auto& rdr : _reader) { start_reader(rdr.first); }
-        }
-        else
+        // Each reader takes a fresh connection snapshot for every read cycle;
+        // replacing clients lets it recover with its cursors and probes intact.
+        if (!_redis.connect(_options.cxn))
         {
           this_thread::sleep_for(milliseconds(100));  //  throttle failures
         }

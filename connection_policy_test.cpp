@@ -17,6 +17,8 @@ using Streams = std::unordered_map<std::string, Entries>;
 class ConnectionPolicy : public testing::Test {
 protected:
   RedisConnection::Options options;
+  std::unique_ptr<sw::redis::Redis> control;
+  std::string modeProbeUser;
   void SetUp() override {
     const auto* port = std::getenv("REDIS_ADAPTER_TEST_PORT");
     if (!port || !std::getenv("REDIS_ADAPTER_ISOLATED_TEST")) {
@@ -26,7 +28,73 @@ protected:
     options.size = 1;
     options.timeout = 100;
   }
+  void denyModeProbe() {
+    sw::redis::ConnectionOptions co;
+    co.host = "127.0.0.1";
+    co.port = options.port;
+    control = std::make_unique<sw::redis::Redis>(co);
+    modeProbeUser = "policy-mode-" + std::to_string(getpid()) + "-" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+    control->command<void>("ACL", "SETUSER", modeProbeUser, "reset", "on", "nopass", "~*", "+@all", "-cluster");
+    options.user = modeProbeUser;
+  }
+  long long modeProbeAttempts() {
+    const auto log = control->command("ACL", "LOG", 128);
+    if (log->type != REDIS_REPLY_ARRAY) return -1;
+    long long attempts = 0;
+    for (size_t index = 0; index < log->elements; ++index) {
+      const auto* entry = log->element[index];
+      if (!entry || entry->type != REDIS_REPLY_ARRAY) continue;
+      std::string username;
+      long long count = 0;
+      for (size_t field = 0; field + 1 < entry->elements; field += 2) {
+        const auto* name = entry->element[field];
+        const auto* value = entry->element[field + 1];
+        if (!name || name->type != REDIS_REPLY_STRING || !value) continue;
+        const std::string label(name->str, name->len);
+        if (label == "username" && value->type == REDIS_REPLY_STRING)
+          username.assign(value->str, value->len);
+        else if (label == "count" && value->type == REDIS_REPLY_INTEGER)
+          count = value->integer;
+      }
+      if (username == modeProbeUser) attempts += count;
+    }
+    return attempts;
+  }
+  void TearDown() override {
+    if (control && !modeProbeUser.empty()) {
+      try { control->command<void>("ACL", "DELUSER", modeProbeUser); } catch (...) {}
+    }
+  }
 };
+
+TEST_F(ConnectionPolicy, DeniedModeProbeRunsOnlyOnceAcrossReconnects) {
+  denyModeProbe();
+  RedisConnection connection(options);
+  ASSERT_TRUE(connection.ping("any-key"));
+  EXPECT_EQ(connection.time("any-key").size(), 2u);
+  ASSERT_EQ(modeProbeAttempts(), 1);
+  for (int iteration = 0; iteration < 3; ++iteration) {
+    ASSERT_TRUE(connection.connect(options));
+    EXPECT_TRUE(connection.ping());
+  }
+  EXPECT_EQ(modeProbeAttempts(), 1);
+}
+
+TEST_F(ConnectionPolicy, OfflineInitialConnectionDefersModeProbeUntilReachable) {
+  denyModeProbe();
+  auto offline = options;
+  offline.path = std::string(std::getenv("REDIS_ADAPTER_TEST_SOCKET")) + "-missing";
+  offline.connectTimeout = 50;
+  RedisConnection connection(offline);
+  EXPECT_FALSE(connection.ping());
+  ASSERT_EQ(modeProbeAttempts(), 0);
+  ASSERT_TRUE(connection.connect(options));
+  EXPECT_TRUE(connection.ping());
+  ASSERT_EQ(modeProbeAttempts(), 1);
+  ASSERT_TRUE(connection.connect(options));
+  EXPECT_EQ(modeProbeAttempts(), 1);
+}
 
 TEST_F(ConnectionPolicy, IdleReadsKeepTheReaderConnectionUsable) {
   RedisConnection connection(options);

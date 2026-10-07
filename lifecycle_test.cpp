@@ -246,22 +246,55 @@ TEST_P(Lifecycle, ZeroTimeoutAndBraceKeysStillCancelWithinFiniteCycles) {
   EXPECT_LT(std::chrono::steady_clock::now() - start, 2s);
 }
 
-TEST_P(Lifecycle, InitiallyUnavailableSubscriptionsMigrateAfterConnectionRecovery) {
+TEST_P(Lifecycle, InitiallyUnavailableReadersRecoverWithoutAdapterOperations) {
   const auto* socket = std::getenv("REDIS_ADAPTER_TEST_SOCKET");
   ASSERT_NE(socket, nullptr);
   const auto path = std::filesystem::temp_directory_path() / (base + ".sock");
   struct Cleanup { std::filesystem::path path; ~Cleanup() { std::error_code ec; std::filesystem::remove(path, ec); } } cleanup{path};
   options.cxn.path = path.string();
   options.cxn.connectTimeout = 50;
-  Observations seen;
+  Observations seen, legacy, generic;
   RA adapter(base, options);
   auto handle = adapter.subscribeStream("key", [&](const auto&, const auto&, const auto& batch) { seen.append(batch); }, "0-0");
+  ASSERT_TRUE(handle);
+  ASSERT_TRUE(adapter.addValuesReader<RA::Attrs>("legacy", [&](const auto& callbackBase, const auto& sub, const auto& batch) {
+    EXPECT_EQ(callbackBase, base);
+    EXPECT_EQ(sub, "legacy");
+    RA::StreamBatch raw;
+    for (const auto& entry : batch) raw.emplace_back(entry.first.id(), entry.second);
+    legacy.append(raw);
+  }));
+  const auto genericKey = base + "-generic";
+  ASSERT_TRUE(adapter.addGenericReader(genericKey, [&](const auto& callbackBase, const auto& sub, const auto& batch) {
+    EXPECT_EQ(callbackBase, genericKey);
+    EXPECT_EQ(sub, genericKey);
+    RA::StreamBatch raw;
+    for (const auto& entry : batch) raw.emplace_back(entry.first.id(), entry.second);
+    generic.append(raw);
+  }));
   std::filesystem::create_symlink(socket, path);
-  const auto end = std::chrono::steady_clock::now() + 3s;
-  while (!adapter.connected() && std::chrono::steady_clock::now() < end) std::this_thread::sleep_for(20ms);
-  ASSERT_TRUE(adapter.connected());
+  // Only the independent control connection writes after socket recovery.
+  // Delivery proves that the reader loop recovered the initially absent client.
   ASSERT_EQ(add("key", "1-0"), "1-0");
-  EXPECT_TRUE(seen.waitFor("1-0"));
+  ASSERT_TRUE(seen.waitFor("1-0"));
+  // All readers share the default bucket, so their '$' tails have resolved
+  // before the owned callback is delivered. Subsequent entries must flow.
+  ASSERT_EQ(add("legacy", "2-0"), "2-0");
+  const RA::Attrs fields{{"_", "raw"}};
+  ASSERT_EQ(control->xadd(genericKey, "3-0", fields.begin(), fields.end()), "3-0");
+  EXPECT_TRUE(legacy.waitFor("2-0"));
+  EXPECT_TRUE(generic.waitFor("3-0"));
+  EXPECT_EQ(seen.size(), 1u);
+  EXPECT_EQ(legacy.size(), 1u);
+  EXPECT_EQ(generic.size(), 1u);
+  {
+    std::lock_guard<std::mutex> lock(legacy.mutex);
+    if (!legacy.entries.empty()) EXPECT_EQ(legacy.entries.front().second, fields);
+  }
+  {
+    std::lock_guard<std::mutex> lock(generic.mutex);
+    if (!generic.entries.empty()) EXPECT_EQ(generic.entries.front().second, fields);
+  }
 }
 
 TEST_P(Lifecycle, ReadOnlyAclCanResolveDefaultTailUsingXreadOnRedis74) {

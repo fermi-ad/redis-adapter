@@ -542,6 +542,48 @@ TEST(RedisAdapter, Utility)
   EXPECT_EQ(val, 1);
 }
 
+TEST(RedisAdapter, BraceKeySchemaAndCrossBaseUtility)
+{
+  const auto destinationBase = testBase();
+  const auto sourceBase = destinationBase + "-source";
+  const auto opts = testOptions();
+  RedisAdapter source(sourceBase, opts), destination(destinationBase, opts);
+  RedisConnection connection(opts.cxn);
+  const auto sourceKey = "{" + sourceBase + "}:src";
+  const auto copiedKey = "{" + destinationBase + "}:copy";
+  const auto renamedKey = "{" + destinationBase + "}:renamed";
+  struct Cleanup {
+    RedisConnection& connection;
+    vector<string> keys;
+    ~Cleanup() { for (const auto& key : keys) connection.del(key); }
+  } cleanup{connection, {sourceKey, copiedKey, renamedKey, "{" + sourceBase + "}:with{brace}"}};
+
+  const RA::Attrs fields{{"_", string("raw\0payload", 11)}, {"label", "preserved"}};
+  const RA_Time timestamp("123-456");
+  ASSERT_EQ(source.addSingleValue<RA::Attrs>("src", fields, {.time=timestamp, .trim=0}), timestamp);
+  EXPECT_EQ(connection.exists(sourceKey), 1);
+  EXPECT_EQ(connection.exists(sourceBase + ":src"), 0);
+  ASSERT_TRUE(source.addSingleValue("with{brace}", "value").ok());
+  EXPECT_EQ(connection.exists("{" + sourceBase + "}:with{brace}"), 1);
+
+  ASSERT_TRUE(destination.copy("src", "copy", sourceBase));
+  RA::Attrs copied;
+  EXPECT_EQ(destination.getSingleValue("copy", copied), timestamp);
+  EXPECT_EQ(copied, fields);
+  EXPECT_EQ(connection.exists(sourceKey), 1);
+  EXPECT_EQ(connection.exists(copiedKey), 1);
+  EXPECT_FALSE(destination.copy("src", "copy", sourceBase));
+
+  // The adapter rename API addresses home keys; the connection exposes raw
+  // cross-base RENAME while preserving the same persisted key schema.
+  ASSERT_TRUE(connection.rename(sourceKey, renamedKey));
+  RA::Attrs renamed;
+  EXPECT_EQ(destination.getSingleValue("renamed", renamed), timestamp);
+  EXPECT_EQ(renamed, fields);
+  EXPECT_EQ(connection.exists(sourceKey), 0);
+  EXPECT_EQ(connection.exists(renamedKey), 1);
+}
+
 TEST(RedisAdapter, Watchdog)
 {
   auto opts = testOptions(); opts.dogname = "TEST";
@@ -570,7 +612,7 @@ TEST(RedisAdapter, Watchdog)
 
 TEST(RedisConnection, ConcurrentConnect)
 {
-  //  connect() replaces the live _cluster/_singler client objects - if that's not
+  //  connect() replaces the live standalone client objects - if that's not
   //  synchronized against every other method that dereferences them, hammering
   //  connect() concurrently with normal traffic from other threads corrupts the
   //  heap; this test checks concurrent replacement without assigning a

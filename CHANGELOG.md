@@ -23,14 +23,29 @@ versions are independent of the RedisAdapter wire-protocol version.
 - Batches stop after an unavailable item or READONLY refusal and retain accepted
   timestamps. Exact batch trimming is selectable; final trim failure does not
   roll back accepted writes.
-- Standalone stream writes are not replayed; RedisCluster's internal retry policy
-  remains upstream behavior. Rejection can represent a transient server refusal.
+- Failed stream writes are not replayed. Rejection can represent a transient
+  server refusal.
+- Connections support standalone Redis over TCP or Unix-domain sockets only.
+  Redis Cluster is unsupported. A one-time `CLUSTER INFO` check after successful
+  `PING` rejects detected Cluster endpoints. Server refusals, including ACL
+  denial, accept the endpoint without proving it is standalone. The decision is
+  cached; reconnects never repeat detection. Transport failures leave the check
+  pending. Cluster users must migrate their endpoint and data to standalone Redis
+  before upgrading.
+- The `{baseKey}:subKey` braces remain required for wire-protocol compatibility.
+  These changes do not bump the library or wire-protocol version.
+
+### Removed
+
+- Redis Cluster clients, routing and related test fixtures.
+- The low-level `RedisConnection::keyslot()` helper and `copy()`'s `-2`
+  cross-slot result. Copy and rename no longer use cross-slot fallbacks.
 
 ### Fixed
 
 - Wrong-type/read-denied quarantine uses XREAD permissions and keeps healthy
   neighbours flowing, including legacy registrations after an owned peer is removed.
-- Unsupported/denied inspection cannot suppress normal Cluster or standalone reads.
+- Unsupported/denied inspection cannot suppress normal reads.
 - Idle replies, socket failures, empty retention loss and inactive-handle status
   have distinct diagnostics; queued older-epoch batches are fenced.
 - READONLY refreshes future connections while preserving its known-rejection status.
