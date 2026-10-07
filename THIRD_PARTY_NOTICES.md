@@ -9,7 +9,7 @@ authoritative.
 
 | Component | Source | License notice in a recursive checkout |
 | --- | --- | --- |
-| hiredis | <https://github.com/redis/hiredis> | `hiredis/COPYING` |
+| hiredis | <https://github.com/redis/hiredis> | `hiredis/COPYING`, plus the MIT notice in `hiredis/ffc.h` |
 | redis-plus-plus | <https://github.com/sewenew/redis-plus-plus> | `redis-plus-plus/LICENSE` |
 | GoogleTest | <https://github.com/google/googletest> | `googletest/LICENSE` |
 | Google Benchmark | <https://github.com/google/benchmark> | `benchmark/LICENSE` |

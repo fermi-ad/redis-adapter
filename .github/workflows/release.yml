@@ -27,6 +27,7 @@ jobs:
         with:
           ref: ${{ github.event.inputs.tag || github.ref_name }}
           submodules: recursive
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Verify release identity

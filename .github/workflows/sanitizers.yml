@@ -1,0 +1,64 @@
+name: Sanitizers
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sanitizers-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sanitize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizer: [address, thread]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - name: Start pinned private Redis
+        run: docker compose -f docker-compose.test.yml up --detach --wait
+      - name: Configure sanitizer build
+        shell: bash
+        run: |
+          if [ '${{ matrix.sanitizer }}' = address ]; then
+            FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer'
+          else
+            FLAGS='-fsanitize=thread -fno-omit-frame-pointer'
+          fi
+          EXTRA=()
+          if [ '${{ matrix.sanitizer }}' = thread ]; then
+            EXTRA+=("-DCMAKE_CROSSCOMPILING_EMULATOR=setarch;$(uname -m);-R")
+          fi
+          cmake -S . -B build -DREDIS_ADAPTER_TEST=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_C_FLAGS="$FLAGS" -DCMAKE_CXX_FLAGS="$FLAGS" -DCMAKE_EXE_LINKER_FLAGS="$FLAGS" "${EXTRA[@]}"
+          cmake --build build --parallel 4
+      - name: Run sanitizer suite
+        shell: bash
+        run: |
+          if [ '${{ matrix.sanitizer }}' = thread ]; then
+            setarch "$(uname -m)" -R ctest --test-dir build --output-on-failure
+          else
+            ctest --test-dir build --output-on-failure
+          fi
+        env:
+          REDIS_ADAPTER_TEST_PORT: 6379
+          REDIS_ADAPTER_TEST_SOCKET: /tmp/redis.sock
+          REDIS_ADAPTER_ISOLATED_TEST: 1
+          ASAN_OPTIONS: detect_leaks=1
+          UBSAN_OPTIONS: halt_on_error=1
+          TSAN_OPTIONS: halt_on_error=1
+      - name: Redis logs
+        if: failure()
+        run: docker compose -f docker-compose.test.yml logs
+      - name: Stop private Redis
+        if: always()
+        run: docker compose -f docker-compose.test.yml down --volumes

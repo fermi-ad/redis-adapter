@@ -4,7 +4,7 @@
 
 The core library requires:
 
-- CMake 3.14 or newer.
+- CMake 3.15 or newer.
 - A compiler and standard library with C++17 support.
 - Git with submodule support.
 - POSIX threads and syslog support.
@@ -99,7 +99,7 @@ target, include its directories, link its dependencies, and require its language
 level:
 
 ```cmake
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.15)
 project(example LANGUAGES CXX)
 
 add_subdirectory(redis-adapter)
@@ -142,3 +142,23 @@ version.
 Dependency revisions are deliberate release inputs. Update one submodule at a
 time, run the full suite, review its license, and commit the new gitlink. Avoid
 tracking a dependency branch or unpinned archive.
+
+Python 3 enables the write proxy/fault tests. Native GoogleTest cases remain
+available when Python is absent. Use `scripts/run-test-redis.py -- ctest
+--test-dir build --output-on-failure` for a private native Redis fixture, or the
+pinned Redis 7.4 CI fixture for field-TTL and XREAD-tail coverage.
+
+Recovery tests require an isolated Redis fixture with ACL administration and
+CLIENT KILL privileges. They create unique users/keys, terminate only the test
+user's clients, and clean up their namespace. Run through the private test helper
+or the dedicated CI fixture; do not point fault tests at a shared Redis service.
+
+On Linux with Docker, run the private three-master fixture with
+`scripts/run-test-redis-cluster.py -- ctest --test-dir build -R ClusterRecovery
+--output-on-failure`. It binds only loopback ports and removes its own containers.
+
+GoogleTest and hiredis pins are updated manually from upstream releases. Their
+release tags live outside the default branch used by Dependabot, so its submodule
+updater can offer an older pin or miss security patch releases. Review upstream
+release notes, preserve notices/minimum tools, and run the full relevant checks
+before each deliberate update. Benchmark and redis-plus-plus remain automated.
