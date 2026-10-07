@@ -7,13 +7,26 @@ versions are independent of the RedisAdapter wire-protocol version.
 
 ### Added
 
+- `RA_REJECTED` and structured stream write/trim results with error text and a
+  topology-refresh decision, available to real and mock consumers.
 - Owned subscription handles, exact stream snapshots and shared safe wire decoders.
 - Configurable per-stream XREAD entry count and behavior-focused lifecycle tests.
 - Independent connect timeout, dedicated blocking-reader pool, private Redis
   fixtures and automatic CI for stacked PRs.
 
+### Changed
+
+- Callers must use `!ok()` or inspect `err()`; checking only the historical
+  `RA_NOT_CONNECTED` sentinel no longer covers all failures.
+- Batches stop after an unavailable item or READONLY refusal and retain accepted
+  timestamps. Exact batch trimming is selectable; final trim failure does not
+  roll back accepted writes.
+- Standalone stream writes are not replayed; RedisCluster's internal retry policy
+  remains upstream behavior. Rejection can represent a transient server refusal.
+
 ### Fixed
 
+- READONLY refreshes future connections while preserving its known-rejection status.
 - Callback capture cleanup outside worker and reader locks, including exceptions
   and canceled jobs; peer registrations survive handle removal.
 - Tail resolution retries, rejection-aware snapshots and future-only failure cursors.

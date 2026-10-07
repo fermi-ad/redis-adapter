@@ -43,4 +43,5 @@ struct RA_Time {
 };
 
 inline const RA_Time RA_NOT_CONNECTED(-1);
+inline const RA_Time RA_REJECTED(-2);
 inline const RA_Time RA_INVALID_PAYLOAD(-3);

@@ -142,3 +142,8 @@ version.
 Dependency revisions are deliberate release inputs. Update one submodule at a
 time, run the full suite, review its license, and commit the new gitlink. Avoid
 tracking a dependency branch or unpinned archive.
+
+Python 3 enables the write proxy/fault tests. Native GoogleTest cases remain
+available when Python is absent. Use `scripts/run-test-redis.py -- ctest
+--test-dir build --output-on-failure` for a private native Redis fixture, or the
+pinned Redis 7.4 CI fixture for field-TTL and XREAD-tail coverage.
