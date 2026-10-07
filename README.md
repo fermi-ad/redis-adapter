@@ -91,3 +91,8 @@ feature requests. Report security issues privately as described in
 Project-authored code is available under the [BSD 3-Clause License](LICENSE).
 The government-rights notice is in [NOTICE](NOTICE), and dependency licenses are
 inventoried in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+Use the private Redis fixture in `scripts/run-test-redis.py` for local tests.
+Legacy `redis-start.sh` is intended for an isolated machine and fails if its
+loopback port or Unix socket is already occupied. Fault tests require an explicitly
+isolated fixture; keep shared Redis services out of those tests.

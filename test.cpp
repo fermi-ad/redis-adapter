@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <cstdlib>
 #include <atomic>
+#include <unistd.h>
 #include "RedisAdapter.hpp"
 
 using namespace std;
@@ -8,6 +9,12 @@ using namespace sw::redis;
 using namespace std::chrono;
 
 using RA = RedisAdapter;
+
+static std::string testBase() {
+  static const auto nonce = std::chrono::steady_clock::now().time_since_epoch().count();
+  const auto* test = testing::UnitTest::GetInstance()->current_test_info();
+  return "TEST-" + std::to_string(getpid()) + "-" + std::to_string(nonce) + "-" + test->name();
+}
 
 static RA_Options testOptions() {
   RA_Options options;
@@ -17,7 +24,7 @@ static RA_Options testOptions() {
 
 TEST(RedisAdapter, Connected)
 {
-  RedisAdapter redis("TEST", testOptions());
+  RedisAdapter redis(testBase(), testOptions());
 
   //  provide a pass/fail indication if Redis server is available
   EXPECT_TRUE(redis.connected());
@@ -25,7 +32,7 @@ TEST(RedisAdapter, Connected)
 
 TEST(RedisAdapter, ExitNotConnected)
 {
-  RedisAdapter redis("TEST", testOptions());
+  RedisAdapter redis(testBase(), testOptions());
 
   //  abort tests if Redis server is not available
   if ( ! redis.connected()) exit(1);
@@ -39,14 +46,14 @@ TEST(RedisAdapter, UnixDomainSocket)
     //Assumes the socket file is in the /tmp directory and test is run from the build directory
 
     RA_Options opts = testOptions(); opts.cxn.path = std::getenv("REDIS_ADAPTER_TEST_SOCKET") ? std::getenv("REDIS_ADAPTER_TEST_SOCKET") : "/tmp/redis.sock";
-    auto redis = make_unique<RedisAdapter>("TEST", opts);
+    auto redis = make_unique<RedisAdapter>(testBase(), opts);
 
     EXPECT_TRUE(redis->connected()) << "Failed to connect to the Redis server using Unix domain socket.";
 }
 
 TEST(RedisAdapter, DataSingle)
 {
-  RedisAdapter redis("TEST", testOptions());
+  RedisAdapter redis(testBase(), testOptions());
 
   //  set/get string single element
   EXPECT_TRUE(redis.addSingleValue("abc", "xxx").ok());
@@ -95,7 +102,7 @@ TEST(RedisAdapter, DataSingle)
 
 TEST(RedisAdapter, ExactTrim)
 {
-  RedisAdapter redis("TEST", testOptions());
+  RedisAdapter redis(testBase(), testOptions());
   ASSERT_TRUE(redis.del("exact-trim"));
 
   for (int value = 0; value < 10; ++value)
@@ -113,7 +120,7 @@ TEST(RedisAdapter, ExactTrim)
 
 TEST(RedisAdapter, Data)
 {
-  RedisAdapter redis("TEST", testOptions());
+  RedisAdapter redis(testBase(), testOptions());
 
   //  set/get data
   RA_Time idA = redis.addSingleValue("abc", "xxx");
@@ -170,7 +177,7 @@ TEST(RedisAdapter, Data)
 
 TEST(RedisAdapter, DataList)
 {
-  RedisAdapter redis("TEST", testOptions());
+  RedisAdapter redis(testBase(), testOptions());
 
   //  add float vectors
   RA::TimeValList<vector<float>> is_vf = {{ 0, { 1.1, 1.2, 1.3 }}, { 0, { 2.1, 2.2, 2.3 }}};
@@ -218,7 +225,7 @@ TEST(RedisAdapter, DataList)
 
 TEST(RedisAdapter, DataReader)
 {
-  RedisAdapter redis("TEST", testOptions());
+  RedisAdapter redis(testBase(), testOptions());
 
   vector<float> vf = { 1, 2, 3 };
 
@@ -230,7 +237,7 @@ TEST(RedisAdapter, DataReader)
   EXPECT_TRUE(redis.addListsReader<float>("xyz", [&](const string& base, const string& sub, const RA::TimeValList<vector<float>>& ats)
     {
       waiting = false;
-      EXPECT_STREQ(base.c_str(), "TEST");
+      EXPECT_EQ(base, testBase());
       EXPECT_STREQ(sub.c_str(), "xyz");
       EXPECT_GT(ats.size(), 0);
       EXPECT_TRUE(ats[0].first.ok());
@@ -270,7 +277,7 @@ TEST(RedisAdapter, DataReader)
 
 TEST(RedisAdapter, DeferReader)
 {
-  RedisAdapter redis("TEST", testOptions());
+  RedisAdapter redis(testBase(), testOptions());
 
   std::atomic<bool> waiting = false;
   EXPECT_TRUE(redis.setDeferReaders(true));
@@ -279,7 +286,7 @@ TEST(RedisAdapter, DeferReader)
   EXPECT_TRUE(redis.addValuesReader<int>("rrr", [&](const string& base, const string& sub, const RA::TimeValList<int>& ats)
     {
       waiting = false;
-      EXPECT_STREQ(base.c_str(), "TEST");
+      EXPECT_EQ(base, testBase());
       EXPECT_STREQ(sub.c_str(), "rrr");
       EXPECT_GT(ats.size(), 0);
       EXPECT_TRUE(ats[0].first.ok());
@@ -289,7 +296,7 @@ TEST(RedisAdapter, DeferReader)
   EXPECT_TRUE(redis.addValuesReader<int>("sss", [&](const string& base, const string& sub, const RA::TimeValList<int>& ats)
     {
       waiting = false;
-      EXPECT_STREQ(base.c_str(), "TEST");
+      EXPECT_EQ(base, testBase());
       EXPECT_STREQ(sub.c_str(), "sss");
       EXPECT_GT(ats.size(), 0);
       EXPECT_TRUE(ats[0].first.ok());
@@ -299,7 +306,7 @@ TEST(RedisAdapter, DeferReader)
   EXPECT_TRUE(redis.addValuesReader<int>("ttt", [&](const string& base, const string& sub, const RA::TimeValList<int>& ats)
     {
       waiting = false;
-      EXPECT_STREQ(base.c_str(), "TEST");
+      EXPECT_EQ(base, testBase());
       EXPECT_STREQ(sub.c_str(), "ttt");
       EXPECT_GT(ats.size(), 0);
       EXPECT_TRUE(ats[0].first.ok());
@@ -375,7 +382,7 @@ TEST(RedisAdapter, DeferReader)
 TEST(RedisAdapter, MultiWorker)
 {
   RA_Options opts = testOptions(); opts.workers = 16;
-  RedisAdapter redis("TEST", opts);
+  RedisAdapter redis(testBase(), opts);
 
   std::atomic<bool> waiting = false;
 
@@ -383,7 +390,7 @@ TEST(RedisAdapter, MultiWorker)
   EXPECT_TRUE(redis.addValuesReader<int>("rrr", [&](const string& base, const string& sub, const RA::TimeValList<int>& ats)
     {
       waiting = false;
-      EXPECT_STREQ(base.c_str(), "TEST");
+      EXPECT_EQ(base, testBase());
       EXPECT_STREQ(sub.c_str(), "rrr");
       EXPECT_GT(ats.size(), 0);
       EXPECT_TRUE(ats[0].first.ok());
@@ -393,7 +400,7 @@ TEST(RedisAdapter, MultiWorker)
   EXPECT_TRUE(redis.addValuesReader<int>("sss", [&](const string& base, const string& sub, const RA::TimeValList<int>& ats)
     {
       waiting = false;
-      EXPECT_STREQ(base.c_str(), "TEST");
+      EXPECT_EQ(base, testBase());
       EXPECT_STREQ(sub.c_str(), "sss");
       EXPECT_GT(ats.size(), 0);
       EXPECT_TRUE(ats[0].first.ok());
@@ -403,7 +410,7 @@ TEST(RedisAdapter, MultiWorker)
   EXPECT_TRUE(redis.addValuesReader<int>("ttt", [&](const string& base, const string& sub, const RA::TimeValList<int>& ats)
     {
       waiting = false;
-      EXPECT_STREQ(base.c_str(), "TEST");
+      EXPECT_EQ(base, testBase());
       EXPECT_STREQ(sub.c_str(), "ttt");
       EXPECT_GT(ats.size(), 0);
       EXPECT_TRUE(ats[0].first.ok());
@@ -446,7 +453,7 @@ TEST(RedisAdapter, MultiWorker)
 TEST(RedisAdapter, MultiReader)
 {
   RA_Options opts = testOptions(); opts.readers = 16;
-  RedisAdapter redis("TEST", opts);
+  RedisAdapter redis(testBase(), opts);
 
   std::atomic<bool> waiting = false;
 
@@ -454,7 +461,7 @@ TEST(RedisAdapter, MultiReader)
   EXPECT_TRUE(redis.addValuesReader<int>("rrr", [&](const string& base, const string& sub, const RA::TimeValList<int>& ats)
     {
       waiting = false;
-      EXPECT_STREQ(base.c_str(), "TEST");
+      EXPECT_EQ(base, testBase());
       EXPECT_STREQ(sub.c_str(), "rrr");
       EXPECT_GT(ats.size(), 0);
       EXPECT_TRUE(ats[0].first.ok());
@@ -464,7 +471,7 @@ TEST(RedisAdapter, MultiReader)
   EXPECT_TRUE(redis.addValuesReader<int>("sss", [&](const string& base, const string& sub, const RA::TimeValList<int>& ats)
     {
       waiting = false;
-      EXPECT_STREQ(base.c_str(), "TEST");
+      EXPECT_EQ(base, testBase());
       EXPECT_STREQ(sub.c_str(), "sss");
       EXPECT_GT(ats.size(), 0);
       EXPECT_TRUE(ats[0].first.ok());
@@ -474,7 +481,7 @@ TEST(RedisAdapter, MultiReader)
   EXPECT_TRUE(redis.addValuesReader<int>("ttt", [&](const string& base, const string& sub, const RA::TimeValList<int>& ats)
     {
       waiting = false;
-      EXPECT_STREQ(base.c_str(), "TEST");
+      EXPECT_EQ(base, testBase());
       EXPECT_STREQ(sub.c_str(), "ttt");
       EXPECT_GT(ats.size(), 0);
       EXPECT_TRUE(ats[0].first.ok());
@@ -516,7 +523,7 @@ TEST(RedisAdapter, MultiReader)
 
 TEST(RedisAdapter, Utility)
 {
-  RedisAdapter redis("TEST", testOptions());
+  RedisAdapter redis(testBase(), testOptions());
 
   EXPECT_TRUE(redis.del("dstdat"));
 
@@ -538,7 +545,7 @@ TEST(RedisAdapter, Utility)
 TEST(RedisAdapter, Watchdog)
 {
   auto opts = testOptions(); opts.dogname = "TEST";
-  RedisAdapter redis("TEST", opts);
+  RedisAdapter redis(testBase(), opts);
 
   //  wait a bit and check auto-watchdog is there
   this_thread::sleep_for(milliseconds(100));
