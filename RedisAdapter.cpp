@@ -215,19 +215,69 @@ RA_Time RedisAdapter::finishWrite(const RedisConnection::WriteResult& result)
   return RA_NOT_CONNECTED;
 }
 
-void RedisAdapter::finishBatch(const string& key, size_t accepted, uint32_t trim,
-                               bool refreshNeeded, bool approximateTrim)
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  Pipeline : queue stream writes, then send them in one round trip
+//
+size_t RedisAdapter::Pipeline::addSingleDouble(const string& subKey, double data, const RA_ArgsAdd& args)
 {
-  if (trim && accepted) {
-    const auto result = _redis.xtrimResult(key,
-        std::max(trim, static_cast<uint32_t>(std::min<size_t>(accepted, UINT32_MAX))), approximateTrim);
-    refreshNeeded |= result.status == RedisConnection::CommandStatus::Unavailable || result.refreshConnection;
-    if (result.status == RedisConnection::CommandStatus::Rejected)
-      syslog(LOG_WARNING, "accepted batch entries retained, but final trim rejected: %s", result.error.c_str());
+  return add_single(subKey, args, _adapter.default_field_attrs(data));
+}
+
+size_t RedisAdapter::Pipeline::add_single(const string& subKey, const RA_ArgsAdd& args, Attrs&& attrs)
+{
+  _calls.push_back({_writes.size(), 1, false, false});
+  _writes.push_back({RedisConnection::StreamWrite::Kind::Add, _adapter.build_key(subKey), args.time.id_or_now(),
+                     std::move(attrs), args.trim, args.approximateTrim});
+  return _calls.size() - 1;
+}
+
+size_t RedisAdapter::Pipeline::add_batch(const string& subKey, TimeValList<Attrs>&& items,
+                                         uint32_t trim, bool approximateTrim)
+{
+  const auto key = _adapter.build_key(subKey);
+  const bool trimmed = trim && !items.empty();
+  _calls.push_back({_writes.size(), items.size(), true, trimmed});
+  for (auto& item : items)
+    _writes.push_back({RedisConnection::StreamWrite::Kind::Add, key, item.first.id_or_now(), std::move(item.second)});
+  // Replies are not back when the trim is queued, so it keeps at least every item sent.
+  if (trimmed)
+    _writes.push_back({RedisConnection::StreamWrite::Kind::Trim, key, {}, {},
+                       std::max(trim, static_cast<uint32_t>(std::min<size_t>(items.size(), UINT32_MAX))), approximateTrim});
+  return _calls.size() - 1;
+}
+
+std::vector<std::vector<RA_Time>> RedisAdapter::Pipeline::exec()
+{
+  const auto writes = std::move(_writes);
+  const auto calls = std::move(_calls);
+  _writes.clear();
+  _calls.clear();
+  const auto replies = _adapter._redis.writeBatch(writes);
+
+  using Status = RedisConnection::CommandStatus;
+  bool refresh = false;
+  std::vector<std::vector<RA_Time>> results;
+  results.reserve(calls.size());
+  for (const auto& call : calls) {
+    std::vector<RA_Time> times;
+    for (size_t index = call.first; index < call.first + call.adds; ++index) {
+      const auto& reply = replies[index];
+      refresh |= reply.status == Status::Unavailable || reply.refreshConnection;
+      if (reply.status == Status::Accepted) times.emplace_back(reply.id);
+      else if (!call.batch) times.push_back(reply.status == Status::Rejected ? RA_REJECTED : RA_NOT_CONNECTED);
+    }
+    if (call.trimmed) {
+      const auto& trim = replies[call.first + call.adds];
+      refresh |= trim.status == Status::Unavailable || trim.refreshConnection;
+      if (trim.status == Status::Rejected && !times.empty())
+        syslog(LOG_WARNING, "accepted batch entries retained, but final trim rejected: %s", trim.error.c_str());
+    }
+    results.push_back(std::move(times));
   }
   // Accepted timestamps survive item/trim failures. Refresh prepares later
   // calls; no ambiguous write or trim is replayed on a standalone connection.
-  if (refreshNeeded) reconnect(0);
+  if (refresh) _adapter.reconnect(0);
+  return results;
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

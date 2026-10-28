@@ -298,6 +298,65 @@ public:
                                            args.approximateTrim); }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  class Pipeline : queue stream writes to any keys, then send them in one round trip
+  //
+  //    Each add function takes the same arguments as its RedisAdapter namesake and
+  //    returns the position of its result. exec() sends everything queued, clears
+  //    the queue and returns one result per add, exactly what the direct call would
+  //    have returned; a single write's RA_Time is returned as a one-item vector.
+  //
+  //    Replies that arrive before a transport failure keep their results. Writes
+  //    after the lost reply were already sent, so their outcome is unknown: a single
+  //    write reports RA_NOT_CONNECTED, a batch omits them, and none is replayed.
+  //    A batch's final trim is queued with its items, so it targets the larger of
+  //    trim and the number of items sent rather than the number accepted.
+  //
+  class Pipeline
+  {
+  public:
+    template<typename T> size_t
+    addSingleValue(const std::string& subKey, const T& data, const RA_ArgsAdd& args = {});
+
+    size_t addSingleDouble(const std::string& subKey, double data, const RA_ArgsAdd& args = {});
+
+    //  overload for array and span
+    template<template<typename T, size_t S> class C, typename T, size_t S> size_t
+    addSingleList(const std::string& subKey, const C<T, S>& data, const RA_ArgsAdd& args = {})
+      { return add_single_list(subKey, args, data.data(), data.size()); }
+
+    //  overload for vector
+    template<typename T> size_t
+    addSingleList(const std::string& subKey, const std::vector<T>& data, const RA_ArgsAdd& args = {})
+      { return add_single_list(subKey, args, data.data(), data.size()); }
+
+    template<typename T> size_t
+    addValues(const std::string& subKey, const TimeValList<T>& data, uint32_t trim = 1, bool approximateTrim = true);
+
+    template<typename T> size_t
+    addLists(const std::string& subKey, const TimeValList<std::vector<T>>& data, uint32_t trim = 1, bool approximateTrim = true);
+
+    std::vector<std::vector<RA_Time>> exec();
+
+  private:
+    friend class RedisAdapter;
+    explicit Pipeline(RedisAdapter& adapter) : _adapter(adapter) {}
+
+    //  writes [first, first + adds) belong to one add, followed by its trim if trimmed
+    struct Call { size_t first = 0, adds = 0; bool batch = false, trimmed = false; };
+
+    size_t add_single(const std::string& subKey, const RA_ArgsAdd& args, Attrs&& attrs);
+    template<typename T> size_t add_single_list(const std::string& subKey, const RA_ArgsAdd& args,
+                                                const T* data, size_t size);
+    size_t add_batch(const std::string& subKey, TimeValList<Attrs>&& items, uint32_t trim, bool approximateTrim);
+
+    RedisAdapter& _adapter;
+    std::vector<RedisConnection::StreamWrite> _writes;
+    std::vector<Call> _calls;
+  };
+
+  Pipeline pipeline() { return Pipeline(*this); }
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  connected : test if server is connected and responsive
   //
   //    return : true if connected, false if not connected
@@ -542,7 +601,6 @@ private:
 
   int32_t reconnect(int32_t result);
   RA_Time finishWrite(const RedisConnection::WriteResult& result);
-  void finishBatch(const std::string& key, size_t accepted, uint32_t trim, bool refreshNeeded, bool approximateTrim);
   std::atomic_bool _connecting;
   std::thread _reconnect_thd;
   std::mutex _reconnect_mtx;

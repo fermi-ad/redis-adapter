@@ -94,6 +94,57 @@ TEST_F(WriteErrors, BatchesKeepAcceptedItemsSkipRejectionsAndCanTrimExactly) {
   EXPECT_EQ(redis->xlen(key("exact-list")), 1);
 }
 
+TEST_F(WriteErrors, PipelineReturnsWhatEachDirectCallWouldReturn) {
+  RA adapter(base, options);
+  const RA_Time t1(10000001), t2(10000002), t3(10000003);
+  ASSERT_EQ(adapter.addSingleValue("taken", 1, {.time=t2, .trim=0}), t2);
+  ASSERT_EQ(adapter.addValues<int>("trimmed", {{t1, 1}, {t2, 2}}, 0).size(), 2u);
+  redis->set(key("wrong"), "wrong type");
+
+  auto pipeline = adapter.pipeline();
+  EXPECT_EQ(pipeline.addSingleValue("int", 7, {.time=t1}), 0u);
+  EXPECT_EQ(pipeline.addSingleValue("taken", 2, {.time=t1, .trim=0}), 1u);
+  pipeline.addSingleDouble("double", 1.5, {.time=t1});
+  pipeline.addSingleList("vector", std::vector<int>{1, 2}, {.time=t1});
+  pipeline.addSingleList("array", std::array<int, 2>{{3, 4}}, {.time=t1});
+  pipeline.addSingleValue<RA::Attrs>("attrs", {{"field", "value"}}, {.time=t1});
+  pipeline.addSingleValue("wrong", 1);
+  pipeline.addValues<int>("values", {{t1, 1}, {t1, 2}, {t3, 3}}, 10);
+  pipeline.addValues<RA::Attrs>("attr-values", {{t1, {{"_", "one"}}}, {t2, {{"_", "two"}}}}, 10);
+  EXPECT_EQ(pipeline.addLists<int>("lists", {{t2, {5}}, {t1, {6}}}, 10), 9u);
+  pipeline.addSingleValue("trimmed", 3, {.time=t3, .trim=1, .approximateTrim=false});
+  const auto results = pipeline.exec();
+
+  using Times = std::vector<RA_Time>;
+  ASSERT_EQ(results.size(), 11u);
+  EXPECT_EQ(results[0], Times{t1});
+  EXPECT_EQ(results[1], Times{RA_REJECTED});
+  EXPECT_EQ(results[2], Times{t1});
+  EXPECT_EQ(results[3], Times{t1});
+  EXPECT_EQ(results[4], Times{t1});
+  EXPECT_EQ(results[5], Times{t1});
+  EXPECT_EQ(results[6], Times{RA_REJECTED});
+  EXPECT_EQ(results[7], (Times{t1, t3}));
+  EXPECT_EQ(results[8], (Times{t1, t2}));
+  EXPECT_EQ(results[9], Times{t2});
+  EXPECT_EQ(results[10], Times{t3});
+
+  int scalar = 0;
+  EXPECT_EQ(adapter.getSingleValue("int", scalar), t1);
+  EXPECT_EQ(scalar, 7);
+  std::vector<int> list;
+  EXPECT_EQ(adapter.getSingleList("vector", list), t1);
+  EXPECT_EQ(list, (std::vector<int>{1, 2}));
+  EXPECT_EQ(adapter.getSingleList("array", list), t1);
+  EXPECT_EQ(list, (std::vector<int>{3, 4}));
+  EXPECT_EQ(redis->xlen(key("taken")), 1);
+  EXPECT_EQ(redis->xlen(key("values")), 2);
+  EXPECT_EQ(redis->xlen(key("lists")), 1);
+  EXPECT_EQ(redis->xlen(key("trimmed")), 1);
+
+  EXPECT_TRUE(pipeline.exec().empty());
+}
+
 TEST_F(WriteErrors, LowLevelResultsKeepErrorTextAndStatusPointersAreUnambiguous) {
   RedisConnection connection(options.cxn);
   const RA::Attrs attrs{{"_", "value"}};
@@ -144,8 +195,8 @@ static int proxyScenario(const std::string& mode) {
       RA adapter(base, options);
       expect(adapter.addSingleDouble("healthy", 1.).ok(), "healthy write after recovery failed");
       const auto prefix = adapter.addValues<int>("mixed-transport", {{RA_Time(10000001), 1}, {RA_Time(10000002), 2}, {RA_Time(10000003), 3}}, 0);
-      expect(prefix.size() == 1 && prefix.front().value == 10000001, "batch must stop at unavailable item and retain accepted prefix");
-      expect(control.xlen("{" + base + "}:mixed-transport") == 2, "ambiguous item was accepted once; later item must not be sent");
+      expect(prefix.size() == 1 && prefix.front().value == 10000001, "batch must retain the accepted prefix and omit unconfirmed items");
+      expect(control.xlen("{" + base + "}:mixed-transport") == 2, "ambiguous item was accepted once; no item may be replayed");
     }
     { RA adapter(base, options); expect(adapter.addSingleDouble("healthy", 2.).ok(), "future write after mixed-batch failure failed"); }
   } else if (mode == "trim") {
@@ -191,6 +242,44 @@ static int proxyScenario(const std::string& mode) {
       expect(accepted.size() == 2, "trim rejection must not undo accepted writes");
       expect(control.xlen("{" + base + "-acl}:trim-denied") == 2, "denied trim unexpectedly removed data");
     }
+  } else if (mode == "batch-round-trip") {
+    // Eight items and the final trim cost nine latencies when each waits for
+    // its reply. Half that bound still leaves room for a slow host.
+    const std::chrono::milliseconds latency(std::stoi(std::getenv("REDIS_ADAPTER_PROXY_LATENCY_MS")));
+    RA adapter(base, options);
+    RA::TimeValList<int> items;
+    for (int i = 1; i <= 8; ++i) items.push_back({RA_Time(10000000 + i), i});
+    const auto started = std::chrono::steady_clock::now();
+    const auto accepted = adapter.addValues<int>("round-trip", items, 1, false);
+    const auto elapsed = std::chrono::steady_clock::now() - started;
+    expect(accepted.size() == 8, "every batch item must be accepted");
+    expect(control.xlen("{" + base + "}:round-trip") == 8, "the batch trim must keep every accepted item");
+    expect(elapsed < latency * 4, "a batch must share one round trip instead of paying one per item");
+  } else if (mode == "pipeline-round-trip") {
+    const std::chrono::milliseconds latency(std::stoi(std::getenv("REDIS_ADAPTER_PROXY_LATENCY_MS")));
+    RA adapter(base, options);
+    auto pipeline = adapter.pipeline();
+    for (int i = 1; i <= 8; ++i) pipeline.addSingleValue("round-trip-" + std::to_string(i), i);
+    const auto started = std::chrono::steady_clock::now();
+    const auto results = pipeline.exec();
+    const auto elapsed = std::chrono::steady_clock::now() - started;
+    expect(results.size() == 8, "every queued write must report a result");
+    for (const auto& result : results) expect(result.size() == 1 && result.front().ok(), "every write must be accepted");
+    expect(elapsed < latency * 4, "a pipeline must share one round trip instead of paying one per write");
+  } else if (mode == "pipeline-fault") {
+    {
+      RA adapter(base, options);
+      auto pipeline = adapter.pipeline();
+      pipeline.addSingleDouble("pipeline-kept", 1.);
+      pipeline.addSingleDouble("pipeline-lost", 2.);
+      pipeline.addValues<int>("pipeline-unconfirmed", {{RA_Time(10000001), 1}}, 0);
+      const auto results = pipeline.exec();
+      expect(results.size() == 3, "every queued write must report a result");
+      expect(results[0].size() == 1 && results[0].front().ok(), "a reply received before the fault must keep its timestamp");
+      expect(results[1] == std::vector<RA_Time>{RA_NOT_CONNECTED}, "the lost reply must remain ambiguous");
+      expect(results[2].empty(), "a write after the lost reply is unconfirmed and must not be reported");
+    }
+    { RA adapter(base, options); expect(adapter.addSingleDouble("healthy", 1.).ok(), "future write after pipeline fault failed"); }
   } else throw std::runtime_error("unknown proxy scenario");
   std::cout << mode << " proxy scenario passed\n";
   return 0;

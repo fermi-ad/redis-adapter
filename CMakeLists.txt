@@ -108,6 +108,10 @@ if(REDIS_ADAPTER_TEST)
       COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/write_failure_test.py
               $<TARGET_FILE:redis-adapter-write-error-test>)
     set_tests_properties(RedisAdapter.WriteTransportFailure PROPERTIES TIMEOUT 60 RUN_SERIAL TRUE)
+    add_test(NAME RedisAdapter.WritePipelineRoundTrips
+      COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/write_pipeline_test.py
+              $<TARGET_FILE:redis-adapter-write-error-test>)
+    set_tests_properties(RedisAdapter.WritePipelineRoundTrips PROPERTIES TIMEOUT 60 RUN_SERIAL TRUE)
   else()
     message(WARNING "Python3 not found: write proxy tests disabled; native tests remain enabled")
   endif()

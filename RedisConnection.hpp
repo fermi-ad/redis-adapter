@@ -4,6 +4,8 @@
 #include <syslog.h>
 #include <mutex>
 #include <algorithm>
+#include <unordered_map>
+#include <vector>
 
 namespace swr = sw::redis;
 namespace chr = std::chrono;
@@ -502,6 +504,47 @@ public:
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  writeBatch : send stream writes in one round trip, then read each reply in order
+  //
+  //    writes : XADDs (MAXLEN-trimmed when threshold is nonzero) and XTRIMs, in send order
+  //    return : one result per write, as xaddResult or xtrimResult would report it;
+  //             a trim reports status, error text and refresh decision only
+  //
+  //  Replies read before a transport failure keep their results. Every later
+  //  write was already sent, so it stays Unavailable: its outcome is unknown,
+  //  and like any failed write it is never replayed.
+  //
+  struct StreamWrite {
+    enum class Kind { Add, Trim };
+    Kind kind = Kind::Add;
+    std::string key;
+    std::string id;                                       // Add only
+    std::unordered_map<std::string, std::string> fields;  // Add only
+    uint32_t threshold = 0;  // Add: MAXLEN when nonzero; Trim: entries to keep
+    bool approximate = true;
+  };
+
+  std::vector<WriteResult> writeBatch(const std::vector<StreamWrite>& writes) {
+    std::vector<WriteResult> results(writes.size());
+    auto client = snapshot();
+    if (!client || writes.empty()) return results;
+    size_t received = 0;
+    const auto record = [&](redisReply& reply) { results[received] = writeReply(writes[received], reply); ++received; };
+    try {
+      // command() reads the final reply itself, so the callback reads the others.
+      auto last = client->command([&](swr::Connection& connection) {
+        for (const auto& write : writes) sendWrite(connection, write);
+        while (received + 1 < writes.size()) record(*connection.recv(false));
+      });
+      record(*last);
+    } catch (const swr::ReplyError& error) { results[received] = replyFailure(error); }
+      catch (const swr::Error& error) {
+        for (auto index = received; index < results.size(); ++index) results[index].error = error.what();
+      }
+    return results;
+  }
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  exists : test if a key exists
   //
   //    key    : the key to look for
@@ -778,6 +821,27 @@ private:
     syslog(LOG_WARNING, "Redis stream command rejected: %s", message.c_str());
     // READONLY is a known refusal, with topology refresh for later operations.
     return {CommandStatus::Rejected, {}, message, refresh};
+  }
+
+  // The same wire commands Redis::xadd and Redis::xtrim send.
+  static void sendWrite(swr::Connection& connection, const StreamWrite& write) {
+    if (write.kind == StreamWrite::Kind::Trim)
+      swr::cmd::xtrim(connection, write.key, write.threshold, write.approximate, swr::XtrimStrategy::MAXLEN);
+    else if (write.threshold)
+      swr::cmd::xadd_maxlen_range(connection, write.key, write.id, write.fields.begin(), write.fields.end(),
+                                  write.threshold, write.approximate);
+    else
+      swr::cmd::xadd_range(connection, write.key, write.id, write.fields.begin(), write.fields.end());
+  }
+
+  // Error replies are classified exactly as a single command's reply would be.
+  static WriteResult writeReply(const StreamWrite& write, redisReply& reply) {
+    if (swr::reply::is_error(reply)) {
+      try { swr::throw_error(reply); }
+      catch (const swr::ReplyError& error) { return replyFailure(error); }
+    }
+    if (write.kind == StreamWrite::Kind::Trim) return {CommandStatus::Accepted};
+    return {CommandStatus::Accepted, swr::reply::parse<std::string>(reply)};
   }
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  snapshot : copy the selected client shared_ptr under a brief lock
