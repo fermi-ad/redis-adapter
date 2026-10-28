@@ -506,21 +506,18 @@ public:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  writeBatch : send stream writes in one round trip, then read each reply in order
   //
-  //    writes : XADDs (MAXLEN-trimmed when threshold is nonzero) and XTRIMs, in send order
-  //    return : one result per write, as xaddResult or xtrimResult would report it;
-  //             a trim reports status, error text and refresh decision only
+  //    writes : XADDs (MAXLEN-trimmed when threshold is nonzero), in send order
+  //    return : one result per write, as xaddResult or xaddTrimResult would report it
   //
   //  Replies read before a transport failure keep their results. Every later
   //  write was already sent, so it stays Unavailable: its outcome is unknown,
   //  and like any failed write it is never replayed.
   //
   struct StreamWrite {
-    enum class Kind { Add, Trim };
-    Kind kind = Kind::Add;
     std::string key;
-    std::string id;                                       // Add only
-    std::unordered_map<std::string, std::string> fields;  // Add only
-    uint32_t threshold = 0;  // Add: MAXLEN when nonzero; Trim: entries to keep
+    std::string id;
+    std::unordered_map<std::string, std::string> fields;
+    uint32_t threshold = 0;  // MAXLEN when nonzero
     bool approximate = true;
   };
 
@@ -529,7 +526,7 @@ public:
     auto client = snapshot();
     if (!client || writes.empty()) return results;
     size_t received = 0;
-    const auto record = [&](redisReply& reply) { results[received] = writeReply(writes[received], reply); ++received; };
+    const auto record = [&](redisReply& reply) { results[received] = writeReply(reply); ++received; };
     try {
       // command() reads the final reply itself, so the callback reads the others.
       auto last = client->command([&](swr::Connection& connection) {
@@ -823,11 +820,9 @@ private:
     return {CommandStatus::Rejected, {}, message, refresh};
   }
 
-  // The same wire commands Redis::xadd and Redis::xtrim send.
+  // The same wire commands Redis::xadd sends.
   static void sendWrite(swr::Connection& connection, const StreamWrite& write) {
-    if (write.kind == StreamWrite::Kind::Trim)
-      swr::cmd::xtrim(connection, write.key, write.threshold, write.approximate, swr::XtrimStrategy::MAXLEN);
-    else if (write.threshold)
+    if (write.threshold)
       swr::cmd::xadd_maxlen_range(connection, write.key, write.id, write.fields.begin(), write.fields.end(),
                                   write.threshold, write.approximate);
     else
@@ -835,12 +830,11 @@ private:
   }
 
   // Error replies are classified exactly as a single command's reply would be.
-  static WriteResult writeReply(const StreamWrite& write, redisReply& reply) {
+  static WriteResult writeReply(redisReply& reply) {
     if (swr::reply::is_error(reply)) {
       try { swr::throw_error(reply); }
       catch (const swr::ReplyError& error) { return replyFailure(error); }
     }
-    if (write.kind == StreamWrite::Kind::Trim) return {CommandStatus::Accepted};
     return {CommandStatus::Accepted, swr::reply::parse<std::string>(reply)};
   }
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

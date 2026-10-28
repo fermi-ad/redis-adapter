@@ -106,15 +106,13 @@ unavailable. A server rejection does not reconnect or replace the supplied
 timestamp. The existing `ok()` success check applies to both error results.
 
 Batches return only the timestamps of accepted items, in input order. Known
-ordinary rejections are omitted. A batch sends its items and final trim in one
-round trip. If the connection fails, items whose replies arrived keep their
-timestamps; items after the lost reply were already sent, so their outcome is
-unknown and they are omitted. Their IDs may have advanced the stream. An empty
-or all-rejected batch does not imply a disconnected server. A transport failure
-in any item or the final trim still initiates connection recovery even if other
-items succeeded. The returned vector does not report per-item error reasons or
-final trim success. Batches are not atomic, and a failed trim does not undo
-already accepted entries.
+ordinary rejections are omitted. A batch sends all its items in one round trip.
+If the connection fails, items whose replies arrived keep their timestamps;
+items after the lost reply were already sent, so their outcome is unknown and
+they are omitted. Redis may still have accepted them. An empty or all-rejected
+batch does not imply a disconnected server. A transport failure in any item
+still initiates connection recovery even if other items succeeded. The returned
+vector does not report per-item error reasons. Batches are not atomic.
 
 No failed stream write is automatically replayed. In particular, a timeout may
 follow server acceptance: retrying the command could apply it twice. Connection
@@ -127,10 +125,10 @@ The low-level `WriteResult` and `TrimResult` include server error text and the
 refresh decision.
 
 Batch trimming is approximate by default. Pass the fourth `approximateTrim`
-argument as `false` for an exact bound. The retention target is at least the
-number of items sent in that batch. A rejected final trim is logged and does not undo
-accepted entries; the legacy timestamp vector cannot report trim success. Use
-`RedisConnection::xtrimResult()` when the retention outcome must be inspected.
+argument as `false` for an exact bound. Each item carries the trim, so a batch
+trims the stream only when Redis accepts one of its items, and an all-rejected
+batch leaves existing history alone. The retention target is at least the number
+of items sent in that batch.
 
 ### Pipelined writes
 

@@ -308,8 +308,8 @@ public:
   //    Replies that arrive before a transport failure keep their results. Writes
   //    after the lost reply were already sent, so their outcome is unknown: a single
   //    write reports RA_NOT_CONNECTED, a batch omits them, and none is replayed.
-  //    A batch's final trim is queued with its items, so it targets the larger of
-  //    trim and the number of items sent rather than the number accepted.
+  //    Each batch item carries the trim, so only accepted items trim the stream;
+  //    it keeps the larger of trim and the number of items sent.
   //
   class Pipeline
   {
@@ -341,8 +341,8 @@ public:
     friend class RedisAdapter;
     explicit Pipeline(RedisAdapter& adapter) : _adapter(adapter) {}
 
-    //  writes [first, first + adds) belong to one add, followed by its trim if trimmed
-    struct Call { size_t first = 0, adds = 0; bool batch = false, trimmed = false; };
+    //  writes [first, first + adds) belong to one add
+    struct Call { size_t first = 0, adds = 0; bool batch = false; };
 
     size_t add_single(const std::string& subKey, const RA_ArgsAdd& args, Attrs&& attrs);
     template<typename T> size_t add_single_list(const std::string& subKey, const RA_ArgsAdd& args,

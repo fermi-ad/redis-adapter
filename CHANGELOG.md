@@ -22,12 +22,12 @@ versions are independent of the RedisAdapter wire-protocol version.
 
 - Callers must use `!ok()` or inspect `err()`; checking only the historical
   `RA_NOT_CONNECTED` sentinel no longer covers all failures.
-- `addValues()` and `addLists()` send their items and final trim in one round
-  trip. After a transport failure, items whose replies arrived keep their
-  timestamps; later items were already sent, so they are omitted as unconfirmed
-  rather than left unattempted. The final trim keeps at least the number of
-  items sent. Exact batch trimming is selectable; final trim failure does not
-  roll back accepted writes.
+- `addValues()` and `addLists()` send all their items in one round trip. After a
+  transport failure, items whose replies arrived keep their timestamps; later
+  items were already sent, so they are omitted as unconfirmed rather than left
+  unattempted. Each item carries the trim instead of a final `XTRIM`, so only
+  accepted items trim, keeping at least the number of items sent. Exact batch
+  trimming is selectable.
 - Failed stream writes are not replayed. Rejection can represent a transient
   server refusal.
 - Connections support standalone Redis over TCP or Unix-domain sockets only.

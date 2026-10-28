@@ -94,6 +94,16 @@ TEST_F(WriteErrors, BatchesKeepAcceptedItemsSkipRejectionsAndCanTrimExactly) {
   EXPECT_EQ(redis->xlen(key("exact-list")), 1);
 }
 
+TEST_F(WriteErrors, RejectedBatchesLeaveExistingHistoryUntrimmed) {
+  RA adapter(base, options);
+  for (int64_t i = 2; i <= 4; ++i)
+    ASSERT_TRUE(adapter.addSingleValue("history", 1, {.time=RA_Time(i * 1000000), .trim=0}).ok());
+  // Stale timestamps are rejected, so their exact trim must not delete history.
+  EXPECT_TRUE(adapter.addValues<int>("history", {{RA_Time(1000000), 2}}, 1, false).empty());
+  EXPECT_TRUE(adapter.addLists<int>("history", {{RA_Time(1000000), {2}}}, 1, false).empty());
+  EXPECT_EQ(redis->xlen(key("history")), 3);
+}
+
 TEST_F(WriteErrors, PipelineReturnsWhatEachDirectCallWouldReturn) {
   RA adapter(base, options);
   const RA_Time t1(10000001), t2(10000002), t3(10000003);
@@ -199,13 +209,6 @@ static int proxyScenario(const std::string& mode) {
       expect(control.xlen("{" + base + "}:mixed-transport") == 2, "ambiguous item was accepted once; no item may be replayed");
     }
     { RA adapter(base, options); expect(adapter.addSingleDouble("healthy", 2.).ok(), "future write after mixed-batch failure failed"); }
-  } else if (mode == "trim") {
-    {
-      RA adapter(base, options);
-      const auto accepted = adapter.addValues<int>("trim-lost", {{RA_Time(10000001), 1}, {RA_Time(10000002), 2}, {RA_Time(10000003), 3}}, 1, false);
-      expect(accepted.size() == 3, "final trim failure must preserve accepted timestamps");
-    }
-    { RA adapter(base, options); expect(adapter.addSingleDouble("healthy", 1.).ok(), "future write after final trim failure failed"); }
   } else if (mode == "readonly") {
     RA adapter(base, options);
     RA_ArgsAdd args; args.time = RA_Time(10000001); args.trim = 0;
@@ -219,32 +222,20 @@ static int proxyScenario(const std::string& mode) {
     expect(accepted, "READONLY must refresh connections for later writes");
     expect(control.xlen("{" + base + "}:readonly") == 1, "known refusal was not forwarded or replayed");
   } else if (mode == "rejection") {
-    {
-      RA adapter(base, options);
-      RA_ArgsAdd args; args.time = RA_Time(10000001); args.trim = 0;
-      expect(adapter.addSingleDouble("duplicate", 1., args).ok(), "seed rejected");
-      expect(adapter.addSingleDouble("duplicate", 2., args) == RA_REJECTED, "duplicate must be rejected");
-      control.set("{" + base + "}:wrong", "wrong type");
-      expect(adapter.addSingleDouble("wrong", 1.) == RA_REJECTED, "wrong type must be rejected");
-      for (unsigned i = 0; i < 20; ++i) {
-        const auto snapshot = adapter.getStreamSnapshot("wrong");
-        expect(snapshot.rejected && snapshot.id == "$", "snapshot rejection cannot become replay");
-      }
-      expect(adapter.addValues<int>("duplicate", {{RA_Time(10000001), 1}}, 1).empty(), "all-rejected batch must remain empty");
+    RA adapter(base, options);
+    RA_ArgsAdd args; args.time = RA_Time(10000001); args.trim = 0;
+    expect(adapter.addSingleDouble("duplicate", 1., args).ok(), "seed rejected");
+    expect(adapter.addSingleDouble("duplicate", 2., args) == RA_REJECTED, "duplicate must be rejected");
+    control.set("{" + base + "}:wrong", "wrong type");
+    expect(adapter.addSingleDouble("wrong", 1.) == RA_REJECTED, "wrong type must be rejected");
+    for (unsigned i = 0; i < 20; ++i) {
+      const auto snapshot = adapter.getStreamSnapshot("wrong");
+      expect(snapshot.rejected && snapshot.id == "$", "snapshot rejection cannot become replay");
     }
-    const auto user = base + "-acl";
-    struct User { sw::redis::Redis& control; std::string user; ~User() { try { control.command<void>("ACL", "DELUSER", user); } catch (...) {} } } userCleanup{control, user};
-    control.command<void>("ACL", "SETUSER", user, "on", "nopass", "~*", "+ping", "+xadd");
-    auto aclOptions = options; aclOptions.cxn.user = user;
-    {
-      RA adapter(base + "-acl", aclOptions);
-      const auto accepted = adapter.addValues<int>("trim-denied", {{RA_Time(10000001), 1}, {RA_Time(10000002), 2}}, 1, false);
-      expect(accepted.size() == 2, "trim rejection must not undo accepted writes");
-      expect(control.xlen("{" + base + "-acl}:trim-denied") == 2, "denied trim unexpectedly removed data");
-    }
+    expect(adapter.addValues<int>("duplicate", {{RA_Time(10000001), 1}}, 1).empty(), "all-rejected batch must remain empty");
   } else if (mode == "batch-round-trip") {
-    // Eight items and the final trim cost nine latencies when each waits for
-    // its reply. Half that bound still leaves room for a slow host.
+    // Eight items cost eight latencies when each waits for its reply. Half
+    // that bound still leaves room for a slow host.
     const std::chrono::milliseconds latency(std::stoi(std::getenv("REDIS_ADAPTER_PROXY_LATENCY_MS")));
     RA adapter(base, options);
     RA::TimeValList<int> items;
@@ -272,12 +263,15 @@ static int proxyScenario(const std::string& mode) {
       auto pipeline = adapter.pipeline();
       pipeline.addSingleDouble("pipeline-kept", 1.);
       pipeline.addSingleDouble("pipeline-lost", 2.);
-      pipeline.addValues<int>("pipeline-unconfirmed", {{RA_Time(10000001), 1}}, 0);
+      pipeline.addValues<int>("pipeline-unconfirmed", {{RA_Time(10000001), 1}, {RA_Time(10000002), 2}}, 1, false);
       const auto results = pipeline.exec();
       expect(results.size() == 3, "every queued write must report a result");
       expect(results[0].size() == 1 && results[0].front().ok(), "a reply received before the fault must keep its timestamp");
       expect(results[1] == std::vector<RA_Time>{RA_NOT_CONNECTED}, "the lost reply must remain ambiguous");
       expect(results[2].empty(), "a write after the lost reply is unconfirmed and must not be reported");
+      // The proxy forwards what was queued behind the lost reply, so Redis ran it.
+      expect(control.xlen("{" + base + "}:pipeline-lost") == 1, "Redis must run the write whose reply was lost");
+      expect(control.xlen("{" + base + "}:pipeline-unconfirmed") == 2, "Redis must run the writes queued behind the lost reply");
     }
     { RA adapter(base, options); expect(adapter.addSingleDouble("healthy", 1.).ok(), "future write after pipeline fault failed"); }
   } else throw std::runtime_error("unknown proxy scenario");
