@@ -112,15 +112,10 @@ class Forward(socketserver.BaseRequestHandler):
                 self.server.failures.append(str(error))
 
     def forward_queued(self, client, upstream, reply):
-        # A pipeline is flushed in one write before any reply is read, so the
-        # commands behind the lost reply are already here. Redis runs them; the
-        # client never sees their replies.
-        while True:
-            self.request.setblocking(False)
-            queued = client.peek(1)
-            self.request.settimeout(10)
-            if not queued:
-                return
+        # The pipeline-fault scenario queues a two-item batch behind the lost
+        # reply. Wait for both, however TCP splits the pipeline, so Redis runs
+        # them; the client never sees their replies.
+        for _ in range(2):
             request, args = frame(client)
             with self.server.lock:
                 self.server.attempts[(args[0].upper(), args[1].split(b":", 1)[1])] += 1

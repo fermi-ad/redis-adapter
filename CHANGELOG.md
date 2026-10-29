@@ -25,9 +25,11 @@ versions are independent of the RedisAdapter wire-protocol version.
 - `addValues()` and `addLists()` send all their items in one round trip. After a
   transport failure, items whose replies arrived keep their timestamps; later
   items were already sent, so they are omitted as unconfirmed rather than left
-  unattempted. Each item carries the trim instead of a final `XTRIM`, so only
-  accepted items trim, keeping at least the number of items sent. Exact batch
-  trimming is selectable.
+  unattempted. Exact batch trimming is selectable.
+- Batches no longer send a final `XTRIM`; each item's `XADD` carries the trim as
+  `MAXLEN`. The stream is trimmed as each item is accepted, and an all-rejected
+  batch leaves history alone. The retention target counts items sent, not
+  accepted. A user allowed `XADD` but denied `XTRIM` can now trim through batches.
 - Failed stream writes are not replayed. Rejection can represent a transient
   server refusal.
 - Connections support standalone Redis over TCP or Unix-domain sockets only.

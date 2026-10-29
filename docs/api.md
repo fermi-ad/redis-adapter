@@ -125,10 +125,18 @@ The low-level `WriteResult` and `TrimResult` include server error text and the
 refresh decision.
 
 Batch trimming is approximate by default. Pass the fourth `approximateTrim`
-argument as `false` for an exact bound. Each item carries the trim, so a batch
-trims the stream only when Redis accepts one of its items, and an all-rejected
-batch leaves existing history alone. The retention target is at least the number
-of items sent in that batch.
+argument as `false` for an exact bound. Batches no longer send a final `XTRIM`:
+each item's `XADD` carries the trim as `MAXLEN`, the form single writes already
+use. Compared with earlier releases:
+
+- The stream is trimmed as each item is accepted, not once after the batch. An
+  all-rejected batch leaves existing history alone.
+- The retention target is the larger of the trim argument and the number of
+  items sent, not accepted, because it is set before any reply arrives. When
+  items are rejected, older entries can survive that the final trim removed.
+- Trimming needs only `XADD` permission. A user allowed `XADD` but denied
+  `XTRIM` now trims through the batch API, as single writes already did; the
+  batch's final trim used to be refused.
 
 ### Pipelined writes
 
