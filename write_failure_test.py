@@ -74,16 +74,16 @@ class Forward(socketserver.BaseRequestHandler):
                             if command == b"CLUSTER":
                                 expect(args == [b"CLUSTER", b"INFO"], "unexpected Cluster discovery command")
                                 self.server.cluster_generations.append(generation)
-                            if command in (b"XADD", b"XTRIM"):
+                            if command == b"XADD":
                                 key = args[1].split(b":", 1)[1]
                                 self.server.attempts[(command, key)] += 1
                                 count = self.server.attempts[(command, key)]
-                                drop = ((self.server.mode == "fault" and command == b"XADD" and
+                                drop = ((self.server.mode == "fault" and
                                          ((key == b"lost-reply" and count == 1) or
                                           (key == b"mixed-transport" and count == 2))) or
-                                        (self.server.mode == "trim" and command == b"XTRIM" and key == b"trim-lost"))
-                                readonly = (self.server.mode == "readonly" and command == b"XADD" and
-                                            key == b"readonly" and (generation is None or generation < 2))
+                                        (self.server.mode == "pipeline-fault" and key == b"pipeline-lost"))
+                                readonly = (self.server.mode == "readonly" and key == b"readonly" and
+                                            (generation is None or generation < 2))
                         if self.server.delay:
                             time.sleep(self.server.delay)
                         if self.server.mode == "cluster-refusal" and command == b"CLUSTER":
@@ -96,9 +96,13 @@ class Forward(socketserver.BaseRequestHandler):
                         upstream.sendall(request)
                         response, _ = frame(reply)
                         if drop:
-                            expect(response.startswith(b"$" if command == b"XADD" else b":"), "fault must consume an accepted Redis response")
+                            expect(response.startswith(b"$"), "fault must consume an accepted Redis response")
                             with self.server.lock:
                                 self.server.dropped += 1
+                            # "fault" closes before later commands reach Redis;
+                            # "pipeline-fault" lets Redis run them first.
+                            if self.server.mode == "pipeline-fault":
+                                self.forward_queued(client, upstream, reply)
                             return
                         self.request.sendall(response)
         except (EOFError, ConnectionError, TimeoutError, OSError):
@@ -106,6 +110,17 @@ class Forward(socketserver.BaseRequestHandler):
         except Exception as error:
             with self.server.lock:
                 self.server.failures.append(str(error))
+
+    def forward_queued(self, client, upstream, reply):
+        # The pipeline-fault scenario queues a two-item batch behind the lost
+        # reply. Wait for both, however TCP splits the pipeline, so Redis runs
+        # them; the client never sees their replies.
+        for _ in range(2):
+            request, args = frame(client)
+            with self.server.lock:
+                self.server.attempts[(args[0].upper(), args[1].split(b":", 1)[1])] += 1
+            upstream.sendall(request)
+            frame(reply)
 
 
 def foreign_pings(port, stopped):
@@ -140,7 +155,8 @@ def run(mode, binary, upstream, delay):
             # Constructors classify the server once; reconnect generations must
             # keep the cached result even after ambiguous faults or READONLY.
             expected_classifications = {"constructor": [1], "cluster-refusal": [1], "fault": [1, 3, 5],
-                                        "trim": [1, 3], "rejection": [1, 2], "readonly": [1]}
+                                        "pipeline-fault": [1, 3], "rejection": [1],
+                                        "readonly": [1]}
             expect(proxy.cluster_generations == expected_classifications[mode],
                    f"server mode was probed on unexpected generations: {proxy.cluster_generations}")
             if mode == "constructor":
@@ -153,16 +169,18 @@ def run(mode, binary, upstream, delay):
             elif mode == "fault":
                 expect(proxy.dropped == 2, f"expected 2 ambiguous faults, got {proxy.dropped}")
                 expect(attempts[(b"XADD", b"lost-reply")] == 1, "lost reply was replayed")
-                expect(attempts[(b"XADD", b"mixed-transport")] == 2, "batch continued after unavailable item or replayed it")
+                expect(attempts[(b"XADD", b"mixed-transport")] == 2, "batch item was replayed after the lost reply")
                 expect(attempts[(b"XADD", b"healthy")] == 2, "future writes failed")
                 expect(proxy.ping_probes == 5, f"mixed failure did not refresh: {proxy.ping_probes} PING probes")
-            elif mode == "trim":
-                expect(proxy.dropped == 1, "final trim was not exercised")
-                expect(attempts[(b"XTRIM", b"trim-lost")] == 1, "trim was omitted or replayed")
-                expect(proxy.ping_probes == 3, "trim transport failure did not refresh")
+            elif mode == "pipeline-fault":
+                expect(proxy.dropped == 1, "pipeline fault was not exercised")
+                expect(attempts[(b"XADD", b"pipeline-kept")] == 1, "accepted pipeline write was replayed")
+                expect(attempts[(b"XADD", b"pipeline-lost")] == 1, "lost pipeline reply was replayed")
+                expect(attempts[(b"XADD", b"pipeline-unconfirmed")] == 2, "unconfirmed pipeline writes were not sent once each")
+                expect(proxy.ping_probes == 3, "pipeline transport failure did not refresh")
             elif mode == "rejection":
-                expect(attempts[(b"XTRIM", b"trim-denied")] == 1, "rejected final trim was not exercised")
-                expect(proxy.ping_probes == 2, f"known rejection triggered reconnect: {proxy.ping_probes} PING probes")
+                expect(attempts[(b"XADD", b"duplicate")] == 3, "rejected writes were not exercised")
+                expect(proxy.ping_probes == 1, f"known rejection triggered reconnect: {proxy.ping_probes} PING probes")
             else:
                 expect(proxy.ping_probes >= 2, "READONLY did not refresh later connections")
         finally:
@@ -177,7 +195,7 @@ def main():
     expect(os.environ.get("REDIS_ADAPTER_ISOLATED_TEST") == "1", "private Redis fixture required")
     upstream = int(os.environ["REDIS_ADAPTER_TEST_PORT"])
     delay = int(os.environ.get("REDIS_ADAPTER_PROXY_DELAY_MS", "0"))
-    for mode in ("constructor", "cluster-refusal", "fault", "trim", "rejection", "readonly"):
+    for mode in ("constructor", "cluster-refusal", "fault", "pipeline-fault", "rejection", "readonly"):
         run(mode, sys.argv[1], upstream, delay)
 
 

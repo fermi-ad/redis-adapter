@@ -15,14 +15,21 @@ versions are independent of the RedisAdapter wire-protocol version.
 - Configurable per-stream XREAD entry count and behavior-focused lifecycle tests.
 - Independent connect timeout, dedicated blocking-reader pool, private Redis
   fixtures and automatic CI for stacked PRs.
+- `RedisAdapter::pipeline()` queues stream writes to any keys and sends them in
+  one round trip, returning what each equivalent direct call would return.
 
 ### Changed
 
 - Callers must use `!ok()` or inspect `err()`; checking only the historical
   `RA_NOT_CONNECTED` sentinel no longer covers all failures.
-- Batches stop after an unavailable item or READONLY refusal and retain accepted
-  timestamps. Exact batch trimming is selectable; final trim failure does not
-  roll back accepted writes.
+- `addValues()` and `addLists()` send all their items in one round trip. After a
+  transport failure, items whose replies arrived keep their timestamps; later
+  items were already sent, so they are omitted as unconfirmed rather than left
+  unattempted. Exact batch trimming is selectable.
+- Batches no longer send a final `XTRIM`; each item's `XADD` carries the trim as
+  `MAXLEN`. The stream is trimmed as each item is accepted, and an all-rejected
+  batch leaves history alone. The retention target counts items sent, not
+  accepted. A user allowed `XADD` but denied `XTRIM` can now trim through batches.
 - Failed stream writes are not replayed. Rejection can represent a transient
   server refusal.
 - Connections support standalone Redis over TCP or Unix-domain sockets only.

@@ -91,6 +91,7 @@ their own freshness expectations.
 | `addSingleDouble()` | Explicit double-valued convenience overload. |
 | `addSingleList<T>()` | Write a vector, array, or compatible contiguous container. |
 | `addValues<T>()`, `addLists<T>()` | Write timestamped batches. |
+| `pipeline()` | Queue writes to any keys and send them in one round trip. |
 
 `RA_ArgsAdd.time` selects an explicit timestamp; zero asks the adapter to use
 host time. `RA_ArgsAdd.trim` defaults to 1, making a stream a latest-value store.
@@ -105,13 +106,13 @@ unavailable. A server rejection does not reconnect or replace the supplied
 timestamp. The existing `ok()` success check applies to both error results.
 
 Batches return only the timestamps of accepted items, in input order. Known
-ordinary rejections are omitted. A batch stops at the first unavailable item or
-READONLY refusal, leaving later items unattempted so their IDs are not advanced
-past the failure; an empty or all-rejected batch does not imply
-a disconnected server. A transport failure in any item or the final trim still
-initiates connection recovery even if other items succeeded. The returned vector
-does not report per-item error reasons or final trim success. Batches are not
-atomic, and a failed trim does not undo already accepted entries.
+ordinary rejections are omitted. A batch sends all its items in one round trip.
+If the connection fails, items whose replies arrived keep their timestamps;
+items after the lost reply were already sent, so their outcome is unknown and
+they are omitted. Redis may still have accepted them. An empty or all-rejected
+batch does not imply a disconnected server. A transport failure in any item
+still initiates connection recovery even if other items succeeded. The returned
+vector does not report per-item error reasons. Batches are not atomic.
 
 No failed stream write is automatically replayed. In particular, a timeout may
 follow server acceptance: retrying the command could apply it twice. Connection
@@ -124,10 +125,45 @@ The low-level `WriteResult` and `TrimResult` include server error text and the
 refresh decision.
 
 Batch trimming is approximate by default. Pass the fourth `approximateTrim`
-argument as `false` for an exact bound. The retention target is at least the
-number accepted by that batch. A rejected final trim is logged and does not undo
-accepted entries; the legacy timestamp vector cannot report trim success. Use
-`RedisConnection::xtrimResult()` when the retention outcome must be inspected.
+argument as `false` for an exact bound. Batches no longer send a final `XTRIM`:
+each item's `XADD` carries the trim as `MAXLEN`, the form single writes already
+use. Compared with earlier releases:
+
+- The stream is trimmed as each item is accepted, not once after the batch. An
+  all-rejected batch leaves existing history alone.
+- The retention target is the larger of the trim argument and the number of
+  items sent, not accepted, because it is set before any reply arrives. When
+  items are rejected, older entries can survive that the final trim removed.
+- Trimming needs only `XADD` permission. A user allowed `XADD` but denied
+  `XTRIM` now trims through the batch API, as single writes already did; the
+  batch's final trim used to be refused.
+
+### Pipelined writes
+
+A `Pipeline` queues writes to any number of keys and sends them together, so a
+producer publishing many streams pays one network round trip instead of one per
+write:
+
+```cpp
+auto batch = redis.pipeline();
+batch.addSingleValue("status", std::string("Running"));
+batch.addSingleList("voltages", voltages);
+batch.addValues<int>("counts", counts, 10);
+auto results = batch.exec();
+```
+
+Each add takes the same arguments as the `RedisAdapter` function of the same
+name and returns the position of its result. `exec()` sends everything queued,
+clears the queue and returns one `std::vector<RA_Time>` per add: exactly what
+the direct call would have returned, with a single write's `RA_Time`
+(including `RA_REJECTED` or `RA_NOT_CONNECTED`) as a one-item vector. Host-time
+writes are stamped when they are queued.
+
+Replies that arrive before a transport failure keep their results. Writes after
+the lost reply were already sent, so their outcome is unknown: a single write
+reports `RA_NOT_CONNECTED`, a batch omits them, and none is replayed. A pipeline
+is not a transaction; each write succeeds or fails on its own. A `Pipeline`
+refers to its adapter and is not safe to share between threads.
 
 The generic typed path stores its binary-safe payload under the `_` stream
 field. Producer and consumer must agree on type and shape; the core protocol
