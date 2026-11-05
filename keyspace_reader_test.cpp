@@ -257,6 +257,38 @@ TEST_F(KeyspaceReaders, AcknowledgedSubscriptionCatchesUpAndDrainsEveryRetainedE
   EXPECT_EQ(adapter.readerBackendStatus().fallbackReason, RA::ReaderFallbackReason::None);
 }
 
+TEST_F(KeyspaceReaders, NotificationConnectionWaitsForTheFirstStreamRegistration) {
+  Delivered seen;
+  RA adapter(base, options);
+  const auto clients = [&] {
+    std::vector<std::string> ids;
+    std::istringstream lines(control->command<std::string>("CLIENT", "LIST"));
+    for (std::string line; std::getline(lines, line);) {
+      if (line.find("user=" + user + " ") == std::string::npos) continue;
+      const auto start = line.find("id=");
+      ids.push_back(line.substr(start + 3, line.find(' ', start) - start - 3));
+    }
+    std::sort(ids.begin(), ids.end());
+    return ids;
+  };
+  ASSERT_TRUE(adapter.connected());
+  const auto original = clients();
+  ASSERT_EQ(original.size(), 1u);
+  control->set(key("wrong"), "wrong type");
+  for (unsigned index = 0; index < 20; ++index) EXPECT_TRUE(adapter.getStreamSnapshot("wrong").rejected);
+  // Give an incorrectly eager background connection time to appear. Neither
+  // a rejected snapshot nor an unused notification backend may replace/add it.
+  std::this_thread::sleep_for(200ms);
+  EXPECT_EQ(clients(), original);
+  auto handle = subscribe(adapter, "value", seen);
+  EVENTUALLY(active(adapter));
+  add("value", 1);
+  EVENTUALLY(seen.size() == 1);
+  const auto registered = clients();
+  EXPECT_NE(std::find(registered.begin(), registered.end(), original.front()), registered.end());
+  EXPECT_GT(registered.size(), original.size());
+}
+
 TEST_F(KeyspaceReaders, MissingConfigurationFallsBackAndActualDeliveryEnablesIt) {
   control->command<void>("CONFIG", "SET", "notify-keyspace-events", "");
   Delivered seen;
