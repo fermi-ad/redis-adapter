@@ -4,6 +4,8 @@
 #include <syslog.h>
 #include <mutex>
 #include <algorithm>
+#include <memory>
+#include <unordered_map>
 
 namespace swr = sw::redis;
 namespace chr = std::chrono;
@@ -699,6 +701,30 @@ public:
     return 0;
   }
 
+  // Notification polling must remain cancellable even when command callers
+  // explicitly disable their deadlines. Redis::subscriber owns a new socket,
+  // independent of the temporary Redis object and both adapter pools.
+  static std::unique_ptr<swr::Subscriber> notificationSubscriber(const Options& options) {
+    swr::Redis client(notificationOptions(options, 100));
+    return std::make_unique<swr::Subscriber>(client.subscriber());
+  }
+
+  struct NotificationConfig { ReadStatus status; bool enabled = false; };
+  static NotificationConfig notificationConfig(const Options& options) {
+    try {
+      // A short-lived, bounded command connection avoids borrowing a blocked
+      // reader or inheriting an infinite application command deadline.
+      swr::Redis client(notificationOptions(options, 1000));
+      const auto values = client.command<std::unordered_map<std::string, std::string>>(
+          "CONFIG", "GET", "notify-keyspace-events");
+      const auto value = values.find("notify-keyspace-events");
+      const auto flags = value == values.end() ? std::string{} : value->second;
+      return {ReadStatus::Accepted, flags.find('K') != std::string::npos &&
+          (flags.find('t') != std::string::npos || flags.find('A') != std::string::npos)};
+    } catch (const swr::ReplyError&) { return {ReadStatus::Rejected}; }
+      catch (const swr::Error&) { return {ReadStatus::Unavailable}; }
+  }
+
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  publish : publish a message to a pub/sub channel
   //
@@ -719,6 +745,15 @@ public:
   }
 
 private:
+  static swr::ConnectionOptions notificationOptions(const Options& options, uint32_t timeout) {
+    swr::ConnectionOptions result;
+    if (!options.path.empty()) { result.type = swr::ConnectionType::UNIX; result.path = options.path; }
+    else { result.host = options.host; result.port = options.port; }
+    result.user = options.user; result.password = options.password;
+    result.socket_timeout = chr::milliseconds(timeout);
+    result.connect_timeout = chr::milliseconds(1000);
+    return result;
+  }
   enum class InitialServer { Unchecked, Accepted, Unsupported };
 
   // Probe only the first reachable server. This separate lock serializes

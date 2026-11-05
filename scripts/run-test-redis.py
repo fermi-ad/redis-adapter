@@ -12,6 +12,7 @@ import time
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--redis-server", default="redis-server")
+    parser.add_argument("--reader-mode", choices=("blocking", "keyspace"), default="blocking")
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     command = args.command[1:] if args.command[:1] == ["--"] else args.command
@@ -26,7 +27,8 @@ def main():
         with (folder / "redis.log").open("w") as log:
             redis = subprocess.Popen([args.redis_server, "--bind", "127.0.0.1", "--port", str(port),
                                       "--save", "", "--appendonly", "no", "--unixsocket", str(unix_socket),
-                                      "--unixsocketperm", "700"], stdout=log, stderr=subprocess.STDOUT)
+                                      "--unixsocketperm", "700", "--notify-keyspace-events",
+                                      "Kt" if args.reader_mode == "keyspace" else ""], stdout=log, stderr=subprocess.STDOUT)
             try:
                 deadline = time.monotonic() + 5
                 while True:
@@ -43,7 +45,8 @@ def main():
                         raise TimeoutError("private Redis fixture did not become ready")
                     time.sleep(0.01)
                 environment = dict(os.environ, REDIS_ADAPTER_TEST_PORT=str(port),
-                                   REDIS_ADAPTER_TEST_SOCKET=str(unix_socket), REDIS_ADAPTER_ISOLATED_TEST="1")
+                                   REDIS_ADAPTER_TEST_SOCKET=str(unix_socket), REDIS_ADAPTER_ISOLATED_TEST="1",
+                                   REDIS_ADAPTER_TEST_READER_MODE=args.reader_mode)
                 return subprocess.run(command, env=environment).returncode
             finally:
                 redis.terminate()
