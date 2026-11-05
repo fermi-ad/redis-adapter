@@ -44,6 +44,8 @@ protected:
     if (!port || !std::getenv("REDIS_ADAPTER_ISOLATED_TEST")) GTEST_SKIP() << "Use the private Redis test fixture";
     options.cxn.port = std::stoi(port);
     options.cxn.timeout = 100;
+    if (const auto* mode = std::getenv("REDIS_ADAPTER_TEST_READER_MODE"))
+      if (std::string(mode) == "keyspace") options.readerMode = RA_ReaderMode::Keyspace;
     options.workers = GetParam();
     base = "lifecycle-" + std::to_string(getpid()) + "-" +
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());

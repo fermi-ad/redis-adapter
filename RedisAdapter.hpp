@@ -6,12 +6,14 @@
 #pragma once
 #include "RedisStreamData.hpp"
 #include "RedisTime.hpp"
+#include "RedisReaderMode.hpp"
 
 #if defined(MOCK_REDIS_ADAPTER)
 #include "mock/MockRedisAdapter.hpp"
 using RedisAdapter = MockRedisAdapter;
 #else // defined(MOCK_REDIS_ADAPTER)
 #include "RedisConnection.hpp"
+#include "RedisReaderNotifications.hpp"
 #include "ThreadPool.hpp"
 #include <thread>
 #include <atomic>
@@ -77,6 +79,8 @@ struct RA_Options
   uint16_t readers = 1;  // local stream-reader buckets, selected by key hash
   uint32_t readerProbeMs = 0;  // optional continuity inspection; per-subscription override
   uint32_t readerBatchCount = 64;  // per stream; zero is normalized to one
+  RA_ReaderMode readerMode = RA_ReaderMode::Blocking;
+  uint32_t readerReconcileMs = 1000;  // keyspace safety sweep target; 100..60000 ms
 };
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -92,6 +96,9 @@ class RedisAdapter : public RedisStreamData
   struct reader_info;
 
 public:
+  using ReaderFallbackReason = RA_ReaderFallbackReason;
+  using ReaderBackendStatus = RA_ReaderBackendStatus;
+  [[nodiscard]] ReaderBackendStatus readerBackendStatus() const;
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  Containers for stream data suggested by the redis++ readme.md
   //    https://github.com/sewenew/redis-plus-plus#redis-stream
@@ -552,6 +559,7 @@ private:
   //
   RA_Options _options;
   RedisConnection _redis;
+  std::unique_ptr<RedisReaderNotifications> _notifications;
   std::string _base_key;
 
   int32_t reconnect(int32_t result);
@@ -602,6 +610,7 @@ private:
 
   struct reader_info
   {
+    std::shared_ptr<RedisReaderWake> wake = std::make_shared<RedisReaderWake>();
     std::thread thread;
     std::unordered_map<std::string, std::vector<std::shared_ptr<ReaderRegistration>>> subs;
     std::unordered_map<std::string, std::string> keyids;
@@ -634,6 +643,8 @@ private:
   std::unordered_map<uint32_t, reader_info> _reader;
 
   void prepare_probes(reader_info& info);
+  void sync_notifications(uint32_t token);
+  void forget_notifications(uint32_t token);
   void inspect_readers(reader_info& info);
   void reader_result(reader_info& info, RedisConnection::ReadStatus result, bool socketTimedOut = false);
   void check_readable(reader_info& info, const std::vector<std::string>& keys);
