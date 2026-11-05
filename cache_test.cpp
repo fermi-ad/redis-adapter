@@ -35,6 +35,7 @@ protected:
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
     key = "{" + base + "}:value";
     sw::redis::ConnectionOptions connection;
+    connection.host = "127.0.0.1";
     connection.port = options.cxn.port;
     control = std::make_unique<sw::redis::Redis>(connection);
     const auto initial = fields({-1});
