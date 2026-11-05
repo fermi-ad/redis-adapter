@@ -18,6 +18,10 @@ jobs:
   build-test:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        reader_mode: [blocking, keyspace]
 
     steps:
       - name: Check out repository and dependencies
@@ -39,6 +43,9 @@ jobs:
         run: |
           docker compose -f docker-compose.test.yml up --detach --wait
           test -S /tmp/redis.sock
+          if [ '${{ matrix.reader_mode }}' = keyspace ]; then
+            docker compose -f docker-compose.test.yml exec -T redis redis-cli CONFIG SET notify-keyspace-events Kt
+          fi
 
       - name: Configure and build
         run: |
@@ -51,6 +58,7 @@ jobs:
           REDIS_ADAPTER_TEST_PORT: 6379
           REDIS_ADAPTER_TEST_SOCKET: /tmp/redis.sock
           REDIS_ADAPTER_ISOLATED_TEST: 1
+          REDIS_ADAPTER_TEST_READER_MODE: ${{ matrix.reader_mode }}
 
       - name: Show Redis logs on failure
         if: failure()

@@ -1,6 +1,7 @@
 #pragma once
 #include "../RedisStreamData.hpp"
 #include "../RedisTime.hpp"
+#include "../RedisReaderMode.hpp"
 #include <algorithm>
 #include <memory>
 #include <chrono>
@@ -18,6 +19,9 @@ struct RA_ArgsAdd
 class MockRedisAdapter : public RedisStreamData // Mock
 {
 public:
+  using ReaderFallbackReason = RA_ReaderFallbackReason;
+  using ReaderBackendStatus = RA_ReaderBackendStatus;
+  [[nodiscard]] ReaderBackendStatus readerBackendStatus() const { return {}; }
   using Attrs = std::unordered_map<std::string, std::string>;
 
   template<typename T> using TimeVal = std::pair<RA_Time, T>;         //  analagous to Item

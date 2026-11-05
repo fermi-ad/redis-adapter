@@ -4,6 +4,10 @@
 #include <array>
 
 TEST(MockStreams, ValidatesWireBytesWithoutAConnection) {
+  const RedisAdapter mock;
+  EXPECT_EQ(mock.readerBackendStatus().requested, RA_ReaderMode::Blocking);
+  EXPECT_EQ(mock.readerBackendStatus().effective, RA_ReaderMode::Blocking);
+  EXPECT_EQ(mock.readerBackendStatus().fallbackReason, RedisAdapter::ReaderFallbackReason::None);
   EXPECT_EQ(RA_Time("1-2").id(), "1-2");
   EXPECT_EQ(RA_Time(-3), RA_INVALID_PAYLOAD);
   EXPECT_EQ(RA_Time(-2), RA_REJECTED);

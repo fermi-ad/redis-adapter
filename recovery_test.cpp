@@ -46,12 +46,16 @@ protected:
     if (!std::getenv("REDIS_ADAPTER_ISOLATED_TEST")) GTEST_SKIP() << "Use the private Redis fixture";
     options.cxn.port = std::stoi(std::getenv("REDIS_ADAPTER_TEST_PORT"));
     options.cxn.timeout = 100;
+    if (const auto* mode = std::getenv("REDIS_ADAPTER_TEST_READER_MODE"))
+      if (std::string(mode) == "keyspace") options.readerMode = RA_ReaderMode::Keyspace;
     options.workers = GetParam();
     base = "recovery-" + std::to_string(getpid()) + "-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
     user = "WRONGTYPE-reader-" + base;
     sw::redis::ConnectionOptions co; co.host = "127.0.0.1"; co.port = options.cxn.port;
     control = std::make_unique<sw::redis::Redis>(co);
     control->command<void>("ACL", "SETUSER", user, "reset", "on", "nopass", "~{" + base + "}:*", "+@all");
+    if (options.readerMode == RA_ReaderMode::Keyspace)
+      control->command<void>("ACL", "SETUSER", user, "&__keyspace@0__:{" + base + "}:*");
     options.cxn.user = user;
   }
   void TearDown() override {
