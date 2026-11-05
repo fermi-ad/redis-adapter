@@ -195,7 +195,13 @@ void RedisReaderNotifications::run() {
   const string channelPrefix(prefix);
   uint32_t retry = 50;
   for (;;) {
-    { lock_guard<mutex> lock(mutex_); if (!running_) return; }
+    {
+      unique_lock<mutex> lock(mutex_);
+      // Snapshot/write-only adapters need no notification socket or capability
+      // query. Also stop reconnecting after their last registration retires.
+      changed_.wait(lock, [&] { return !running_ || !routes_.empty(); });
+      if (!running_) return;
+    }
     try {
       auto subscriber = RedisConnection::notificationSubscriber(options_);
       unordered_map<string, Channel> channels;

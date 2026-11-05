@@ -84,8 +84,10 @@ options.readers = 4;
 RedisAdapter redis("BPM01", options);
 ```
 
-The keyspace backend keeps one dedicated notification connection per adapter
-and subscribes to the exact `__keyspace@0__:<stream-key>` channels. The existing
+The keyspace backend opens its dedicated notification connection when the first
+stream is registered, then subscribes to the exact
+`__keyspace@0__:<stream-key>` channels. Snapshot/write-only adapters create no
+notification connection or capability query. The existing
 `readers` setting still bounds concurrent stream reads; it does not create a
 connection or thread per stream. Notifications coalesce into a queue bounded
 by the number of registered keys. Each nonblocking XREAD includes at most 64
