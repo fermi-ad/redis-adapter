@@ -212,7 +212,7 @@ protected:
     base = "keyspace-" + std::to_string(getpid()) + "-" +
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
     user = "reader-" + base;
-    sw::redis::ConnectionOptions co; co.port = options.cxn.port;
+    sw::redis::ConnectionOptions co; co.host = "127.0.0.1"; co.port = options.cxn.port;
     control = std::make_unique<sw::redis::Redis>(co);
     const auto config = control->command<std::unordered_map<std::string, std::string>>("CONFIG", "GET", "notify-keyspace-events");
     originalFlags = config.at("notify-keyspace-events");
