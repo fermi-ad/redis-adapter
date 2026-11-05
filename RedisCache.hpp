@@ -31,7 +31,10 @@ private:
     void writeBuffer(const RedisAdapter::TimeValList<std::vector<Type>>& entry)
     {
         if (entry.empty()) return;
-        const std::vector<Type>& data = entry.front().second;
+        // A reader callback can contain several retained updates. This cache
+        // represents the latest value, including the corresponding timestamp.
+        const auto& latest = entry.back();
+        const std::vector<Type>& data = latest.second;
         int writeIndex = (readIndex + 1 ) % 2;
 
         buffers.at(writeIndex) = data;
@@ -40,7 +43,7 @@ private:
             // take an exclusive lock, so a reader can't read, while the buffers are being swapped
             std::lock_guard<std::shared_mutex> swapLock(swapMutex);
             readIndex = (readIndex + 1 ) % 2;
-            lastWrite = entry.front().first;
+            lastWrite = latest.first;
         }
         // Effectivly does nothing if the code using this class doesn't ever try to read this.
         // Set the atomic flag to indicate that new data is available
