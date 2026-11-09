@@ -39,6 +39,7 @@ Redis before upgrading.
 | `cxn.connectTimeout` | `uint32_t` | `500` | Independent connection timeout; zero disables it. |
 | `cxn.size` | `uint16_t` | `5` | redis-plus-plus connection-pool size. |
 | `dogname` | `std::string` | empty | If set, maintain a one-second field-TTL watchdog for this name. |
+| `dogkey` | `std::string` | `watchdog` | Sub key of the watchdog hash, `{baseKey}:<dogkey>`. |
 | `workers` | `uint16_t` | `1` | Worker threads used to dispatch reader callbacks. |
 | `readers` | `uint16_t` | `1` | Reader threads and dedicated blocking-read pool capacity. |
 | `readerProbeMs` | `uint32_t` | `0` | Optional continuity inspection; per-subscription override available. |
@@ -174,7 +175,14 @@ safe for their data model. Use `connected()` for an explicit health probe.
   pub/sub using the same base/sub-key naming convention.
 - `copy()`, `rename()`, `del()`, and `exists()` manage RedisAdapter stream keys.
 - `addWatchdog()`, `petWatchdog()`, and `getWatchdogs()` manage field-TTL
-  watchdog entries. Watchdog expiration requires Redis 7.4 or newer.
+  watchdog entries in `{baseKey}:<dogkey>`. Watchdog expiration requires Redis 7.4
+  or newer.
+  - `addWatchdog()` sets the field and its expiration in one `MULTI`/`EXEC`, so a
+    failure part way can't leave a field without an expiration. On Redis < 7.4 it
+    sets nothing.
+  - `petWatchdog()` only renews an existing field and returns false if it is gone.
+  - The automatic watchdog (`dogname`) renews every 900 ms with a 1 s expiration
+    and re-creates the field if it has expired.
 - `RedisCache<T>` maintains a double-buffered view of a list stream. It requires
   C++20 and should be evaluated against the consuming application's concurrency
   needs before adoption.

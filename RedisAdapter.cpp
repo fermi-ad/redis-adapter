@@ -41,20 +41,33 @@ RedisAdapter::RedisAdapter(const string& baseKey, const RA_Options& options) :
   _watchdog_run(false), _readers_defer(false), _replier_pool(options.workers)
 {
   _reader_owner->adapter = this;
-  _watchdog_key = build_key("watchdog");
+  _watchdog_key = build_key(_options.dogkey.size() ? _options.dogkey : "watchdog");
 
   if (_options.dogname.size())
   {
     _watchdog_run = true;
-    _watchdog_thd = thread([&]()
+    _watchdog_thd = thread([this]()
       {
-        mutex mx; unique_lock lk(mx);   //  dummies for _watchdog_cv
-
+        //  Create the field together with its expiration, then only ever renew the
+        //  expiration: HEXPIRE can't remove an expiration, so no failed renewal can leave a
+        //  watchdog that never expires. If the field is gone (Redis restarted, or it expired
+        //  while Redis was unreachable or a renewal was late), create it again.
         addWatchdog(_options.dogname, 1);
 
-        for (;      //  every 900ms set expire for 1000ms
-             _watchdog_run && _watchdog_cv.wait_for(lk, milliseconds(900)) == cv_status::timeout;
-             petWatchdog(_options.dogname, 1)) {}
+        unique_lock<mutex> lk(_watchdog_mtx);
+        while ( ! _watchdog_cv.wait_for(lk, milliseconds(900), [this] { return ! _watchdog_run; }))
+        {
+          lk.unlock();
+          int32_t ret = _redis.hexpire(_watchdog_key, _options.dogname, 1);
+          if (ret == -2)
+          {
+            if (addWatchdog(_options.dogname, 1))
+              syslog(LOG_NOTICE, "RedisAdapter: watchdog %s had expired, re-created it in %s",
+                     _options.dogname.c_str(), _watchdog_key.c_str());
+          }
+          else { reconnect(ret != -1); }
+          lk.lock();
+        }
       }
     );
   }
@@ -73,7 +86,10 @@ RedisAdapter::~RedisAdapter()
 
   if (_watchdog_thd.joinable())
   {
-    _watchdog_run = false;
+    {
+      lock_guard<mutex> lk(_watchdog_mtx);   //  so the thread can't miss the notify
+      _watchdog_run = false;
+    }
     _watchdog_cv.notify_all();
     _watchdog_thd.join();
   }

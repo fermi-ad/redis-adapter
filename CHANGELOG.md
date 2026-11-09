@@ -15,6 +15,12 @@ versions are independent of the RedisAdapter wire-protocol version.
 - Configurable per-stream XREAD entry count and behavior-focused lifecycle tests.
 - Independent connect timeout, dedicated blocking-reader pool, private Redis
   fixtures and automatic CI for stacked PRs.
+- `RA_Options::dogkey` selects the watchdog hash (`{baseKey}:<dogkey>`, default
+  `watchdog`), so a process can keep its watchdog apart from another's.
+- `RedisConnection::hsetExpire()` sets a hash field and its expiration in one
+  `MULTI`/`EXEC`.
+- Watchdog tests, including proxy fault injection between a field's write and its
+  expiration.
 
 ### Changed
 
@@ -34,6 +40,9 @@ versions are independent of the RedisAdapter wire-protocol version.
   before upgrading.
 - The `{baseKey}:subKey` braces remain required for wire-protocol compatibility.
   These changes do not bump the library or wire-protocol version.
+
+- `petWatchdog()` returns false when the watchdog no longer exists; it used to
+  report success. It only renews: `addWatchdog()` re-creates an expired watchdog.
 
 ### Removed
 
@@ -56,6 +65,16 @@ versions are independent of the RedisAdapter wire-protocol version.
   malformed typed callback entries are skipped, and empty arrays remain valid data.
 - Finite shutdown cycles, startup/shutdown fencing and complete-batch sharing.
 - Failed connection replacements preserve working clients and command availability.
+- The automatic watchdog re-creates its field once it has expired (Redis restart,
+  an unreachable server, or a late renewal); before, it stayed missing for the
+  life of the process.
+- A watchdog field can no longer be left without an expiration. `addWatchdog()`
+  used to send `HSET` and then `HEXPIRE`. `HSET` clears an expiration, so a crash,
+  a dropped connection, or a failed `HEXPIRE` between the two (including Redis
+  < 7.4) left a field reporting the process alive indefinitely. The field and its
+  expiration are now set in one transaction, and renewals use only `HEXPIRE`.
+- The watchdog thread waits on a real mutex, so the destructor's wake-up can't be
+  lost.
 
 ## [0.1.0] - 2026-07-15
 
