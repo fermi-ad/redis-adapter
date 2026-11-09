@@ -181,7 +181,7 @@ safe for their data model. Use `connected()` for an explicit health probe.
     failure part way can't leave a field without an expiration. On Redis < 7.4 it
     sets nothing.
   - `petWatchdog()` only renews an existing field and returns false if it is gone.
-  - The automatic watchdog (`dogname`) renews every 900 ms with a 1 s expiration
+  - The automatic watchdog (`dogname`) renews every 500 ms with a 1 s expiration
     and re-creates the field if it has expired.
 - `RedisCache<T>` maintains a double-buffered view of a list stream. It requires
   C++20 and should be evaluated against the consuming application's concurrency

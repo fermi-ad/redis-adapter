@@ -54,8 +54,13 @@ RedisAdapter::RedisAdapter(const string& baseKey, const RA_Options& options) :
         //  while Redis was unreachable or a renewal was late), create it again.
         addWatchdog(_options.dogname, 1);
 
+        //  Renew every 500 ms against the 1 s expiration. Measured on a Red Pitaya under
+        //  data-mover load: most renewals arrive on time, about 5% are ~220 ms late and
+        //  about 0.3% ~440 ms late, so the old 900 ms period let the field lapse every few
+        //  seconds, while 500 ms ran 10 minutes without a lapse. Rarer delays over 500 ms
+        //  were also seen; the field is then briefly missing and re-created below.
         unique_lock<mutex> lk(_watchdog_mtx);
-        while ( ! _watchdog_cv.wait_for(lk, milliseconds(900), [this] { return ! _watchdog_run; }))
+        while ( ! _watchdog_cv.wait_for(lk, milliseconds(500), [this] { return ! _watchdog_run; }))
         {
           lk.unlock();
           int32_t ret = _redis.hexpire(_watchdog_key, _options.dogname, 1);

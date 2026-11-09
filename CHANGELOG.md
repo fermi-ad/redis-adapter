@@ -43,6 +43,9 @@ versions are independent of the RedisAdapter wire-protocol version.
 
 - `petWatchdog()` returns false when the watchdog no longer exists; it used to
   report success. It only renews: `addWatchdog()` re-creates an expired watchdog.
+- The automatic watchdog renews every 500 ms instead of 900 ms; the expiration
+  stays 1 s. With 100 ms of slack, renewals delayed by the network or a busy
+  host let the field lapse every few seconds on a Red Pitaya under load.
 
 ### Removed
 
