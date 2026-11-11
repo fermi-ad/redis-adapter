@@ -157,7 +157,13 @@ name and returns the position of its result. `exec()` sends everything queued,
 clears the queue and returns one `std::vector<RA_Time>` per add: exactly what
 the direct call would have returned, with a single write's `RA_Time`
 (including `RA_REJECTED` or `RA_NOT_CONNECTED`) as a one-item vector. Host-time
-writes are stamped when they are queued.
+writes are stamped when they are queued. Within one queue, generated IDs for
+each key advance past its earlier queued IDs by at least one nanosecond when
+the host clock repeats or moves backward. This applies across single and batch
+calls and does not couple different keys. Positive caller-supplied timestamps
+are never changed; stale explicit IDs are still rejected by Redis. If advancing
+past a queued timestamp would exceed `RA_Time`'s range, the add throws
+`std::overflow_error` without queueing any part of that add.
 
 Replies that arrive before a transport failure keep their results. Writes after
 the lost reply were already sent, so their outcome is unknown: a single write

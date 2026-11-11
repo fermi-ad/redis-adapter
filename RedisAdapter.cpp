@@ -4,6 +4,7 @@
 //  This file contains the implementation of the RedisAdapter class
 
 #include "RedisAdapter.hpp"
+#include "RedisWriteTime.hpp"
 #include <algorithm>
 #include <charconv>
 #include <stdexcept>
@@ -225,9 +226,18 @@ size_t RedisAdapter::Pipeline::addSingleDouble(const string& subKey, double data
 
 size_t RedisAdapter::Pipeline::add_single(const string& subKey, const RA_ArgsAdd& args, Attrs&& attrs)
 {
+  const auto key = _adapter.build_key(subKey);
+  const auto id = next_id(key, args.time);
   _calls.push_back({_writes.size(), 1, false});
-  _writes.push_back({_adapter.build_key(subKey), args.time.id_or_now(), std::move(attrs), args.trim, args.approximateTrim});
+  _writes.push_back({key, id, std::move(attrs), args.trim, args.approximateTrim});
   return _calls.size() - 1;
+}
+
+std::string RedisAdapter::Pipeline::next_id(const string& key, RA_Time requested)
+{
+  const auto now = requested.ok() ? RA_Time{} : RA_Time(chr::duration_cast<chr::nanoseconds>(
+      chr::system_clock::now().time_since_epoch()).count());
+  return redis_adapter_detail::queuedWriteTime(requested, now, _latest_times[key]).id();
 }
 
 size_t RedisAdapter::Pipeline::add_batch(const string& subKey, TimeValList<Attrs>&& items,
@@ -237,9 +247,22 @@ size_t RedisAdapter::Pipeline::add_batch(const string& subKey, TimeValList<Attrs
   // Each item carries the trim as MAXLEN, so only accepted items trim. Replies
   // are not back when items are queued, so it keeps at least every item sent.
   if (trim) trim = std::max(trim, static_cast<uint32_t>(std::min<size_t>(items.size(), UINT32_MAX)));
-  _calls.push_back({_writes.size(), items.size(), true});
-  for (auto& item : items)
-    _writes.push_back({key, item.first.id_or_now(), std::move(item.second), trim, approximateTrim});
+  const auto first = _writes.size();
+  const auto previous = _latest_times.find(key);
+  const bool hadPrevious = previous != _latest_times.end();
+  const auto previousTime = hadPrevious ? previous->second : 0;
+  try {
+    for (auto& item : items)
+      _writes.push_back({key, next_id(key, item.first), std::move(item.second), trim, approximateTrim});
+    _calls.push_back({first, items.size(), true});
+  } catch (...) {
+    // In particular, a timestamp overflow must not leave a partial batch or
+    // a Call whose range extends past the writes actually queued.
+    _writes.resize(first);
+    if (hadPrevious) _latest_times[key] = previousTime;
+    else _latest_times.erase(key);
+    throw;
+  }
   return _calls.size() - 1;
 }
 
@@ -249,6 +272,7 @@ std::vector<std::vector<RA_Time>> RedisAdapter::Pipeline::exec()
   const auto calls = std::move(_calls);
   _writes.clear();
   _calls.clear();
+  _latest_times.clear();
   const auto replies = _adapter._redis.writeBatch(writes);
 
   using Status = RedisConnection::CommandStatus;

@@ -20,6 +20,8 @@ versions are independent of the RedisAdapter wire-protocol version.
 
 ### Changed
 
+- Pipeline-generated host timestamps increase per key across queued calls when
+  clock ticks repeat or move backward; explicit timestamps remain unchanged.
 - Callers must use `!ok()` or inspect `err()`; checking only the historical
   `RA_NOT_CONNECTED` sentinel no longer covers all failures.
 - `addValues()` and `addLists()` send all their items in one round trip. After a

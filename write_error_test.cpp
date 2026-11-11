@@ -1,4 +1,5 @@
 #include "RedisAdapter.hpp"
+#include "RedisWriteTime.hpp"
 #include <gtest/gtest.h>
 #include <array>
 #include <chrono>
@@ -49,6 +50,84 @@ protected:
   }
   std::string key(const std::string& sub) const { return "{" + base + "}:" + sub; }
 };
+
+TEST(PipelineTime, RepeatedAndBackwardClockTicksStayOrdered) {
+  int64_t latest = 0;
+  for (int64_t expected = 100; expected != 104; ++expected)
+    EXPECT_EQ(redis_adapter_detail::queuedWriteTime({}, RA_Time(100), latest), RA_Time(expected));
+  EXPECT_EQ(redis_adapter_detail::queuedWriteTime({}, RA_Time(50), latest), RA_Time(104));
+  EXPECT_EQ(redis_adapter_detail::queuedWriteTime({}, RA_Time(1000), latest), RA_Time(1000));
+  // Explicit stale IDs remain stale; they do not move the high-water mark back.
+  EXPECT_EQ(redis_adapter_detail::queuedWriteTime(RA_Time(25), {}, latest), RA_Time(25));
+  EXPECT_EQ(redis_adapter_detail::queuedWriteTime({}, RA_Time(50), latest), RA_Time(1001));
+  EXPECT_EQ(redis_adapter_detail::queuedWriteTime(RA_Time(2000), {}, latest), RA_Time(2000));
+  EXPECT_EQ(redis_adapter_detail::queuedWriteTime({}, RA_Time(50), latest), RA_Time(2001));
+}
+
+TEST_F(WriteErrors, HostTimeBatchesKeepEveryValueAndList) {
+  RA adapter(base, options);
+  constexpr size_t count = 10000;
+  RA::TimeValList<int> values;
+  RA::TimeValList<std::vector<int>> lists;
+  for (size_t i = 0; i != count; ++i) {
+    values.emplace_back(RA_Time{}, static_cast<int>(i));
+    lists.emplace_back(RA_Time{}, std::vector<int>{static_cast<int>(i)});
+  }
+  const auto scalarTimes = adapter.addValues("host-values", values, 0);
+  const auto listTimes = adapter.addLists("host-lists", lists, 0);
+  for (const auto* times : {&scalarTimes, &listTimes}) {
+    ASSERT_EQ(times->size(), count);
+    for (size_t i = 1; i != count; ++i) EXPECT_GT((*times)[i].value, (*times)[i - 1].value);
+  }
+  EXPECT_EQ(redis->xlen(key("host-values")), count);
+  EXPECT_EQ(redis->xlen(key("host-lists")), count);
+}
+
+TEST_F(WriteErrors, PipelineHostTimesShareOrderingAcrossCallsForEachKey) {
+  RA adapter(base, options);
+  const RA_Time future(4000000000000000000LL);
+  auto pipeline = adapter.pipeline();
+  pipeline.addSingleValue("mixed", 1, {.time=future, .trim=0});
+  pipeline.addSingleDouble("mixed", 2., {.trim=0});
+  pipeline.addLists<int>("mixed", {{RA_Time(future.value - 1), {3}}, {RA_Time{}, {4}}}, 0);
+  pipeline.addSingleList("mixed", std::array<int, 1>{{5}}, {.trim=0});
+  pipeline.addValues<int>("mixed", {{RA_Time{}, 6}, {future, 7}, {RA_Time{}, 8}}, 0);
+  pipeline.addSingleValue("other", 9, {.trim=0});
+  const auto results = pipeline.exec();
+  using Times = std::vector<RA_Time>;
+  ASSERT_EQ(results.size(), 6u);
+  EXPECT_EQ(results[0], Times{future});
+  EXPECT_EQ(results[1], Times{RA_Time(future.value + 1)});
+  EXPECT_EQ(results[2], Times{RA_Time(future.value + 2)});
+  EXPECT_EQ(results[3], Times{RA_Time(future.value + 3)});
+  EXPECT_EQ(results[4], (Times{RA_Time(future.value + 4), RA_Time(future.value + 5)}));
+  ASSERT_EQ(results[5].size(), 1u);
+  EXPECT_TRUE(results[5][0].ok());
+  EXPECT_LT(results[5][0].value, future.value);
+  EXPECT_EQ(redis->xlen(key("mixed")), 6);
+  // Reusing the pipeline clears its queued-time state along with its writes.
+  redis->del(key("mixed"));
+  pipeline.addSingleValue("mixed", 10, {.trim=0});
+  const auto reused = pipeline.exec();
+  ASSERT_EQ(reused.size(), 1u);
+  ASSERT_EQ(reused[0].size(), 1u);
+  EXPECT_TRUE(reused[0][0].ok());
+  EXPECT_LT(reused[0][0].value, future.value);
+}
+
+TEST_F(WriteErrors, TimestampOverflowDoesNotQueueAPartialBatch) {
+  RA adapter(base, options);
+  auto pipeline = adapter.pipeline();
+  pipeline.addSingleValue("overflow", 1, {.time=RA_Time(10), .trim=0});
+  const RA_Time maximum(std::numeric_limits<int64_t>::max());
+  EXPECT_THROW(pipeline.addValues<int>("overflow", {{maximum, 2}, {RA_Time{}, 3}}, 0), std::overflow_error);
+  pipeline.addSingleValue("overflow", 4, {.time=RA_Time(20), .trim=0});
+  const auto result = pipeline.exec();
+  ASSERT_EQ(result.size(), 2u);
+  EXPECT_EQ(result[0], (std::vector<RA_Time>{RA_Time(10)}));
+  EXPECT_EQ(result[1], (std::vector<RA_Time>{RA_Time(20)}));
+  EXPECT_EQ(redis->xlen(key("overflow")), 2);
+}
 
 TEST_F(WriteErrors, SingleScalarAndArrayPathsPreserveRejectedIds) {
   RA adapter(base, options);

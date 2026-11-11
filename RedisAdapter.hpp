@@ -310,6 +310,8 @@ public:
   //    write reports RA_NOT_CONNECTED, a batch omits them, and none is replayed.
   //    Each batch item carries the trim, so only accepted items trim the stream;
   //    it keeps the larger of trim and the number of items sent.
+  //    Generated timestamps increase per key across this queue even when the
+  //    clock repeats or moves backward. Explicit timestamps are unchanged.
   //
   class Pipeline
   {
@@ -345,6 +347,7 @@ public:
     struct Call { size_t first = 0, adds = 0; bool batch = false; };
 
     size_t add_single(const std::string& subKey, const RA_ArgsAdd& args, Attrs&& attrs);
+    std::string next_id(const std::string& key, RA_Time requested);
     template<typename T> size_t add_single_list(const std::string& subKey, const RA_ArgsAdd& args,
                                                 const T* data, size_t size);
     size_t add_batch(const std::string& subKey, TimeValList<Attrs>&& items, uint32_t trim, bool approximateTrim);
@@ -352,6 +355,7 @@ public:
     RedisAdapter& _adapter;
     std::vector<RedisConnection::StreamWrite> _writes;
     std::vector<Call> _calls;
+    std::unordered_map<std::string, int64_t> _latest_times;
   };
 
   Pipeline pipeline() { return Pipeline(*this); }
