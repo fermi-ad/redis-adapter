@@ -1,11 +1,12 @@
 #pragma once
 
+#include <unordered_map>
+#include <vector>
+
 #include "sw/redis++/redis++.h"
 #include <syslog.h>
 #include <mutex>
 #include <algorithm>
-#include <unordered_map>
-#include <vector>
 
 namespace swr = sw::redis;
 namespace chr = std::chrono;

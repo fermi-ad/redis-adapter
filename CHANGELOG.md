@@ -7,6 +7,8 @@ versions are independent of the RedisAdapter wire-protocol version.
 
 ### Added
 
+- `RedisAdapter::pipeline()` queues stream writes to any keys and sends them in
+  one round trip, returning what each equivalent direct call would return.
 - Read-side status, observed/delivered cursors and captured-epoch callbacks.
 - Opt-in per-subscription continuity inspection with a bounded, persistent scheduler.
 - `RA_REJECTED` and structured stream write/trim results with error text and a
@@ -15,8 +17,6 @@ versions are independent of the RedisAdapter wire-protocol version.
 - Configurable per-stream XREAD entry count and behavior-focused lifecycle tests.
 - Independent connect timeout, dedicated blocking-reader pool, private Redis
   fixtures and automatic CI for stacked PRs.
-- `RedisAdapter::pipeline()` queues stream writes to any keys and sends them in
-  one round trip, returning what each equivalent direct call would return.
 
 ### Changed
 
