@@ -43,6 +43,9 @@ versions are independent of the RedisAdapter wire-protocol version.
 
 ### Fixed
 
+- Cache destruction retires only its owned reader and keeps in-flight callback
+  state alive; independent caches sharing a stream remain subscribed.
+
 - Wrong-type/read-denied quarantine uses XREAD permissions and keeps healthy
   neighbours flowing, including legacy registrations after an owned peer is removed.
 - Unsupported/denied inspection cannot suppress normal reads.

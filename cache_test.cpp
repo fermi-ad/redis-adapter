@@ -9,7 +9,6 @@ using namespace std::chrono_literals;
 
 class LatestCache : public testing::Test {
 protected:
-  std::unique_ptr<RedisAdapter> adapterOwner;
   std::shared_ptr<RedisAdapter> adapter;
   std::unique_ptr<RedisCache<int32_t>> cache;
   std::unique_ptr<sw::redis::Redis> control;
@@ -40,10 +39,7 @@ protected:
     control = std::make_unique<sw::redis::Redis>(connection);
     const auto initial = fields({-1});
     control->xadd(key, "1-0", initial.begin(), initial.end());
-    adapterOwner = std::make_unique<RedisAdapter>(base, options);
-    // The fixture owns the adapter separately so teardown can join callbacks
-    // while the cache is still alive, even after a failed wait/assertion.
-    adapter = std::shared_ptr<RedisAdapter>(adapterOwner.get(), [](RedisAdapter*) {});
+    adapter = std::make_shared<RedisAdapter>(base, options);
     cache = std::make_unique<RedisCache<int32_t>>(adapter, "value");
     // This callback shares the reader's ordered worker with the cache callback.
     // Seeing a batch here proves that its preceding cache update completed.
@@ -57,8 +53,6 @@ protected:
 
   void TearDown() override {
     observer.reset();
-    if (adapter) adapter->removeReader("value");
-    adapterOwner.reset();
     cache.reset();
     adapter.reset();
     if (control) control->del(key);
@@ -109,4 +103,93 @@ TEST_F(LatestCache, AcceptsAnEmptyArrayAsTheLatestValue) {
   control->xadd(key, "2-0", empty.begin(), empty.end());
   ASSERT_TRUE(waitFor("2-0"));
   expectValue({}, "2-0");
+}
+
+static bool waitForUpdate(RedisCache<int32_t>& cache) {
+  const auto deadline = std::chrono::steady_clock::now() + 3s;
+  while (!cache.newValueAvaliable() && std::chrono::steady_clock::now() < deadline)
+    std::this_thread::sleep_for(1ms);
+  return cache.newValueAvaliable();
+}
+
+TEST_F(LatestCache, DestructionKeepsSharedObserversAndReplacementCachesAlive) {
+  cache.reset();
+  auto data = fields({2});
+  control->xadd(key, "2-0", data.begin(), data.end());
+  ASSERT_TRUE(waitFor("2-0"));
+
+  cache = std::make_unique<RedisCache<int32_t>>(adapter, "value");
+  data = fields({3});
+  control->xadd(key, "3-0", data.begin(), data.end());
+  ASSERT_TRUE(waitForUpdate(*cache));
+  expectValue({3}, "3-0");
+  ASSERT_TRUE(waitFor("3-0"));
+}
+
+TEST_F(LatestCache, IndependentCachesRetireOnlyTheirOwnRegistration) {
+  auto peer = std::make_unique<RedisCache<int32_t>>(adapter, "value");
+  cache.reset();
+  auto data = fields({2});
+  control->xadd(key, "2-0", data.begin(), data.end());
+  ASSERT_TRUE(waitForUpdate(*peer));
+  std::vector<int32_t> actual;
+  EXPECT_EQ(peer->copyReadBuffer(actual).value, RA_Time("2-0").value);
+  EXPECT_EQ(actual, (std::vector<int32_t>{2}));
+
+  // Match a duplicate map insertion that constructs and discards a cache.
+  { auto duplicate = std::make_unique<RedisCache<int32_t>>(adapter, "value"); }
+  peer->clearNewValueAvaliable();
+  data = fields({3});
+  control->xadd(key, "3-0", data.begin(), data.end());
+  ASSERT_TRUE(waitForUpdate(*peer));
+  EXPECT_EQ(peer->copyReadBuffer(actual).value, RA_Time("3-0").value);
+  EXPECT_EQ(actual, (std::vector<int32_t>{3}));
+  peer.reset();
+  data = fields({4});
+  control->xadd(key, "4-0", data.begin(), data.end());
+  ASSERT_TRUE(waitFor("4-0"));
+}
+
+TEST_F(LatestCache, SiblingCallbackCanDestroyACacheWithQueuedDelivery) {
+  cache.reset();
+  auto slot = std::make_shared<std::unique_ptr<RedisCache<int32_t>>>();
+  auto destroyed = std::make_shared<std::atomic<bool>>(false);
+  auto retiring = adapter->subscribeStream("value", [slot, destroyed](const auto&, const auto&, const auto&) {
+    slot->reset();
+    *destroyed = true;
+  }, "1-0");
+  *slot = std::make_unique<RedisCache<int32_t>>(adapter, "value");
+  const auto data = fields({2});
+  control->xadd(key, "2-0", data.begin(), data.end());
+  const auto deadline = std::chrono::steady_clock::now() + 3s;
+  while (!destroyed->load() && std::chrono::steady_clock::now() < deadline) std::this_thread::sleep_for(1ms);
+  ASSERT_TRUE(destroyed->load());
+  retiring.reset();
+  control->xadd(key, "3-0", data.begin(), data.end());
+  ASSERT_TRUE(waitFor("3-0"));
+}
+
+TEST_F(LatestCache, DeferredCachesKeepTheLegacyStartAtTailBehavior) {
+  adapter->setDeferReaders(true);
+  cache.reset();
+  cache = std::make_unique<RedisCache<int32_t>>(adapter, "value");
+  auto data = fields({2});
+  control->xadd(key, "2-0", data.begin(), data.end());
+  adapter->setDeferReaders(false);
+  ASSERT_TRUE(waitFor("2-0"));
+  EXPECT_FALSE(cache->newValueAvaliable());
+  expectValue({2}, "2-0");
+  data = fields({3});
+  control->xadd(key, "3-0", data.begin(), data.end());
+  ASSERT_TRUE(waitForUpdate(*cache));
+  expectValue({3}, "3-0");
+}
+
+TEST_F(LatestCache, CacheCanReleaseTheLastAdapterOwner) {
+  std::weak_ptr<RedisAdapter> owner = adapter;
+  adapter.reset();
+  EXPECT_FALSE(owner.expired());
+  cache.reset();
+  EXPECT_TRUE(owner.expired());
+  EXPECT_FALSE(observer);
 }
