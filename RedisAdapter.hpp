@@ -73,7 +73,6 @@ struct RA_Options
 {
   RedisConnection::Options cxn;
   std::string dogname;
-  std::string dogkey = "watchdog";  // sub key of the watchdog hash: {baseKey}:<dogkey>
   uint16_t workers = 1;
   uint16_t readers = 1;  // local stream-reader buckets, selected by key hash
   uint32_t readerProbeMs = 0;  // optional continuity inspection; per-subscription override
@@ -306,38 +305,24 @@ public:
   bool connected() { return reconnect(_redis.ping()); }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //  addWatchdog : add a watchdog to the set of watchdogs, or re-create one that expired
-  //
-  //  A server-side script checks command permissions before writing, then sets the field
-  //  with its expiration without a client-side cleanup window (see RedisConnection::hsetExpire).
+  //  addWatchdog : add a watchdog to the set of watchdogs
   //
   //    dogname    : the name of the watchdog
-  //    expiration : the number of seconds to expire the watchdog (non-zero)
-  //    return     : true if the watchdog was set with its expiration, false if not
+  //    expiration : the number of seconds to expire the watchdog
+  //    return     : true if successful, false if not successful
   //
   bool addWatchdog(const std::string& dogname, uint32_t expiration)
-  {
-    int32_t ret = _redis.hsetExpire(_watchdog_key, dogname, RA_VERSION, expiration);
-    reconnect(ret != -1);
-    return ret == 1;
-  }
+    { return _redis.hset(_watchdog_key, dogname, RA_VERSION) && petWatchdog(dogname, expiration); }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  petWatchdog : refresh the expiration of a watchdog
   //
-  //  Only renews: a watchdog that has already expired stays gone (use addWatchdog).
-  //
   //    dogname    : the name of the watchdog
-  //    expiration : the number of seconds to expire the watchdog (non-zero)
-  //    return     : true if the expiration was refreshed, false if not (including when the
-  //                 watchdog no longer exists)
+  //    expiration : the number of seconds to expire the watchdog
+  //    return     : true if successful, false if not successful
   //
   bool petWatchdog(const std::string& dogname, uint32_t expiration)
-  {
-    int32_t ret = _redis.hexpire(_watchdog_key, dogname, expiration);
-    reconnect(ret != -1);
-    return ret == 1;
-  }
+    { return reconnect(_redis.hexpire(_watchdog_key, dogname, expiration) != -1); }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  getWatchdogs : get the list of watchdogs
@@ -568,7 +553,6 @@ private:
   //
   std::string _watchdog_key;
   std::thread _watchdog_thd;
-  std::mutex _watchdog_mtx;
   std::condition_variable _watchdog_cv;
   std::atomic<bool> _watchdog_run;
 
