@@ -213,8 +213,13 @@ safe for their data model. Use `connected()` for an explicit health probe.
 
 ## Other helpers
 
-- `publish()`, `subscribe()`, `psubscribe()`, and `unsubscribe()` wrap Redis
-  pub/sub using the same base/sub-key naming convention.
+- `readerBackendStatus()` reports the requested and effective stream reader
+  backends and any fallback reason. See [stream subscriptions](stream-subscriptions.md)
+  for opting into keyspace notifications with `RA_Options::readerMode`.
+- `publish()` sends Redis pub/sub messages using the base/sub-key naming
+  convention. The legacy `subscribe()`, `psubscribe()`, and `unsubscribe()`
+  declarations do not have implementations; stream notification readers use
+  their own private subscription lifecycle.
 - `copy()`, `rename()`, `del()`, and `exists()` manage RedisAdapter stream keys.
 - `addWatchdog()`, `petWatchdog()`, and `getWatchdogs()` manage field-TTL
   watchdog entries in `{baseKey}:<dogkey>`. Watchdog expiration requires Redis 7.4

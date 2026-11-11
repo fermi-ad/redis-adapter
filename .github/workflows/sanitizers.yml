@@ -19,13 +19,18 @@ jobs:
       fail-fast: false
       matrix:
         sanitizer: [address, thread]
+        reader_mode: [blocking, keyspace]
     steps:
       - uses: actions/checkout@v7
         with:
           submodules: recursive
           persist-credentials: false
       - name: Start pinned private Redis
-        run: docker compose -f docker-compose.test.yml up --detach --wait
+        run: |
+          docker compose -f docker-compose.test.yml up --detach --wait
+          if [ '${{ matrix.reader_mode }}' = keyspace ]; then
+            docker compose -f docker-compose.test.yml exec -T redis redis-cli CONFIG SET notify-keyspace-events Kt
+          fi
       - name: Configure sanitizer build
         shell: bash
         run: |
@@ -53,6 +58,7 @@ jobs:
           REDIS_ADAPTER_TEST_PORT: 6379
           REDIS_ADAPTER_TEST_SOCKET: /tmp/redis.sock
           REDIS_ADAPTER_ISOLATED_TEST: 1
+          REDIS_ADAPTER_TEST_READER_MODE: ${{ matrix.reader_mode }}
           ASAN_OPTIONS: detect_leaks=1
           UBSAN_OPTIONS: halt_on_error=1
           TSAN_OPTIONS: halt_on_error=1

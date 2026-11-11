@@ -16,8 +16,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
 # Create lists of headers and sources with complete path based on our files
-file(GLOB REDIS_ADAPTER_SOURCES RedisAdapter.cpp)
-file(GLOB REDIS_ADAPTER_HEADERS RedisConnection.hpp RedisTime.hpp RedisStreamData.hpp RedisAdapter.hpp RedisAdapterTempl.hpp RedisCache.hpp ThreadPool.hpp)
+file(GLOB REDIS_ADAPTER_SOURCES RedisAdapter.cpp RedisReaderNotifications.cpp)
+file(GLOB REDIS_ADAPTER_HEADERS RedisConnection.hpp RedisTime.hpp RedisStreamData.hpp RedisAdapter.hpp RedisAdapterTempl.hpp RedisCache.hpp ThreadPool.hpp RedisReaderMode.hpp RedisReaderNotifications.hpp)
 
 # Create a list of the directories our headers are in
 list(APPEND REDIS_ADAPTER_HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/RedisWriteTime.hpp")
@@ -137,6 +137,16 @@ if(REDIS_ADAPTER_TEST)
   target_link_libraries(redis-adapter-recovery-test ${REDIS_ADAPTER_LIBRARIES} GTest::gtest_main)
   gtest_discover_tests(redis-adapter-recovery-test PROPERTIES TIMEOUT 20 RUN_SERIAL TRUE)
 
+  add_executable(redis-adapter-keyspace-test ${REDIS_ADAPTER_SOURCES} keyspace_reader_test.cpp)
+  target_link_libraries(redis-adapter-keyspace-test ${REDIS_ADAPTER_LIBRARIES} GTest::gtest_main)
+  gtest_discover_tests(redis-adapter-keyspace-test PROPERTIES TIMEOUT 20 RUN_SERIAL TRUE)
+
+endif()
+
+option(REDIS_ADAPTER_STREAM_BENCHMARK "Build the standalone stream reader benchmark" OFF)
+if(REDIS_ADAPTER_STREAM_BENCHMARK)
+  add_executable(stream_reader_benchmark ${REDIS_ADAPTER_SOURCES} stream_reader_benchmark.cpp)
+  target_link_libraries(stream_reader_benchmark ${REDIS_ADAPTER_LIBRARIES})
 endif()
 
 # Build redis-adapter-benchmark and googlebenchmark if REDIS_ADAPTER_BENCHMARK is true

@@ -72,6 +72,78 @@ Blocking reads use the independent reader pool and finite physical cycles from
 the connection policy. Errors retry with bounded backoff and a state-change log.
 Initially disconnected adapters retain registrations through connection recovery.
 
+## Keyspace notification readers
+
+`RA_Options::readerMode` defaults to `RA_ReaderMode::Blocking`. Applications with
+many subscribed streams can opt into `RA_ReaderMode::Keyspace`:
+
+```cpp
+RA_Options options;
+options.readerMode = RA_ReaderMode::Keyspace;
+options.readers = 4;
+RedisAdapter redis("BPM01", options);
+```
+
+The keyspace backend opens its dedicated notification connection when the first
+stream is registered, then subscribes to the exact
+`__keyspace@0__:<stream-key>` channels. Snapshot/write-only adapters create no
+notification connection or capability query. The existing
+`readers` setting still bounds concurrent stream reads; it does not create a
+connection or thread per stream. Notifications coalesce into a queue bounded
+by the number of registered keys. Each nonblocking XREAD includes at most 64
+dirty keys and up to `readerBatchCount` entries per key. Full batches return to
+the queue tail until the retained backlog is drained, including when no more
+notifications arrive. Callback ordering, independent registration cursors, epoch
+fences and quarantine behavior are shared with the blocking backend.
+
+The server must already enable keyspace stream events (`K` together with `t`, or
+`K` together with `A`, in `notify-keyspace-events`). The application user needs
+`SUBSCRIBE`/`UNSUBSCRIBE` and channel permission for its keyspace channels, in
+addition to its existing stream command/key permissions. For example, a user
+reading `{BPM01}:*` needs the channel pattern `&__keyspace@0__:{BPM01}:*`.
+The adapter never changes server configuration and never writes test events to
+verify notification delivery.
+
+Subscription acknowledgements precede activation. Catch-up reads from saved
+numeric cursors close the snapshot-to-subscription gap and run again after
+reconnection, a shared cursor rewind, or backend promotion. Owned and legacy
+deferred registrations retain their existing tail semantics. Idle subscriber
+polls have a finite deadline even when application command timeouts are zero.
+
+`readerReconcileMs` defaults to 1000 and accepts 100 through 60000 milliseconds;
+other values throw `std::invalid_argument` before connecting. It is the target
+period for a round-robin safety sweep over every subscribed stream, spread across
+64-key slices. It cannot be disabled. Reconciliation checks retained entries
+even when `readerProbeMs` is zero; the optional XINFO continuity inspection below
+is independent. Scheduling and server load can delay a sweep beyond its target,
+and entries trimmed before a catch-up read cannot be recovered.
+
+If notification configuration is missing, subscriptions are rejected, or their
+connection is unavailable, readers automatically use the existing blocking
+backend while notification setup retries. An optional `CONFIG GET` checks the
+flags without requiring CONFIG permission. If that check is denied, blocking
+reads continue until a real `xadd` notification for a registered key proves
+delivery. Reconciliation also detects unwoken data after allowing 250 ms for
+an in-flight notification, then falls back and requires renewed notification
+evidence before promotion. A one-second minimum fallback period avoids rapid
+switching after such a coverage failure. Transport retries back off to one
+second; repeated subscription refusals back off to 30 seconds, and configuration
+checks repeat every 30 seconds. Pending subscription acknowledgements have a
+one-second deadline. A silent subscriber is replaced when acknowledgement or
+notification-coverage recovery stalls; ordinary idle polls reuse its connection.
+
+`readerBackendStatus()` returns `requested`, `effective` and `fallbackReason`.
+The reason is one of `None`, `Starting`, `UnverifiedNotifications`,
+`NotificationsDisabled`, `SubscriptionRejected`, `SubscriberUnavailable`, or
+`MissedNotifications`. Backend/reason changes are logged through syslog.
+This adapter-level status does not change `ReaderHandle::status().connected`,
+which describes data-read connectivity. A fallback is observable but does not
+make construction or an offline registration fail. Adding a new stream can
+temporarily select blocking reads until its subscription is acknowledged.
+
+See [stream reader benchmarks](stream-reader-benchmark.md) for a private-fixture
+comparison of both backends at different stream counts and update patterns.
+
 Legacy single-item typed getters distinguish malformed data with
 `RA_INVALID_PAYLOAD` (`err() == 3`), preserve the destination, and reserve zero
 for an accepted empty result. Range and callback wrappers skip malformed entries;

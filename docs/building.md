@@ -61,8 +61,25 @@ The available project options are:
 | --- | --- | --- |
 | `REDIS_ADAPTER_TEST` | `OFF` | Build `redis-adapter-test` and register its GoogleTest cases with CTest. |
 | `REDIS_ADAPTER_BENCHMARK` | `OFF` | Build `redis-adapter-benchmark`. |
+| `REDIS_ADAPTER_STREAM_BENCHMARK` | `OFF` | Build the standalone `stream_reader_benchmark` without Google Benchmark. |
 
 ## Test Redis
+
+Use a temporary private Redis instance for lifecycle, recovery and notification
+fault tests. The helper binds an ephemeral loopback port and removes its Unix
+socket and temporary files on exit:
+
+```sh
+python3 scripts/run-test-redis.py -- ctest --test-dir build --output-on-failure
+python3 scripts/run-test-redis.py --reader-mode keyspace -- \
+  ctest --test-dir build --output-on-failure -R 'Workers/(Lifecycle|Recovery)'
+```
+
+The second invocation enables notifications only on that private fixture and
+runs the existing lifecycle/recovery contracts through the keyspace backend.
+`redis-adapter-keyspace-test` adds acknowledgement, coalescing, cursor catch-up,
+fallback, subscriber reconnect and cancellation cases. It changes configuration
+and ACLs only when `REDIS_ADAPTER_ISOLATED_TEST` is set by the fixture.
 
 For a locally installed Redis 7.4 or newer, the helper starts a daemon on
 `127.0.0.1:6379` and creates `/tmp/redis.sock`:

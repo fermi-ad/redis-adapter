@@ -16,6 +16,13 @@ using namespace sw::redis;
 const auto THREAD_START_CONFIRM = milliseconds(20);
 
 namespace {
+const RA_Options& checkedOptions(const RA_Options& options) {
+  if (options.readerMode != RA_ReaderMode::Blocking && options.readerMode != RA_ReaderMode::Keyspace)
+    throw invalid_argument("invalid reader mode");
+  if (options.readerReconcileMs < 100 || options.readerReconcileMs > 60000)
+    throw invalid_argument("readerReconcileMs must be between 100 and 60000 milliseconds");
+  return options;
+}
 // Preserve the established control-stream names. Keys with unmatched or empty
 // braces use the bounded read timeout for cancellation.
 std::string stopStreamKey(const std::string& key) {
@@ -38,9 +45,11 @@ std::string stopStreamKey(const std::string& key) {
 //    return  : RedisAdapter
 //
 RedisAdapter::RedisAdapter(const string& baseKey, const RA_Options& options) :
-  _options(options), _redis(options.cxn, options.readers), _base_key(baseKey), _connecting(false),
+  _options(checkedOptions(options)), _redis(_options.cxn, _options.readers), _base_key(baseKey), _connecting(false),
   _watchdog_run(false), _readers_defer(false), _replier_pool(options.workers)
 {
+  if (_options.readerMode == RA_ReaderMode::Keyspace)
+    _notifications = make_unique<RedisReaderNotifications>(_options.cxn);
   _reader_owner->adapter = this;
   _watchdog_key = build_key(_options.dogkey.size() ? _options.dogkey : "watchdog");
 
@@ -90,6 +99,10 @@ RedisAdapter::~RedisAdapter()
     _reader_owner->adapter = nullptr;
   }
 
+  // No notification callback takes _reader_mtx. Finish its thread before the
+  // reader registry can be destroyed; shared mailboxes fence late wakeups.
+  if (_notifications) _notifications->stop();
+
   if (_watchdog_thd.joinable())
   {
     {
@@ -111,6 +124,10 @@ RedisAdapter::~RedisAdapter()
     for (auto& key : item.second.subs)
       for (auto& registration : key.second) registration->active = false;
   }
+}
+
+RedisAdapter::ReaderBackendStatus RedisAdapter::readerBackendStatus() const {
+  return _notifications ? _notifications->status() : ReaderBackendStatus{};
 }
 
 RedisAdapter::ReaderHandle::ReaderHandle(weak_ptr<ReaderOwner> owner,
@@ -379,7 +396,7 @@ bool RedisAdapter::removeGenericReader(const string& key)
     info.boundaries.erase(key);
     info.quarantined.erase(key);
     found = true;
-    if (info.subs.empty()) it = _reader.erase(it);
+    if (info.subs.empty()) { forget_notifications(it->first); it = _reader.erase(it); }
     else { start_reader(it->first); ++it; }
   }
   return found;
@@ -489,7 +506,7 @@ RedisAdapter::register_reader(const string& key, reader_sub_fn func, const strin
       }
       if (hadCursor) info.keyids[key] = oldCursor;
       else info.keyids.erase(key);
-      if (info.subs.empty()) _reader.erase(token);
+      if (info.subs.empty()) { forget_notifications(token); _reader.erase(token); }
       else { try { start_reader(token); } catch (...) {} }
       throw;
     }
@@ -518,7 +535,7 @@ void RedisAdapter::remove_registration(uint64_t id)
         info.quarantined.erase(key->first);
         info.subs.erase(key);
       }
-      if (info.subs.empty()) _reader.erase(bucket);
+      if (info.subs.empty()) { forget_notifications(bucket->first); _reader.erase(bucket); }
       else start_reader(bucket->first);
       return;
     }
@@ -543,7 +560,7 @@ bool RedisAdapter::remove_reader_helper(const string& baseKey, const string& sub
     info.boundaries.erase(key);
     info.quarantined.erase(key);
     found = true;
-    if (info.subs.empty()) bucket = _reader.erase(bucket);
+    if (info.subs.empty()) { forget_notifications(bucket->first); bucket = _reader.erase(bucket); }
     else { start_reader(bucket->first); ++bucket; }
   }
   return found;
@@ -580,6 +597,7 @@ size_t RedisAdapter::resolve_reader_tails(reader_info& info)
       lock_guard<mutex> cursorLock(registration->mutex);
       if (registration->cursor == "$") registration->cursor = registration->observedCursor = tail;
     }
+    if (_notifications) info.wake->mark(subscriptions.first);
   }
   return unresolved;
 }
@@ -626,6 +644,7 @@ void RedisAdapter::reset_stream(reader_info& info, const string& key, StreamKind
       minimum = registration->cursor;
   }
   info.keyids[key] = minimum;
+  if (_notifications) info.wake->mark(key);
 }
 
 void RedisAdapter::check_readable(reader_info& info, const vector<string>& keys)
@@ -642,6 +661,7 @@ void RedisAdapter::check_readable(reader_info& info, const vector<string>& keys)
       if (bad != info.quarantined.end()) {
         if (bad->second.wrongType) reset_stream(info, key, StreamKind::Unknown, true);
         info.quarantined.erase(bad);
+        if (_notifications) info.wake->mark(key);
       }
       for (const auto& registration : info.subs.at(key)) {
         lock_guard<mutex> lock(registration->mutex);
@@ -797,13 +817,27 @@ uint32_t RedisAdapter::read_interval(const reader_info& info, bool& blocking) co
   return interval;
 }
 
+void RedisAdapter::sync_notifications(uint32_t token) {
+  if (!_notifications) return;
+  auto& info = _reader.at(token);
+  vector<string> keys;
+  for (const auto& key : info.subs) keys.push_back(key.first);
+  info.wake->reset(keys);
+  _notifications->update(token, info.wake, keys);
+}
+
+void RedisAdapter::forget_notifications(uint32_t token) {
+  if (_notifications) _notifications->remove(token);
+}
+
 bool RedisAdapter::start_reader(uint32_t token)
 {
   if (_shutdown) return false;
-  if (_readers_defer) return true;
   if (_reader.count(token) == 0) return false;
   reader_info& info = _reader.at(token);
   if (info.thread.joinable()) return false;
+  sync_notifications(token);
+  if (_readers_defer) return true;
   unique_lock<mutex> lk(info.start_mx);
   info.started = false;
   info.run = true;
@@ -821,19 +855,57 @@ bool RedisAdapter::start_reader(uint32_t token)
       vector<string> allKeys;
       allKeys.reserve(info.subs.size());
       for (const auto& key : info.subs) allKeys.push_back(key.first);
+      const auto slices = max<size_t>(1, (allKeys.size() + 63) / 64);
+      const auto sliceInterval = max(nanoseconds(1000000),
+          duration_cast<nanoseconds>(milliseconds(_options.readerReconcileMs)) / static_cast<int64_t>(slices));
+      auto nextReconcile = steady_clock::now() + sliceInterval;
+      auto nextTail = steady_clock::now();
+      size_t reconcileIndex = 0;
+      bool wasKeyspace = false;
       for (Streams out; info.run; out.clear()) {
-        if (unresolved) unresolved = resolve_reader_tails(info);
+        if (unresolved && (!_notifications || steady_clock::now() >= nextTail)) {
+          unresolved = resolve_reader_tails(info);
+          nextTail = steady_clock::now() + milliseconds(250);
+        }
         vector<string> recheck;
         const auto now = steady_clock::now();
         for (const auto& bad : info.quarantined) if (bad.second.nextCheck <= now) recheck.push_back(bad.first);
         if (!recheck.empty()) check_readable(info, recheck);
         inspect_readers(info);
         if (!info.run) break;
+        bool keyspace = _notifications && _notifications->status().effective == RA_ReaderMode::Keyspace;
+        if (keyspace && info.wake->missedNotification()) {
+          _notifications->missedNotification(); keyspace = false;
+        }
+        if (keyspace && !wasKeyspace) {
+          info.wake->catchUp();
+          nextReconcile = steady_clock::now() + sliceInterval;
+        }
+        wasKeyspace = keyspace;
+        if (keyspace && steady_clock::now() >= nextReconcile && !allKeys.empty()) {
+          for (size_t index = 0; index < 64; ++index) {
+            info.wake->mark(allKeys[reconcileIndex++], false, true);
+            if (reconcileIndex == allKeys.size()) { reconcileIndex = 0; break; }
+          }
+          // Each turn schedules at most one bounded slice, including when a
+          // backlog has delayed timers. FIFO readers still service hot keys.
+          nextReconcile += sliceInterval;
+        }
         // Never send '$' repeatedly. An unresolved tail is excluded until the
         // snapshot succeeds; healthy keys in the bucket continue to flow.
         const auto* cursors = &info.keyids;
         unordered_map<string, string> resolved;
-        if (unresolved || !info.quarantined.empty() || !info.controlReadable) {
+        vector<RedisReaderWake::Ticket> tickets;
+        if (keyspace) {
+          tickets = info.wake->take(64);
+          for (const auto& ticket : tickets) {
+            const auto cursor = info.keyids.find(ticket.key);
+            if (cursor != info.keyids.end() && cursor->second != "$" && !info.quarantined.count(ticket.key))
+              resolved.insert(*cursor);
+            else info.wake->finish(ticket, 0, max<uint32_t>(1, _options.readerBatchCount));
+          }
+          cursors = &resolved;
+        } else if (unresolved || !info.quarantined.empty() || !info.controlReadable) {
           for (const auto& key : info.keyids)
             if (key.second != "$" && !info.quarantined.count(key.first) &&
                 (info.controlReadable || key.first != info.stop)) resolved.insert(key);
@@ -842,24 +914,46 @@ bool RedisAdapter::start_reader(uint32_t token)
         RedisConnection::ReadStatus status = RedisConnection::ReadStatus::TimedOut;
         bool socketTimedOut = false, blocking;
         const auto interval = read_interval(info, blocking);
+        if (keyspace && cursors->empty()) {
+          auto deadline = min(steady_clock::now() + milliseconds(interval), nextReconcile);
+          if (unresolved) deadline = min(deadline, nextTail);
+          info.wake->waitUntil(deadline, info.run);
+          continue;
+        }
+        const auto finishReads = [&](bool retry) {
+          for (const auto& ticket : tickets) if (resolved.count(ticket.key)) {
+            const auto batch = out.find(ticket.key);
+            info.wake->finish(ticket, batch == out.end() ? 0 : batch->second.size(),
+                max<uint32_t>(1, _options.readerBatchCount), retry && !info.quarantined.count(ticket.key));
+          }
+        };
         const bool accepted = cursors->empty() || _redis.xreadMultiBlock(cursors->begin(), cursors->end(),
-            interval, inserter(out, out.end()), &status, _options.readerBatchCount, &socketTimedOut, blocking);
+            interval, inserter(out, out.end()), &status, _options.readerBatchCount, &socketTimedOut, blocking && !keyspace);
         reader_result(info, status, socketTimedOut);
         if (!accepted) {
           if (status == RedisConnection::ReadStatus::Unavailable) reconnect(0);
           if (status == RedisConnection::ReadStatus::Rejected) {
             const auto previous = info.quarantined.size();
-            check_readable(info, allKeys);
-            if (previous == info.quarantined.size() && !info.stop.empty() && info.controlReadable) {
+            if (keyspace) {
+              vector<string> attempted;
+              for (const auto& cursor : resolved) attempted.push_back(cursor.first);
+              check_readable(info, attempted);
+            } else check_readable(info, allKeys);
+            if (!keyspace && previous == info.quarantined.size() && !info.stop.empty() && info.controlReadable) {
               const auto control = _redis.probeReadable({info.stop});
               if (control.status == RedisConnection::ReadStatus::Rejected) info.controlReadable = false;
             }
           }
+          finishReads(true);
           if (!reported) { syslog(LOG_WARNING, "stream reader paused after read rejection or transport failure"); reported = true; }
-          if (info.run) this_thread::sleep_for(milliseconds(delay));
+          if (info.run) {
+            if (_notifications) info.wake->pause(milliseconds(delay), info.run);
+            else this_thread::sleep_for(milliseconds(delay));
+          }
           delay = min<uint32_t>(1000, delay * 2);
           continue;
         }
+        finishReads(false);
         if (cursors->empty()) this_thread::sleep_for(milliseconds(min<uint32_t>(interval, 50)));
         if (reported) syslog(LOG_INFO, "stream reader recovered");
         reported = false;
@@ -935,6 +1029,7 @@ bool RedisAdapter::stop_reader(uint32_t token)
   if ( ! info.thread.joinable()) return false;
 
   info.run = false;
+  info.wake->wake();
   Attrs attrs = default_field_attrs("");
   //  poke the stop stream to unblock xreadMultiBlock - if it fails the reader
   //  will still exit after its timeout expires, do NOT call reconnect() here
