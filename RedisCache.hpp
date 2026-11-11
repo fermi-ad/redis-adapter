@@ -15,42 +15,50 @@
 template<typename Type>
 class RedisCache {
 private:
-    std::atomic<bool> newValueAvailable{false}; // Atomic flag for signaling new values
+    struct State {
+        std::atomic<bool> newValueAvailable{false};
+        // Concurrent readers can delay the exclusive buffer swap.
+        mutable std::shared_mutex swapMutex;
+        int readIndex = 0;
+        std::array<std::vector<Type>, 2> buffers;
+        RA_Time lastWrite = 0;
+    };
+
     std::shared_ptr<RedisAdapter> _ra;
-    // The implementation of this cache has a potential flaw where if we have multiple readers contantly reading, then we could potentally stop new data from ever being
-    // written and as a side effect lock up the stream reader. If we ever actually use that we should think through implementing that sanely. Boost has an implementaion of queued
-    // locking that would prevent this, but then we'd have to pull in boost or part of it, with redis adapter.
-    mutable std::shared_mutex swapMutex; // Mutex that prevents swapping which buffer is for reading and writing.
-                                         // This mutex allows for simultanious reads, but prevents reading while writing.
-
-    int readIndex = 0;
-    std::array<std::vector<Type>, 2> buffers;
-    RA_Time lastWrite = 0;
     std::string _subkey;
+    std::shared_ptr<State> _state = std::make_shared<State>();
+    // Retire this registration before releasing the cache's state or adapter.
+    // A callback already executing retains State independently of this object.
+    RedisAdapter::ReaderHandle _reader;
 
-    void writeBuffer(const RedisAdapter::TimeValList<std::vector<Type>>& entry)
+    static void writeBuffer(const std::shared_ptr<State>& state,
+                            const RedisAdapter::TimeValList<std::vector<Type>>& entry)
     {
         if (entry.empty()) return;
-        const std::vector<Type>& data = entry.front().second;
-        int writeIndex = (readIndex + 1 ) % 2;
+        // A reader callback can contain several retained updates. This cache
+        // represents the latest value, including the corresponding timestamp.
+        const auto& latest = entry.back();
+        const std::vector<Type>& data = latest.second;
+        int writeIndex = (state->readIndex + 1 ) % 2;
 
-        buffers.at(writeIndex) = data;
+        state->buffers.at(writeIndex) = data;
 
         {
             // take an exclusive lock, so a reader can't read, while the buffers are being swapped
-            std::lock_guard<std::shared_mutex> swapLock(swapMutex);
-            readIndex = (readIndex + 1 ) % 2;
-            lastWrite = entry.front().first;
+            std::lock_guard<std::shared_mutex> swapLock(state->swapMutex);
+            state->readIndex = (state->readIndex + 1 ) % 2;
+            state->lastWrite = latest.first;
         }
         // Effectivly does nothing if the code using this class doesn't ever try to read this.
         // Set the atomic flag to indicate that new data is available
-        newValueAvailable.store(true);
+        state->newValueAvailable.store(true);
     }
     void registerCacheReader() {
-        //Setup redis setting readers
-        _ra->addListsReader<Type>(_subkey, [this](const std::string& base, const std::string& sub, const RedisAdapter::TimeValList<std::vector<Type>>& entry) {
-            writeBuffer(entry);
-        });
+        _reader = _ra->subscribeListsReader<Type>(_subkey,
+            [state = _state](const std::string&, const std::string&,
+                             const RedisAdapter::TimeValList<std::vector<Type>>& entry) {
+                writeBuffer(state, entry);
+            });
     }
 
 public:
@@ -64,19 +72,19 @@ public:
     //
     RA_Time copyReadBuffer(std::vector<Type>& destBuffer) {
         // Take a shared lock, so other readers can still read, but the writer cannot swap the buffers
-        std::shared_lock<std::shared_mutex> swapLock(swapMutex);
+        std::shared_lock<std::shared_mutex> swapLock(_state->swapMutex);
 
         // If the cache has no data read in whatever's there to initilize the cache.
-        if (!lastWrite.ok())
+        if (!_state->lastWrite.ok())
         {
-            lastWrite = _ra->getSingleList(_subkey, buffers.at(readIndex));
+            _state->lastWrite = _ra->getSingleList(_subkey, _state->buffers.at(_state->readIndex));
         }
 
-        std::vector<Type>& sourceBuffer = buffers.at(readIndex);
+        std::vector<Type>& sourceBuffer = _state->buffers.at(_state->readIndex);
         // Copy internel buffer to user
         destBuffer = sourceBuffer;
 
-        return lastWrite;
+        return _state->lastWrite;
     }
 
     //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -95,15 +103,15 @@ public:
     RA_Time copyReadBuffer(std::span<Type> destBuffer, int firstIndexToCopy = 0 , int* pElementsCopied = nullptr)
     {
         // Take a shared lock, so other readers can still read, but the writer cannot swap the buffers
-        std::shared_lock<std::shared_mutex> swapLock(swapMutex);
+        std::shared_lock<std::shared_mutex> swapLock(_state->swapMutex);
 
         // If the cache has no data read in whatever's there to initilize the cache.
-        if (!lastWrite.ok())
+        if (!_state->lastWrite.ok())
         {
-            lastWrite = _ra->getSingleList(_subkey, buffers.at(readIndex));
+            _state->lastWrite = _ra->getSingleList(_subkey, _state->buffers.at(_state->readIndex));
         }
 
-        std::vector<Type>& sourceBuffer = buffers.at(readIndex);
+        std::vector<Type>& sourceBuffer = _state->buffers.at(_state->readIndex);
 
         typename std::vector<Type>::iterator copySourceStart = sourceBuffer.begin() + firstIndexToCopy;
         typename std::vector<Type>::iterator copySourceEnd   = copySourceStart + destBuffer.size();
@@ -120,7 +128,7 @@ public:
         if (pElementsCopied != nullptr)
             { *pElementsCopied = elementAfterLastCopied - destBuffer.begin(); }
 
-        return lastWrite;
+        return _state->lastWrite;
     }
     void waitForNewValueMilis(int millisecondsBeweenChecks) {
         waitForNewValue(std::chrono::milliseconds(millisecondsBeweenChecks));
@@ -132,18 +140,18 @@ public:
     }
     template <typename Rep, typename Period>
     void waitForNewValue(std::chrono::duration<Rep, Period> timeBetweenChecks) {
-        // Sleep until the newValueAvailable flag is raised
-        while (!newValueAvailable.load()) {
+        // Sleep until the new-value flag is raised
+        while (!_state->newValueAvailable.load()) {
             std::this_thread::sleep_for(timeBetweenChecks); // Sleep for a short duration
         }
         // After waking up, lower the flag
-        newValueAvailable.store(false);
+        _state->newValueAvailable.store(false);
     }
     bool newValueAvaliable() {
-        return newValueAvailable.load();
+        return _state->newValueAvailable.load();
     }
     void clearNewValueAvaliable() {
-        newValueAvailable.store(false);
+        _state->newValueAvailable.store(false);
     }
 
     RedisCache(std::shared_ptr<RedisAdapter> ra, std::string subkey) { _ra = ra; _subkey = subkey; registerCacheReader(); }

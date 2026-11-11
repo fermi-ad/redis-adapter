@@ -449,6 +449,20 @@ public:
   bool addListsReader(const std::string& subKey, ReaderSubFn<std::vector<T>> func, const std::string& baseKey = "")
     { return add_reader_helper(baseKey, subKey, make_list_reader_callback(func)); }
 
+  // Owned counterpart to addListsReader: retain legacy deferred-tail semantics
+  // and safe typed decoding while retiring only this registration on reset.
+  template<typename T>
+  [[nodiscard]] ReaderHandle subscribeListsReader(const std::string& subKey,
+      ReaderSubFn<std::vector<T>> func, const std::string& baseKey = "") {
+    if (!func) throw std::invalid_argument("empty stream callback");
+    const auto base = baseKey.empty() ? _base_key : baseKey;
+    auto decoded = make_list_reader_callback(std::move(func));
+    return ReaderHandle(_reader_owner, register_reader(build_key(subKey, baseKey),
+        [base, subKey, decoded = std::move(decoded)](const auto&, const auto&, const auto& batch) {
+          decoded(base, subKey, batch);
+        }, "$", false));
+  }
+
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  addGenericReader : add a reader for a key that does NOT follow RedisAdapter schema
   //
