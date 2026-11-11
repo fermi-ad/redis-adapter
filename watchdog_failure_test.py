@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 """Inject faults between a watchdog's write and its expiration through a proxy.
 
-A watchdog field must never be left without an expiration: whatever fails between
-setting the field and setting its expiration, once the process is gone the field
-must disappear within its 1 s expiration. For each scenario the child keeps an
-automatic watchdog alive through the proxy for a few seconds, is SIGKILLed, and the
-field must be gone 1.5 s later.
+A failed transaction can briefly leave a field without expiration until the C++
+client's compensating HDEL completes. Verify that cleanup explicitly before
+sampling normal watchdog operation; a later successful creation must not mask a
+missing HDEL. Once the process is gone, the field must disappear within its 1 s
+expiration. This test does not claim cleanup survives denied HDEL or a lost
+transaction reply; those are the documented MULTI/EXEC limitations.
 
   cut-before-expiry   the connection is cut after the field is sent but before its
                       expiration takes effect (EXEC of the transaction, or a bare
                       HEXPIRE following an HSET)
   unknown-hexpire     HEXPIRE is answered with "unknown command", as Redis < 7.4 does
-  expire-fails        inside the transaction, HEXPIRE is replaced by a command that
-                      fails when EXEC runs, so the field is set but its expiration isn't
+  expire-fails        one HEXPIRE is replaced by a command that fails inside EXEC;
+                      verify HDEL removes that field, then allow normal recreation
   killed              no fault: the field is alive with an expiration, then disappears
 """
 import os
@@ -78,6 +79,9 @@ class Proxy(socketserver.ThreadingTCPServer):
         self.upstream_port, self.mode = upstream_port, mode
         self.lock = threading.Lock()
         self.faults, self.failures = 0, []
+        self.failed_key = None
+        self.fault_applied = threading.Event()
+        self.cleanup_done = threading.Event()
         super().__init__(("127.0.0.1", 0), Forward)
 
 
@@ -88,7 +92,7 @@ class Forward(socketserver.BaseRequestHandler):
             self.request.settimeout(10)
             with socket.create_connection(("127.0.0.1", self.server.upstream_port), timeout=10) as upstream:
                 with self.request.makefile("rb") as client, upstream.makefile("rb") as reply:
-                    in_multi, previous = False, b""
+                    in_multi, previous, failed_transaction = False, b"", False
                     while True:
                         request, args = frame(client)
                         command = args[0].upper()
@@ -102,7 +106,15 @@ class Forward(socketserver.BaseRequestHandler):
                         elif mode == "unknown-hexpire" and command == b"HEXPIRE":
                             fault = "unknown"
                         elif mode == "expire-fails" and command == b"HEXPIRE" and in_multi:
-                            fault = "rewrite"
+                            with self.server.lock:
+                                if self.server.failed_key is None:
+                                    self.server.failed_key = args[1]
+                                    fault = "rewrite"
+                                    failed_transaction = True
+                        if (mode == "expire-fails" and command == b"HSET"
+                                and self.server.failed_key == args[1]):
+                            expect(self.server.cleanup_done.is_set(),
+                                   "watchdog re-created before compensating HDEL completed")
                         if command in (b"EXEC", b"DISCARD"):
                             in_multi = False
                         previous = command
@@ -119,7 +131,24 @@ class Forward(socketserver.BaseRequestHandler):
                             # INCR on a hash queues fine and fails with WRONGTYPE when EXEC runs
                             request = encode(b"INCR", args[1])
                         upstream.sendall(request)
-                        response, _ = frame(reply)
+                        response, value = frame(reply)
+                        if failed_transaction and command == b"EXEC":
+                            expect(isinstance(value, list) and len(value) == 2
+                                   and value[1].startswith(b"WRONGTYPE"),
+                                   "injected expiration failure did not execute")
+                            control = Redis(self.server.upstream_port)
+                            expect(control("HPTTL", self.server.failed_key, "FIELDS", "1", "dog") == [b"-1"],
+                                   "failed transaction did not leave the expected cleanup target")
+                            self.server.fault_applied.set()
+                            failed_transaction = False
+                        if (mode == "expire-fails" and command == b"HDEL"
+                                and args[1] == self.server.failed_key):
+                            expect(self.server.fault_applied.is_set() and value == b"1",
+                                   "compensating HDEL did not delete the failed field")
+                            control = Redis(self.server.upstream_port)
+                            expect(control("HPTTL", args[1], "FIELDS", "1", "dog") == [b"-2"],
+                                   "failed field remained after compensating HDEL")
+                            self.server.cleanup_done.set()
                         self.request.sendall(response)
         except (EOFError, ConnectionError, TimeoutError, OSError):
             pass
@@ -139,6 +168,9 @@ def run(mode, binary, upstream):
         child = subprocess.Popen([binary], env=dict(
             os.environ, REDIS_ADAPTER_TEST_PORT=str(proxy.server_address[1]), REDIS_ADAPTER_WATCHDOG_BASE=base))
         try:
+            if mode == "expire-fails":
+                expect(proxy.fault_applied.wait(5), "expiration fault was not applied")
+                expect(proxy.cleanup_done.wait(5), "compensating HDEL did not complete")
             samples = []
             end = time.monotonic() + 3.0
             while time.monotonic() < end:
@@ -146,13 +178,17 @@ def run(mode, binary, upstream):
                 samples.append(int(ttl[0]) if isinstance(ttl, list) and ttl else None)
                 expect(child.poll() is None, f"{mode}: child exited early with {child.returncode}")
                 time.sleep(0.05)
-            # Never alive without an expiration (-1), whatever was injected.
+            # In expire-fails, the known compensation window was checked above.
+            # Every sample after cleanup (and every sample in other modes) must
+            # still reject a field without an expiration.
             expect(-1 not in samples, f"{mode}: watchdog field had no expiration: {samples}")
-            if mode == "killed":
+            if mode in ("killed", "expire-fails"):
                 expect(sum(1 for s in samples if s is not None and s > 0) > len(samples) // 2,
                        f"{mode}: watchdog was not kept alive: {samples}")
-            else:
+            if mode != "killed":
                 expect(proxy.faults > 0, f"{mode}: no fault was injected")
+            if mode == "expire-fails":
+                expect(proxy.faults == 1, "expiration failure must be injected exactly once")
             child.send_signal(signal.SIGKILL)
             child.wait()
             time.sleep(1.5)
