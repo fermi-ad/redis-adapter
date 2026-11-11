@@ -2,6 +2,7 @@
 
 #include "sw/redis++/redis++.h"
 #include <syslog.h>
+#include <atomic>
 #include <mutex>
 #include <algorithm>
 
@@ -643,20 +644,64 @@ public:
     }
     catch (const swr::Error& e)
     {
-      if (std::string(e.what()).find("unknown command") != std::string::npos)
-      {
-        static bool squelch = false;
-        if ( ! squelch)
-        {
-          syslog(LOG_NOTICE, "RedisConnection::%s %s", __func__,
-            "HEXPIRE requires redis-server 7.4.0 or higher - upgrade to support redis-adapter watchdog");
-          squelch = true;
-        }
-        return -3;
-      }
-      else { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
+      if (hexpire_unsupported(e)) return -3;
+      syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what());
     }
     return ret.size() ? ret.front() : -1;
+  }
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  hsetExpire : set a field,value pair in a hashmap together with the field's expiration
+  //
+  //  HSET clears a field's expiration, so setting the value and then the expiration as two
+  //  commands can leave a field that never expires if the second one never happens (the
+  //  process dies, the connection drops, or HEXPIRE fails). The script checks support
+  //  and permissions before writing, then sets the value and expiration on the server.
+  //  ACL changes cannot interleave with it, and a lost reply cannot interrupt cleanup.
+  //  Requires EVAL plus HSET, HEXPIRE and HDEL permission on the hash.
+  //
+  //    key    : the hashmap to set the field in
+  //    fld    : the field to set
+  //    val    : the value to set
+  //    sec    : the expiration interval in seconds (non-zero)
+  //    return : 1 if the field was set with its expiration
+  //            -1 if unsuccessful, sec is zero, or not connected
+  //            -3 if hexpire not supported (nothing was set)
+  //
+  int32_t hsetExpire(const std::string& key, const std::string& fld, const std::string& val, uint32_t sec)
+  {
+    auto client = snapshot();
+    if ( ! client || ! sec) return -1;
+    try
+    {
+      // MULTI/EXEC does not roll back a successful HSET when HEXPIRE fails. In
+      // particular, permissions can change after queueing but before EXEC. Check
+      // all required commands in the same script as the writes, including the
+      // defensive cleanup, before HSET can remove an existing field expiration.
+      static const char script[] = R"lua(
+local key, field, value, seconds = KEYS[1], ARGV[1], ARGV[2], ARGV[3]
+local supported, permitted = pcall(redis.acl_check_cmd, 'HEXPIRE', key, seconds, 'FIELDS', '1', field)
+if not supported then return -3 end
+if not permitted or not redis.acl_check_cmd('HSET', key, field, value)
+    or not redis.acl_check_cmd('HDEL', key, field) then
+    return redis.error_reply('NOPERM watchdog requires HSET, HEXPIRE and HDEL')
+end
+local written = redis.pcall('HSET', key, field, value)
+if type(written) == 'table' and written.err then return written end
+local expired = redis.pcall('HEXPIRE', key, seconds, 'FIELDS', '1', field)
+if not expired.err and expired[1] == 1 then return 1 end
+redis.call('HDEL', key, field)
+return redis.error_reply(expired.err or 'ERR watchdog expiration rejected')
+)lua";
+      const auto result = client->command<long long>("EVAL", script, "1", key, fld, val, std::to_string(sec));
+      if (result == -3) warn_hexpire_unsupported();
+      return result == 1 ? 1 : result == -3 ? -3 : -1;
+    }
+    catch (const swr::Error& e)
+    {
+      syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what());
+    }
+    return -1;
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -745,6 +790,24 @@ private:
       syslog(LOG_WARNING, "RedisConnection initial server mode probe failed: %s", error.what());
       return false;
     }
+  }
+
+  //  hexpire_unsupported : true if e says the server doesn't know HEXPIRE (Redis < 7.4);
+  //                        logs that once per process
+  //
+  static bool hexpire_unsupported(const swr::Error& e)
+  {
+    if (std::string(e.what()).find("unknown command") == std::string::npos) return false;
+    warn_hexpire_unsupported();
+    return true;
+  }
+
+  static void warn_hexpire_unsupported()
+  {
+    static std::atomic<bool> squelch{false};
+    if ( ! squelch.exchange(true))
+      syslog(LOG_NOTICE, "RedisConnection: %s",
+        "HEXPIRE requires redis-server 7.4.0 or higher - upgrade to support redis-adapter watchdog");
   }
 
   static StreamBounds rejectedBounds(const std::string& message) {

@@ -39,6 +39,7 @@ Redis before upgrading.
 | `cxn.connectTimeout` | `uint32_t` | `500` | Independent connection timeout; zero disables it. |
 | `cxn.size` | `uint16_t` | `5` | redis-plus-plus connection-pool size. |
 | `dogname` | `std::string` | empty | If set, maintain a one-second field-TTL watchdog for this name. |
+| `dogkey` | `std::string` | `watchdog` | Sub key of the watchdog hash, `{baseKey}:<dogkey>`. |
 | `workers` | `uint16_t` | `1` | Worker threads used to dispatch reader callbacks. |
 | `readers` | `uint16_t` | `1` | Reader threads and dedicated blocking-read pool capacity. |
 | `readerProbeMs` | `uint32_t` | `0` | Optional continuity inspection; per-subscription override available. |
@@ -174,7 +175,19 @@ safe for their data model. Use `connected()` for an explicit health probe.
   pub/sub using the same base/sub-key naming convention.
 - `copy()`, `rename()`, `del()`, and `exists()` manage RedisAdapter stream keys.
 - `addWatchdog()`, `petWatchdog()`, and `getWatchdogs()` manage field-TTL
-  watchdog entries. Watchdog expiration requires Redis 7.4 or newer.
+  watchdog entries in `{baseKey}:<dogkey>`. Watchdog expiration requires Redis 7.4
+  or newer.
+  - `addWatchdog()` uses one `EVAL` script. It checks `HSET`, `HEXPIRE` and `HDEL`
+    permissions before changing the hash, then sets the field and expiration on
+    the server. Defensive cleanup also runs in the script, so ACL changes cannot
+    interleave and a lost reply does not interrupt expiry or cleanup. The caller
+    needs `EVAL` plus those three hash-command permissions; denied permissions or
+    an unsupported `HEXPIRE` leave existing data untouched. Redis 7.4 or newer is
+    required. A zero expiration is rejected. A lost reply reports failure even
+    when the server completed creation; the accepted field still expires.
+  - `petWatchdog()` only renews an existing field and returns false if it is gone.
+  - The automatic watchdog (`dogname`) renews every 500 ms with a 1 s expiration
+    and re-creates the field if it has expired.
 - `RedisCache<T>` maintains a double-buffered view of a list stream. It requires
   C++20 and should be evaluated against the consuming application's concurrency
   needs before adoption.
