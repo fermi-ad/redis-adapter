@@ -5,6 +5,7 @@
 
 #include "sw/redis++/redis++.h"
 #include <syslog.h>
+#include <atomic>
 #include <mutex>
 #include <algorithm>
 
@@ -684,20 +685,66 @@ public:
     }
     catch (const swr::Error& e)
     {
-      if (std::string(e.what()).find("unknown command") != std::string::npos)
-      {
-        static bool squelch = false;
-        if ( ! squelch)
-        {
-          syslog(LOG_NOTICE, "RedisConnection::%s %s", __func__,
-            "HEXPIRE requires redis-server 7.4.0 or higher - upgrade to support redis-adapter watchdog");
-          squelch = true;
-        }
-        return -3;
-      }
-      else { syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what()); }
+      if (hexpire_unsupported(e)) return -3;
+      syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what());
     }
     return ret.size() ? ret.front() : -1;
+  }
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //  hsetExpire : set a field,value pair in a hashmap together with the field's expiration
+  //
+  //  HSET clears a field's expiration, so setting the value and then the expiration as two
+  //  commands can leave a field that never expires if the second one never happens (the
+  //  process dies, the connection drops, or HEXPIRE fails). Both go in one MULTI/EXEC
+  //  instead: a connection lost before EXEC applies neither, an unsupported HEXPIRE is
+  //  rejected while queueing and aborts the transaction, and an HEXPIRE that fails inside
+  //  EXEC has its field removed again.
+  //
+  //    key    : the hashmap to set the field in
+  //    fld    : the field to set
+  //    val    : the value to set
+  //    sec    : the expiration interval in seconds (non-zero)
+  //    return : 1 if the field was set with its expiration
+  //            -1 if unsuccessful or not connected (no field is left without an expiration)
+  //            -3 if hexpire not supported (nothing was set)
+  //
+  int32_t hsetExpire(const std::string& key, const std::string& fld, const std::string& val, uint32_t sec)
+  {
+    auto client = snapshot();
+    if ( ! client) return -1;
+    try
+    {
+      //  piped: one round trip; a dedicated connection: one that fails mid-transaction is
+      //  closed (and the server discards the MULTI) instead of going back to the pool
+      auto tx = client->transaction(true, true);
+      tx.hset(key, fld, val).command("hexpire", key, std::to_string(sec), "fields", "1", fld);
+      auto replies = tx.exec();
+
+      //  EXEC ran, so HSET took effect: from here, anything short of a confirmed expiration
+      //  means removing the field rather than leaving it without one
+      std::string why = "unexpected HEXPIRE reply";
+      try
+      {
+        const redisReply& expire = replies.get(1);   //  throws if HEXPIRE failed
+        if (expire.type == REDIS_REPLY_ARRAY && expire.elements == 1 && expire.element[0] &&
+            expire.element[0]->type == REDIS_REPLY_INTEGER && expire.element[0]->integer == 1)
+          return 1;
+      }
+      catch (const swr::Error& e) { why = e.what(); }
+
+      syslog(LOG_ERR, "RedisConnection::%s HEXPIRE failed inside EXEC (%s), removing field %s",
+        __func__, why.c_str(), fld.c_str());
+      try { client->hdel(key, fld); }
+      catch (const swr::Error& e) { syslog(LOG_ERR, "RedisConnection::%s HDEL %s", __func__, e.what()); }
+      return -1;
+    }
+    catch (const swr::Error& e)
+    {
+      if (hexpire_unsupported(e)) return -3;
+      syslog(LOG_ERR, "RedisConnection::%s %s", __func__, e.what());
+    }
+    return -1;
   }
 
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -760,6 +807,19 @@ public:
   }
 
 private:
+  //  hexpire_unsupported : true if e says the server doesn't know HEXPIRE (Redis < 7.4);
+  //                        logs that once per process
+  //
+  static bool hexpire_unsupported(const swr::Error& e)
+  {
+    if (std::string(e.what()).find("unknown command") == std::string::npos) return false;
+    static std::atomic<bool> squelch{false};
+    if ( ! squelch.exchange(true))
+      syslog(LOG_NOTICE, "RedisConnection: %s",
+        "HEXPIRE requires redis-server 7.4.0 or higher - upgrade to support redis-adapter watchdog");
+    return true;
+  }
+
   enum class InitialServer { Unchecked, Accepted, Unsupported };
 
   // Probe only the first reachable server. This separate lock serializes

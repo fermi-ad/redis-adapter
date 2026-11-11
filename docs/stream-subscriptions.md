@@ -5,6 +5,12 @@ registration. Multiple registrations may share a key. Resetting a handle removes
 only that registration; legacy `removeReader()` still removes all registrations
 for the key. A handle may safely outlive its adapter.
 
+`subscribeListsReader<T>()` is the owned counterpart to `addListsReader<T>()`.
+It keeps the legacy typed decoder and deferred-start tail semantics, and its
+handle removes only that callback. `RedisCache<T>` uses this handle and shares
+its buffer state with any already executing callback, so destroying or replacing
+one cache is safe while its adapter and other same-key caches remain alive.
+
 Cancellation fences callbacks that have not passed their active check. A callback
 that already passed that check may still enter the user function. Consumers that
 replace generations must also fence their own state changes. Callback exceptions are caught at the worker boundary.
