@@ -67,3 +67,12 @@ jobs:
       - name: Stop Redis
         if: always()
         run: docker compose -f docker-compose.test.yml down --volumes
+
+  build-test-summary:
+    name: build-test
+    needs: build-test
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require both reader modes
+        run: test "${{ needs['build-test'].result }}" = success
