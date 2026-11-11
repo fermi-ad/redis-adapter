@@ -251,6 +251,32 @@ TEST_F(WriteErrors, LowLevelResultsKeepErrorTextAndStatusPointersAreUnambiguous)
   EXPECT_EQ(missing.count, 0);
 }
 
+TEST_F(WriteErrors, RejectedPipelineRepliesDoNotContaminateTheNextCommand) {
+  options.cxn.size = 1; // Every operation must reuse the same pooled connection.
+  RA adapter(base, options);
+  auto pipeline = adapter.pipeline();
+  const RA_Time first(10000001), second(10000002), third(10000003), fourth(10000004);
+  pipeline.addSingleValue("pooled", 1, {.time=first, .trim=0});
+  pipeline.addSingleValue("pooled", 2, {.time=first, .trim=0});
+  pipeline.addSingleValue("pooled", 3, {.time=second, .trim=0});
+  auto results = pipeline.exec();
+  ASSERT_EQ(results.size(), 3u);
+  EXPECT_EQ(results[0], (std::vector<RA_Time>{first}));
+  EXPECT_EQ(results[1], (std::vector<RA_Time>{RA_REJECTED}));
+  EXPECT_EQ(results[2], (std::vector<RA_Time>{second}));
+  EXPECT_EQ(adapter.addSingleValue("pooled", 4, {.time=third, .trim=0}), third);
+  pipeline.addSingleValue("pooled", 5, {.time=fourth, .trim=0});
+  pipeline.addSingleValue("pooled", 6, {.time=third, .trim=0});
+  results = pipeline.exec();
+  ASSERT_EQ(results.size(), 2u);
+  EXPECT_EQ(results[0], (std::vector<RA_Time>{fourth}));
+  EXPECT_EQ(results[1], (std::vector<RA_Time>{RA_REJECTED}));
+  int value = 0;
+  EXPECT_EQ(adapter.getSingleValue("pooled", value), fourth);
+  EXPECT_EQ(value, 5);
+  EXPECT_EQ(redis->xlen(key("pooled")), 4);
+}
+
 TEST_F(WriteErrors, UnavailableTransportIsDistinctFromRejection) {
   options.cxn.port = 0; options.cxn.timeout = 20; options.cxn.connectTimeout = 20;
   RA adapter(base, options);
@@ -338,7 +364,9 @@ static int proxyScenario(const std::string& mode) {
     expect(elapsed < latency * 4, "a pipeline must share one round trip instead of paying one per write");
   } else if (mode == "pipeline-fault") {
     {
-      RA adapter(base, options);
+      auto pooledOptions = options;
+      pooledOptions.cxn.size = 1;
+      RA adapter(base, pooledOptions);
       auto pipeline = adapter.pipeline();
       pipeline.addSingleDouble("pipeline-kept", 1.);
       pipeline.addSingleDouble("pipeline-lost", 2.);
@@ -351,6 +379,14 @@ static int proxyScenario(const std::string& mode) {
       // The proxy forwards what was queued behind the lost reply, so Redis ran it.
       expect(control.xlen("{" + base + "}:pipeline-lost") == 1, "Redis must run the write whose reply was lost");
       expect(control.xlen("{" + base + "}:pipeline-unconfirmed") == 2, "Redis must run the writes queued behind the lost reply");
+      // Reuse this same adapter immediately, without waiting for its background
+      // reconnect thread. A stale reply from the failed pipeline must not be
+      // mistaken for the result of this new command.
+      const RA_Time next(20000001);
+      expect(adapter.addSingleDouble("pipeline-reused", 9., {.time=next, .trim=0}) == next,
+             "same-adapter write after lost reply must return its own timestamp");
+      expect(control.xlen("{" + base + "}:pipeline-reused") == 1,
+             "same-adapter write after lost reply must execute exactly once");
     }
     { RA adapter(base, options); expect(adapter.addSingleDouble("healthy", 1.).ok(), "future write after pipeline fault failed"); }
   } else throw std::runtime_error("unknown proxy scenario");

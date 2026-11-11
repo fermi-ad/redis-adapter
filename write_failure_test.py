@@ -177,6 +177,7 @@ def run(mode, binary, upstream, delay):
                 expect(attempts[(b"XADD", b"pipeline-kept")] == 1, "accepted pipeline write was replayed")
                 expect(attempts[(b"XADD", b"pipeline-lost")] == 1, "lost pipeline reply was replayed")
                 expect(attempts[(b"XADD", b"pipeline-unconfirmed")] == 2, "unconfirmed pipeline writes were not sent once each")
+                expect(attempts[(b"XADD", b"pipeline-reused")] == 1, "same-adapter write after fault was not sent exactly once")
                 expect(proxy.ping_probes == 3, "pipeline transport failure did not refresh")
             elif mode == "rejection":
                 expect(attempts[(b"XADD", b"duplicate")] == 3, "rejected writes were not exercised")
