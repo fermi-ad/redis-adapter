@@ -7,6 +7,8 @@ versions are independent of the RedisAdapter wire-protocol version.
 
 ### Added
 
+- `RedisAdapter::pipeline()` queues stream writes to any keys and sends them in
+  one round trip, returning what each equivalent direct call would return.
 - Read-side status, observed/delivered cursors and captured-epoch callbacks.
 - Opt-in per-subscription continuity inspection with a bounded, persistent scheduler.
 - `RA_REJECTED` and structured stream write/trim results with error text and a
@@ -24,11 +26,18 @@ versions are independent of the RedisAdapter wire-protocol version.
 
 ### Changed
 
+- Pipeline-generated host timestamps increase per key across queued calls when
+  clock ticks repeat or move backward; explicit timestamps remain unchanged.
 - Callers must use `!ok()` or inspect `err()`; checking only the historical
   `RA_NOT_CONNECTED` sentinel no longer covers all failures.
-- Batches stop after an unavailable item or READONLY refusal and retain accepted
-  timestamps. Exact batch trimming is selectable; final trim failure does not
-  roll back accepted writes.
+- `addValues()` and `addLists()` send all their items in one round trip. After a
+  transport failure, items whose replies arrived keep their timestamps; later
+  items were already sent, so they are omitted as unconfirmed rather than left
+  unattempted. Exact batch trimming is selectable.
+- Batches no longer send a final `XTRIM`; each item's `XADD` carries the trim as
+  `MAXLEN`. The stream is trimmed as each item is accepted, and an all-rejected
+  batch leaves history alone. The retention target counts items sent, not
+  accepted. A user allowed `XADD` but denied `XTRIM` can now trim through batches.
 - Failed stream writes are not replayed. Rejection can represent a transient
   server refusal.
 - Connections support standalone Redis over TCP or Unix-domain sockets only.

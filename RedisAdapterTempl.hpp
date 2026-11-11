@@ -315,6 +315,60 @@ RedisAdapter::get_single_stream_list_helper(const std::string& baseKey, const st
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//  Pipeline add functions : queue writes that exec() sends in one round trip
+//
+//    arguments match the RedisAdapter function of the same name
+//    return : position of this add's result in the vector exec() returns
+//
+template<typename T> size_t
+RedisAdapter::Pipeline::addSingleValue(const std::string& subKey, const T& data, const RA_ArgsAdd& args)
+{
+  static_assert( ! std::is_same<T, double>(), "use addSingleDouble for double or 'f' suffix for float literal");
+  static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
+
+  return add_single(subKey, args, _adapter.default_field_attrs(data));
+}
+//  Attrs specialization
+template<> inline size_t
+RedisAdapter::Pipeline::addSingleValue(const std::string& subKey, const Attrs& data, const RA_ArgsAdd& args)
+  { return add_single(subKey, args, Attrs(data)); }
+
+template<typename T> size_t
+RedisAdapter::Pipeline::add_single_list(const std::string& subKey, const RA_ArgsAdd& args, const T* data, size_t size)
+{
+  static_assert(std::is_trivial<T>(), "wrong type T");
+
+  return add_single(subKey, args, _adapter.default_field_attrs(data, size));
+}
+
+template<typename T> size_t
+RedisAdapter::Pipeline::addValues(const std::string& subKey, const TimeValList<T>& data, uint32_t trim, bool approximateTrim)
+{
+  static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
+
+  TimeValList<Attrs> items;
+  items.reserve(data.size());
+  for (const auto& item : data) items.emplace_back(item.first, _adapter.default_field_attrs(item.second));
+  return add_batch(subKey, std::move(items), trim, approximateTrim);
+}
+//  Attrs specialization
+template<> inline size_t
+RedisAdapter::Pipeline::addValues(const std::string& subKey, const TimeValList<Attrs>& data, uint32_t trim, bool approximateTrim)
+  { return add_batch(subKey, TimeValList<Attrs>(data), trim, approximateTrim); }
+
+template<typename T> size_t
+RedisAdapter::Pipeline::addLists(const std::string& subKey, const TimeValList<std::vector<T>>& data, uint32_t trim, bool approximateTrim)
+{
+  static_assert(std::is_trivial<T>(), "wrong type T");
+
+  TimeValList<Attrs> items;
+  items.reserve(data.size());
+  for (const auto& item : data)
+    items.emplace_back(item.first, _adapter.default_field_attrs(item.second.data(), item.second.size()));
+  return add_batch(subKey, std::move(items), trim, approximateTrim);
+}
+
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  addValues : add multiple data items of type T (T is trivial, string or Attrs)
 //
 //    subKey : sub key to add data to
@@ -325,41 +379,9 @@ RedisAdapter::get_single_stream_list_helper(const std::string& baseKey, const st
 template<typename T> std::vector<RA_Time>
 RedisAdapter::addValues(const std::string& subKey, const TimeValList<T>& data, uint32_t trim, bool approximateTrim)
 {
-  static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
-
-  std::vector<RA_Time> ret;
-  std::string key = build_key(subKey);
-  bool transportFailure = false;
-  for (const auto& item : data)
-  {
-    Attrs attrs = default_field_attrs(item.second);
-
-    const auto result = _redis.xaddResult(key, item.first.id_or_now(), attrs.begin(), attrs.end());
-
-    transportFailure |= result.status == RedisConnection::CommandStatus::Unavailable || result.refreshConnection;
-    if (result.status == RedisConnection::CommandStatus::Accepted) ret.emplace_back(result.id);
-    if (result.status == RedisConnection::CommandStatus::Unavailable || result.refreshConnection) break;
-  }
-  finishBatch(key, ret.size(), trim, transportFailure, approximateTrim);
-  return ret;
-}
-//  Attrs specialization
-template<> inline std::vector<RA_Time>
-RedisAdapter::addValues(const std::string& subKey, const TimeValList<Attrs>& data, uint32_t trim, bool approximateTrim)
-{
-  std::vector<RA_Time> ret;
-  std::string key = build_key(subKey);
-  bool transportFailure = false;
-  for (const auto& item : data)
-  {
-    const auto result = _redis.xaddResult(key, item.first.id_or_now(), item.second.begin(), item.second.end());
-
-    transportFailure |= result.status == RedisConnection::CommandStatus::Unavailable || result.refreshConnection;
-    if (result.status == RedisConnection::CommandStatus::Accepted) ret.emplace_back(result.id);
-    if (result.status == RedisConnection::CommandStatus::Unavailable || result.refreshConnection) break;
-  }
-  finishBatch(key, ret.size(), trim, transportFailure, approximateTrim);
-  return ret;
+  auto batch = pipeline();
+  batch.addValues(subKey, data, trim, approximateTrim);
+  return batch.exec().front();
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -373,23 +395,9 @@ RedisAdapter::addValues(const std::string& subKey, const TimeValList<Attrs>& dat
 template<typename T> std::vector<RA_Time>
 RedisAdapter::addLists(const std::string& subKey, const TimeValList<std::vector<T>>& data, uint32_t trim, bool approximateTrim)
 {
-  static_assert(std::is_trivial<T>(), "wrong type T");
-
-  std::vector<RA_Time> ret;
-  std::string key = build_key(subKey);
-  bool transportFailure = false;
-  for (const auto& item : data)
-  {
-    Attrs attrs = default_field_attrs(item.second.data(), item.second.size());
-
-    const auto result = _redis.xaddResult(key, item.first.id_or_now(), attrs.begin(), attrs.end());
-
-    transportFailure |= result.status == RedisConnection::CommandStatus::Unavailable || result.refreshConnection;
-    if (result.status == RedisConnection::CommandStatus::Accepted) ret.emplace_back(result.id);
-    if (result.status == RedisConnection::CommandStatus::Unavailable || result.refreshConnection) break;
-  }
-  finishBatch(key, ret.size(), trim, transportFailure, approximateTrim);
-  return ret;
+  auto batch = pipeline();
+  batch.addLists(subKey, data, trim, approximateTrim);
+  return batch.exec().front();
 }
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

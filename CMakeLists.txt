@@ -20,6 +20,7 @@ file(GLOB REDIS_ADAPTER_SOURCES RedisAdapter.cpp RedisReaderNotifications.cpp)
 file(GLOB REDIS_ADAPTER_HEADERS RedisConnection.hpp RedisTime.hpp RedisStreamData.hpp RedisAdapter.hpp RedisAdapterTempl.hpp RedisCache.hpp ThreadPool.hpp RedisReaderMode.hpp RedisReaderNotifications.hpp)
 
 # Create a list of the directories our headers are in
+list(APPEND REDIS_ADAPTER_HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/RedisWriteTime.hpp")
 include(GetDirectoriesOfFiles)
 get_directories_of_files("${REDIS_ADAPTER_HEADERS}" REDIS_ADAPTER_INCLUDE_DIRS)
 list(REMOVE_DUPLICATES REDIS_ADAPTER_INCLUDE_DIRS)
@@ -112,6 +113,10 @@ if(REDIS_ADAPTER_TEST)
       COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/write_failure_test.py
               $<TARGET_FILE:redis-adapter-write-error-test>)
     set_tests_properties(RedisAdapter.WriteTransportFailure PROPERTIES TIMEOUT 60 RUN_SERIAL TRUE)
+    add_test(NAME RedisAdapter.WritePipelineRoundTrips
+      COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/write_pipeline_test.py
+              $<TARGET_FILE:redis-adapter-write-error-test>)
+    set_tests_properties(RedisAdapter.WritePipelineRoundTrips PROPERTIES TIMEOUT 60 RUN_SERIAL TRUE)
   else()
     message(WARNING "Python3 not found: write proxy tests disabled; native tests remain enabled")
   endif()

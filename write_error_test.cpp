@@ -1,4 +1,5 @@
 #include "RedisAdapter.hpp"
+#include "RedisWriteTime.hpp"
 #include <gtest/gtest.h>
 #include <array>
 #include <chrono>
@@ -50,6 +51,84 @@ protected:
   std::string key(const std::string& sub) const { return "{" + base + "}:" + sub; }
 };
 
+TEST(PipelineTime, RepeatedAndBackwardClockTicksStayOrdered) {
+  int64_t latest = 0;
+  for (int64_t expected = 100; expected != 104; ++expected)
+    EXPECT_EQ(redis_adapter_detail::queuedWriteTime({}, RA_Time(100), latest), RA_Time(expected));
+  EXPECT_EQ(redis_adapter_detail::queuedWriteTime({}, RA_Time(50), latest), RA_Time(104));
+  EXPECT_EQ(redis_adapter_detail::queuedWriteTime({}, RA_Time(1000), latest), RA_Time(1000));
+  // Explicit stale IDs remain stale; they do not move the high-water mark back.
+  EXPECT_EQ(redis_adapter_detail::queuedWriteTime(RA_Time(25), {}, latest), RA_Time(25));
+  EXPECT_EQ(redis_adapter_detail::queuedWriteTime({}, RA_Time(50), latest), RA_Time(1001));
+  EXPECT_EQ(redis_adapter_detail::queuedWriteTime(RA_Time(2000), {}, latest), RA_Time(2000));
+  EXPECT_EQ(redis_adapter_detail::queuedWriteTime({}, RA_Time(50), latest), RA_Time(2001));
+}
+
+TEST_F(WriteErrors, HostTimeBatchesKeepEveryValueAndList) {
+  RA adapter(base, options);
+  constexpr size_t count = 10000;
+  RA::TimeValList<int> values;
+  RA::TimeValList<std::vector<int>> lists;
+  for (size_t i = 0; i != count; ++i) {
+    values.emplace_back(RA_Time{}, static_cast<int>(i));
+    lists.emplace_back(RA_Time{}, std::vector<int>{static_cast<int>(i)});
+  }
+  const auto scalarTimes = adapter.addValues("host-values", values, 0);
+  const auto listTimes = adapter.addLists("host-lists", lists, 0);
+  for (const auto* times : {&scalarTimes, &listTimes}) {
+    ASSERT_EQ(times->size(), count);
+    for (size_t i = 1; i != count; ++i) EXPECT_GT((*times)[i].value, (*times)[i - 1].value);
+  }
+  EXPECT_EQ(redis->xlen(key("host-values")), count);
+  EXPECT_EQ(redis->xlen(key("host-lists")), count);
+}
+
+TEST_F(WriteErrors, PipelineHostTimesShareOrderingAcrossCallsForEachKey) {
+  RA adapter(base, options);
+  const RA_Time future(4000000000000000000LL);
+  auto pipeline = adapter.pipeline();
+  pipeline.addSingleValue("mixed", 1, {.time=future, .trim=0});
+  pipeline.addSingleDouble("mixed", 2., {.trim=0});
+  pipeline.addLists<int>("mixed", {{RA_Time(future.value - 1), {3}}, {RA_Time{}, {4}}}, 0);
+  pipeline.addSingleList("mixed", std::array<int, 1>{{5}}, {.trim=0});
+  pipeline.addValues<int>("mixed", {{RA_Time{}, 6}, {future, 7}, {RA_Time{}, 8}}, 0);
+  pipeline.addSingleValue("other", 9, {.trim=0});
+  const auto results = pipeline.exec();
+  using Times = std::vector<RA_Time>;
+  ASSERT_EQ(results.size(), 6u);
+  EXPECT_EQ(results[0], Times{future});
+  EXPECT_EQ(results[1], Times{RA_Time(future.value + 1)});
+  EXPECT_EQ(results[2], Times{RA_Time(future.value + 2)});
+  EXPECT_EQ(results[3], Times{RA_Time(future.value + 3)});
+  EXPECT_EQ(results[4], (Times{RA_Time(future.value + 4), RA_Time(future.value + 5)}));
+  ASSERT_EQ(results[5].size(), 1u);
+  EXPECT_TRUE(results[5][0].ok());
+  EXPECT_LT(results[5][0].value, future.value);
+  EXPECT_EQ(redis->xlen(key("mixed")), 6);
+  // Reusing the pipeline clears its queued-time state along with its writes.
+  redis->del(key("mixed"));
+  pipeline.addSingleValue("mixed", 10, {.trim=0});
+  const auto reused = pipeline.exec();
+  ASSERT_EQ(reused.size(), 1u);
+  ASSERT_EQ(reused[0].size(), 1u);
+  EXPECT_TRUE(reused[0][0].ok());
+  EXPECT_LT(reused[0][0].value, future.value);
+}
+
+TEST_F(WriteErrors, TimestampOverflowDoesNotQueueAPartialBatch) {
+  RA adapter(base, options);
+  auto pipeline = adapter.pipeline();
+  pipeline.addSingleValue("overflow", 1, {.time=RA_Time(10), .trim=0});
+  const RA_Time maximum(std::numeric_limits<int64_t>::max());
+  EXPECT_THROW(pipeline.addValues<int>("overflow", {{maximum, 2}, {RA_Time{}, 3}}, 0), std::overflow_error);
+  pipeline.addSingleValue("overflow", 4, {.time=RA_Time(20), .trim=0});
+  const auto result = pipeline.exec();
+  ASSERT_EQ(result.size(), 2u);
+  EXPECT_EQ(result[0], (std::vector<RA_Time>{RA_Time(10)}));
+  EXPECT_EQ(result[1], (std::vector<RA_Time>{RA_Time(20)}));
+  EXPECT_EQ(redis->xlen(key("overflow")), 2);
+}
+
 TEST_F(WriteErrors, SingleScalarAndArrayPathsPreserveRejectedIds) {
   RA adapter(base, options);
   RA_ArgsAdd args; args.time = RA_Time(10000001);
@@ -94,6 +173,67 @@ TEST_F(WriteErrors, BatchesKeepAcceptedItemsSkipRejectionsAndCanTrimExactly) {
   EXPECT_EQ(redis->xlen(key("exact-list")), 1);
 }
 
+TEST_F(WriteErrors, RejectedBatchesLeaveExistingHistoryUntrimmed) {
+  RA adapter(base, options);
+  for (int64_t i = 2; i <= 4; ++i)
+    ASSERT_TRUE(adapter.addSingleValue("history", 1, {.time=RA_Time(i * 1000000), .trim=0}).ok());
+  // Stale timestamps are rejected, so their exact trim must not delete history.
+  EXPECT_TRUE(adapter.addValues<int>("history", {{RA_Time(1000000), 2}}, 1, false).empty());
+  EXPECT_TRUE(adapter.addLists<int>("history", {{RA_Time(1000000), {2}}}, 1, false).empty());
+  EXPECT_EQ(redis->xlen(key("history")), 3);
+}
+
+TEST_F(WriteErrors, PipelineReturnsWhatEachDirectCallWouldReturn) {
+  RA adapter(base, options);
+  const RA_Time t1(10000001), t2(10000002), t3(10000003);
+  ASSERT_EQ(adapter.addSingleValue("taken", 1, {.time=t2, .trim=0}), t2);
+  ASSERT_EQ(adapter.addValues<int>("trimmed", {{t1, 1}, {t2, 2}}, 0).size(), 2u);
+  redis->set(key("wrong"), "wrong type");
+
+  auto pipeline = adapter.pipeline();
+  EXPECT_EQ(pipeline.addSingleValue("int", 7, {.time=t1}), 0u);
+  EXPECT_EQ(pipeline.addSingleValue("taken", 2, {.time=t1, .trim=0}), 1u);
+  pipeline.addSingleDouble("double", 1.5, {.time=t1});
+  pipeline.addSingleList("vector", std::vector<int>{1, 2}, {.time=t1});
+  pipeline.addSingleList("array", std::array<int, 2>{{3, 4}}, {.time=t1});
+  pipeline.addSingleValue<RA::Attrs>("attrs", {{"field", "value"}}, {.time=t1});
+  pipeline.addSingleValue("wrong", 1);
+  pipeline.addValues<int>("values", {{t1, 1}, {t1, 2}, {t3, 3}}, 10);
+  pipeline.addValues<RA::Attrs>("attr-values", {{t1, {{"_", "one"}}}, {t2, {{"_", "two"}}}}, 10);
+  EXPECT_EQ(pipeline.addLists<int>("lists", {{t2, {5}}, {t1, {6}}}, 10), 9u);
+  pipeline.addSingleValue("trimmed", 3, {.time=t3, .trim=1, .approximateTrim=false});
+  const auto results = pipeline.exec();
+
+  using Times = std::vector<RA_Time>;
+  ASSERT_EQ(results.size(), 11u);
+  EXPECT_EQ(results[0], Times{t1});
+  EXPECT_EQ(results[1], Times{RA_REJECTED});
+  EXPECT_EQ(results[2], Times{t1});
+  EXPECT_EQ(results[3], Times{t1});
+  EXPECT_EQ(results[4], Times{t1});
+  EXPECT_EQ(results[5], Times{t1});
+  EXPECT_EQ(results[6], Times{RA_REJECTED});
+  EXPECT_EQ(results[7], (Times{t1, t3}));
+  EXPECT_EQ(results[8], (Times{t1, t2}));
+  EXPECT_EQ(results[9], Times{t2});
+  EXPECT_EQ(results[10], Times{t3});
+
+  int scalar = 0;
+  EXPECT_EQ(adapter.getSingleValue("int", scalar), t1);
+  EXPECT_EQ(scalar, 7);
+  std::vector<int> list;
+  EXPECT_EQ(adapter.getSingleList("vector", list), t1);
+  EXPECT_EQ(list, (std::vector<int>{1, 2}));
+  EXPECT_EQ(adapter.getSingleList("array", list), t1);
+  EXPECT_EQ(list, (std::vector<int>{3, 4}));
+  EXPECT_EQ(redis->xlen(key("taken")), 1);
+  EXPECT_EQ(redis->xlen(key("values")), 2);
+  EXPECT_EQ(redis->xlen(key("lists")), 1);
+  EXPECT_EQ(redis->xlen(key("trimmed")), 1);
+
+  EXPECT_TRUE(pipeline.exec().empty());
+}
+
 TEST_F(WriteErrors, LowLevelResultsKeepErrorTextAndStatusPointersAreUnambiguous) {
   RedisConnection connection(options.cxn);
   const RA::Attrs attrs{{"_", "value"}};
@@ -109,6 +249,32 @@ TEST_F(WriteErrors, LowLevelResultsKeepErrorTextAndStatusPointersAreUnambiguous)
   const auto missing = connection.xtrimResult(key("missing"), 1, false);
   EXPECT_EQ(missing.status, RedisConnection::CommandStatus::Accepted);
   EXPECT_EQ(missing.count, 0);
+}
+
+TEST_F(WriteErrors, RejectedPipelineRepliesDoNotContaminateTheNextCommand) {
+  options.cxn.size = 1; // Every operation must reuse the same pooled connection.
+  RA adapter(base, options);
+  auto pipeline = adapter.pipeline();
+  const RA_Time first(10000001), second(10000002), third(10000003), fourth(10000004);
+  pipeline.addSingleValue("pooled", 1, {.time=first, .trim=0});
+  pipeline.addSingleValue("pooled", 2, {.time=first, .trim=0});
+  pipeline.addSingleValue("pooled", 3, {.time=second, .trim=0});
+  auto results = pipeline.exec();
+  ASSERT_EQ(results.size(), 3u);
+  EXPECT_EQ(results[0], (std::vector<RA_Time>{first}));
+  EXPECT_EQ(results[1], (std::vector<RA_Time>{RA_REJECTED}));
+  EXPECT_EQ(results[2], (std::vector<RA_Time>{second}));
+  EXPECT_EQ(adapter.addSingleValue("pooled", 4, {.time=third, .trim=0}), third);
+  pipeline.addSingleValue("pooled", 5, {.time=fourth, .trim=0});
+  pipeline.addSingleValue("pooled", 6, {.time=third, .trim=0});
+  results = pipeline.exec();
+  ASSERT_EQ(results.size(), 2u);
+  EXPECT_EQ(results[0], (std::vector<RA_Time>{fourth}));
+  EXPECT_EQ(results[1], (std::vector<RA_Time>{RA_REJECTED}));
+  int value = 0;
+  EXPECT_EQ(adapter.getSingleValue("pooled", value), fourth);
+  EXPECT_EQ(value, 5);
+  EXPECT_EQ(redis->xlen(key("pooled")), 4);
 }
 
 TEST_F(WriteErrors, UnavailableTransportIsDistinctFromRejection) {
@@ -144,17 +310,10 @@ static int proxyScenario(const std::string& mode) {
       RA adapter(base, options);
       expect(adapter.addSingleDouble("healthy", 1.).ok(), "healthy write after recovery failed");
       const auto prefix = adapter.addValues<int>("mixed-transport", {{RA_Time(10000001), 1}, {RA_Time(10000002), 2}, {RA_Time(10000003), 3}}, 0);
-      expect(prefix.size() == 1 && prefix.front().value == 10000001, "batch must stop at unavailable item and retain accepted prefix");
-      expect(control.xlen("{" + base + "}:mixed-transport") == 2, "ambiguous item was accepted once; later item must not be sent");
+      expect(prefix.size() == 1 && prefix.front().value == 10000001, "batch must retain the accepted prefix and omit unconfirmed items");
+      expect(control.xlen("{" + base + "}:mixed-transport") == 2, "ambiguous item was accepted once; no item may be replayed");
     }
     { RA adapter(base, options); expect(adapter.addSingleDouble("healthy", 2.).ok(), "future write after mixed-batch failure failed"); }
-  } else if (mode == "trim") {
-    {
-      RA adapter(base, options);
-      const auto accepted = adapter.addValues<int>("trim-lost", {{RA_Time(10000001), 1}, {RA_Time(10000002), 2}, {RA_Time(10000003), 3}}, 1, false);
-      expect(accepted.size() == 3, "final trim failure must preserve accepted timestamps");
-    }
-    { RA adapter(base, options); expect(adapter.addSingleDouble("healthy", 1.).ok(), "future write after final trim failure failed"); }
   } else if (mode == "readonly") {
     RA adapter(base, options);
     RA_ArgsAdd args; args.time = RA_Time(10000001); args.trim = 0;
@@ -168,29 +327,68 @@ static int proxyScenario(const std::string& mode) {
     expect(accepted, "READONLY must refresh connections for later writes");
     expect(control.xlen("{" + base + "}:readonly") == 1, "known refusal was not forwarded or replayed");
   } else if (mode == "rejection") {
-    {
-      RA adapter(base, options);
-      RA_ArgsAdd args; args.time = RA_Time(10000001); args.trim = 0;
-      expect(adapter.addSingleDouble("duplicate", 1., args).ok(), "seed rejected");
-      expect(adapter.addSingleDouble("duplicate", 2., args) == RA_REJECTED, "duplicate must be rejected");
-      control.set("{" + base + "}:wrong", "wrong type");
-      expect(adapter.addSingleDouble("wrong", 1.) == RA_REJECTED, "wrong type must be rejected");
-      for (unsigned i = 0; i < 20; ++i) {
-        const auto snapshot = adapter.getStreamSnapshot("wrong");
-        expect(snapshot.rejected && snapshot.id == "$", "snapshot rejection cannot become replay");
-      }
-      expect(adapter.addValues<int>("duplicate", {{RA_Time(10000001), 1}}, 1).empty(), "all-rejected batch must remain empty");
+    RA adapter(base, options);
+    RA_ArgsAdd args; args.time = RA_Time(10000001); args.trim = 0;
+    expect(adapter.addSingleDouble("duplicate", 1., args).ok(), "seed rejected");
+    expect(adapter.addSingleDouble("duplicate", 2., args) == RA_REJECTED, "duplicate must be rejected");
+    control.set("{" + base + "}:wrong", "wrong type");
+    expect(adapter.addSingleDouble("wrong", 1.) == RA_REJECTED, "wrong type must be rejected");
+    for (unsigned i = 0; i < 20; ++i) {
+      const auto snapshot = adapter.getStreamSnapshot("wrong");
+      expect(snapshot.rejected && snapshot.id == "$", "snapshot rejection cannot become replay");
     }
-    const auto user = base + "-acl";
-    struct User { sw::redis::Redis& control; std::string user; ~User() { try { control.command<void>("ACL", "DELUSER", user); } catch (...) {} } } userCleanup{control, user};
-    control.command<void>("ACL", "SETUSER", user, "on", "nopass", "~*", "+ping", "+xadd");
-    auto aclOptions = options; aclOptions.cxn.user = user;
+    expect(adapter.addValues<int>("duplicate", {{RA_Time(10000001), 1}}, 1).empty(), "all-rejected batch must remain empty");
+  } else if (mode == "batch-round-trip") {
+    // Eight items cost eight latencies when each waits for its reply. Half
+    // that bound still leaves room for a slow host.
+    const std::chrono::milliseconds latency(std::stoi(std::getenv("REDIS_ADAPTER_PROXY_LATENCY_MS")));
+    RA adapter(base, options);
+    RA::TimeValList<int> items;
+    for (int i = 1; i <= 8; ++i) items.push_back({RA_Time(10000000 + i), i});
+    const auto started = std::chrono::steady_clock::now();
+    const auto accepted = adapter.addValues<int>("round-trip", items, 1, false);
+    const auto elapsed = std::chrono::steady_clock::now() - started;
+    expect(accepted.size() == 8, "every batch item must be accepted");
+    expect(control.xlen("{" + base + "}:round-trip") == 8, "the batch trim must keep every accepted item");
+    expect(elapsed < latency * 4, "a batch must share one round trip instead of paying one per item");
+  } else if (mode == "pipeline-round-trip") {
+    const std::chrono::milliseconds latency(std::stoi(std::getenv("REDIS_ADAPTER_PROXY_LATENCY_MS")));
+    RA adapter(base, options);
+    auto pipeline = adapter.pipeline();
+    for (int i = 1; i <= 8; ++i) pipeline.addSingleValue("round-trip-" + std::to_string(i), i);
+    const auto started = std::chrono::steady_clock::now();
+    const auto results = pipeline.exec();
+    const auto elapsed = std::chrono::steady_clock::now() - started;
+    expect(results.size() == 8, "every queued write must report a result");
+    for (const auto& result : results) expect(result.size() == 1 && result.front().ok(), "every write must be accepted");
+    expect(elapsed < latency * 4, "a pipeline must share one round trip instead of paying one per write");
+  } else if (mode == "pipeline-fault") {
     {
-      RA adapter(base + "-acl", aclOptions);
-      const auto accepted = adapter.addValues<int>("trim-denied", {{RA_Time(10000001), 1}, {RA_Time(10000002), 2}}, 1, false);
-      expect(accepted.size() == 2, "trim rejection must not undo accepted writes");
-      expect(control.xlen("{" + base + "-acl}:trim-denied") == 2, "denied trim unexpectedly removed data");
+      auto pooledOptions = options;
+      pooledOptions.cxn.size = 1;
+      RA adapter(base, pooledOptions);
+      auto pipeline = adapter.pipeline();
+      pipeline.addSingleDouble("pipeline-kept", 1.);
+      pipeline.addSingleDouble("pipeline-lost", 2.);
+      pipeline.addValues<int>("pipeline-unconfirmed", {{RA_Time(10000001), 1}, {RA_Time(10000002), 2}}, 1, false);
+      const auto results = pipeline.exec();
+      expect(results.size() == 3, "every queued write must report a result");
+      expect(results[0].size() == 1 && results[0].front().ok(), "a reply received before the fault must keep its timestamp");
+      expect(results[1] == std::vector<RA_Time>{RA_NOT_CONNECTED}, "the lost reply must remain ambiguous");
+      expect(results[2].empty(), "a write after the lost reply is unconfirmed and must not be reported");
+      // The proxy forwards what was queued behind the lost reply, so Redis ran it.
+      expect(control.xlen("{" + base + "}:pipeline-lost") == 1, "Redis must run the write whose reply was lost");
+      expect(control.xlen("{" + base + "}:pipeline-unconfirmed") == 2, "Redis must run the writes queued behind the lost reply");
+      // Reuse this same adapter immediately, without waiting for its background
+      // reconnect thread. A stale reply from the failed pipeline must not be
+      // mistaken for the result of this new command.
+      const RA_Time next(20000001);
+      expect(adapter.addSingleDouble("pipeline-reused", 9., {.time=next, .trim=0}) == next,
+             "same-adapter write after lost reply must return its own timestamp");
+      expect(control.xlen("{" + base + "}:pipeline-reused") == 1,
+             "same-adapter write after lost reply must execute exactly once");
     }
+    { RA adapter(base, options); expect(adapter.addSingleDouble("healthy", 1.).ok(), "future write after pipeline fault failed"); }
   } else throw std::runtime_error("unknown proxy scenario");
   std::cout << mode << " proxy scenario passed\n";
   return 0;
