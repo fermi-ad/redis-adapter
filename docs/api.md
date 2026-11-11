@@ -177,14 +177,14 @@ safe for their data model. Use `connected()` for an explicit health probe.
 - `addWatchdog()`, `petWatchdog()`, and `getWatchdogs()` manage field-TTL
   watchdog entries in `{baseKey}:<dogkey>`. Watchdog expiration requires Redis 7.4
   or newer.
-  - `addWatchdog()` uses one `EVAL` script. It checks `HSET`, `HEXPIRE` and `HDEL`
-    permissions before changing the hash, then sets the field and expiration on
-    the server. Defensive cleanup also runs in the script, so ACL changes cannot
-    interleave and a lost reply does not interrupt expiry or cleanup. The caller
-    needs `EVAL` plus those three hash-command permissions; denied permissions or
-    an unsupported `HEXPIRE` leave existing data untouched. Redis 7.4 or newer is
-    required. A zero expiration is rejected. A lost reply reports failure even
-    when the server completed creation; the accepted field still expires.
+  - `addWatchdog()` sets the field and its expiration in one `MULTI`/`EXEC`, so a
+    failure part way can't leave a field without an expiration. On Redis < 7.4 it
+    sets nothing. It needs `HSET`, `HEXPIRE` and `HDEL` permission.
+    One gap remains: `MULTI`/`EXEC` does not roll back a command that already
+    succeeded, so if the client's ACL permissions change between queueing and
+    `EXEC` such that `HEXPIRE` and `HDEL` are both refused, the field is left
+    without an expiration. Avoid changing a watchdog client's permissions while
+    it may be creating its watchdog.
   - `petWatchdog()` only renews an existing field and returns false if it is gone.
   - The automatic watchdog (`dogname`) renews every 500 ms with a 1 s expiration
     and re-creates the field if it has expired.

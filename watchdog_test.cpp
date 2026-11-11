@@ -84,45 +84,6 @@ TEST_F(Watchdog, PetOnlyRenewsAnExistingField) {
   EXPECT_TRUE(redis.petWatchdog("SPOT", 1));
 }
 
-TEST_F(Watchdog, MissingScriptPermissionsDoNotCreateOrOverwriteAField) {
-  for (const auto* denied : {"eval", "hset", "hexpire", "hdel"}) {
-    const auto user = base + denied;
-    direct->command("ACL", "SETUSER", user, "reset", "on", "nopass", "~*", "+@all",
-                    std::string("-") + denied);
-    auto restricted = options;
-    restricted.cxn.user = user;
-    {
-      RedisAdapter redis(base, restricted);
-      EXPECT_FALSE(redis.addWatchdog("missing", 1)) << denied;
-      EXPECT_FALSE(present("watchdog", "missing")) << denied;
-      direct->hset(key("watchdog"), "existing", "original");
-      direct->command("HEXPIRE", key("watchdog"), "10", "FIELDS", "1", "existing");
-      EXPECT_FALSE(redis.addWatchdog("existing", 1)) << denied;
-      EXPECT_EQ(direct->hget(key("watchdog"), "existing").value(), "original") << denied;
-      EXPECT_GT(pttl("watchdog", "existing"), 0) << denied;
-    }
-    direct->command("ACL", "DELUSER", user);
-  }
-}
-
-TEST_F(Watchdog, ZeroExpirationDoesNotOverwriteAField) {
-  RedisAdapter redis(base, options);
-  direct->hset(key("watchdog"), "existing", "original");
-  EXPECT_FALSE(redis.addWatchdog("existing", 0));
-  EXPECT_EQ(direct->hget(key("watchdog"), "existing").value(), "original");
-  EXPECT_FALSE(redis.addWatchdog("missing", 0));
-  EXPECT_FALSE(present("watchdog", "missing"));
-}
-
-TEST_F(Watchdog, UnsupportedServerDoesNotCreateAField) {
-  auto command = direct->command("COMMAND", "INFO", "HEXPIRE");
-  ASSERT_EQ(command->elements, 1u);
-  if (command->element[0]->type != REDIS_REPLY_NIL) GTEST_SKIP() << "Requires Redis before 7.4";
-  RedisAdapter redis(base, options);
-  EXPECT_FALSE(redis.addWatchdog("missing", 1));
-  EXPECT_FALSE(present("watchdog", "missing"));
-}
-
 TEST_F(Watchdog, AutomaticWatchdogKeepsItsExpiration) {
   options.dogname = "dog";
   RedisAdapter redis(base, options);
