@@ -179,7 +179,12 @@ safe for their data model. Use `connected()` for an explicit health probe.
   or newer.
   - `addWatchdog()` sets the field and its expiration in one `MULTI`/`EXEC`, so a
     failure part way can't leave a field without an expiration. On Redis < 7.4 it
-    sets nothing.
+    sets nothing. It needs `HSET`, `HEXPIRE` and `HDEL` permission.
+    One gap remains: `MULTI`/`EXEC` does not roll back a command that already
+    succeeded, so if the client's ACL permissions change between queueing and
+    `EXEC` such that `HEXPIRE` and `HDEL` are both refused, the field is left
+    without an expiration. Avoid changing a watchdog client's permissions while
+    it may be creating its watchdog.
   - `petWatchdog()` only renews an existing field and returns false if it is gone.
   - The automatic watchdog (`dogname`) renews every 500 ms with a 1 s expiration
     and re-creates the field if it has expired.

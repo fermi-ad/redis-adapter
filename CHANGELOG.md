@@ -76,6 +76,9 @@ versions are independent of the RedisAdapter wire-protocol version.
   a dropped connection, or a failed `HEXPIRE` between the two (including Redis
   < 7.4) left a field reporting the process alive indefinitely. The field and its
   expiration are now set in one transaction, and renewals use only `HEXPIRE`.
+  An ACL change landing between queueing and `EXEC` that refuses both `HEXPIRE`
+  and `HDEL` can still leave the field without an expiration; this is documented
+  rather than closed with a server-side script.
 - The watchdog thread waits on a real mutex, so the destructor's wake-up can't be
   lost.
 
