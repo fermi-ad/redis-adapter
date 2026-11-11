@@ -17,9 +17,10 @@ set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
 # Create lists of headers and sources with complete path based on our files
 file(GLOB REDIS_ADAPTER_SOURCES RedisAdapter.cpp)
-file(GLOB REDIS_ADAPTER_HEADERS RedisConnection.hpp RedisTime.hpp RedisWriteTime.hpp RedisStreamData.hpp RedisAdapter.hpp RedisAdapterTempl.hpp RedisCache.hpp ThreadPool.hpp)
+file(GLOB REDIS_ADAPTER_HEADERS RedisConnection.hpp RedisTime.hpp RedisStreamData.hpp RedisAdapter.hpp RedisAdapterTempl.hpp RedisCache.hpp ThreadPool.hpp)
 
 # Create a list of the directories our headers are in
+list(APPEND REDIS_ADAPTER_HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/RedisWriteTime.hpp")
 include(GetDirectoriesOfFiles)
 get_directories_of_files("${REDIS_ADAPTER_HEADERS}" REDIS_ADAPTER_INCLUDE_DIRS)
 list(REMOVE_DUPLICATES REDIS_ADAPTER_INCLUDE_DIRS)
