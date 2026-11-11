@@ -308,8 +308,8 @@ public:
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //  addWatchdog : add a watchdog to the set of watchdogs, or re-create one that expired
   //
-  //  The field and its expiration are set atomically, so a failure part way can't leave a
-  //  watchdog that never expires (see RedisConnection::hsetExpire).
+  //  A server-side script checks command permissions before writing, then sets the field
+  //  with its expiration without a client-side cleanup window (see RedisConnection::hsetExpire).
   //
   //    dogname    : the name of the watchdog
   //    expiration : the number of seconds to expire the watchdog (non-zero)

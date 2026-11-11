@@ -18,7 +18,7 @@ versions are independent of the RedisAdapter wire-protocol version.
 - `RA_Options::dogkey` selects the watchdog hash (`{baseKey}:<dogkey>`, default
   `watchdog`), so a process can keep its watchdog apart from another's.
 - `RedisConnection::hsetExpire()` sets a hash field and its expiration in one
-  `MULTI`/`EXEC`.
+  server-side script with permission checks before mutation.
 - Watchdog tests, including proxy fault injection between a field's write and its
   expiration.
 
@@ -71,11 +71,14 @@ versions are independent of the RedisAdapter wire-protocol version.
 - The automatic watchdog re-creates its field once it has expired (Redis restart,
   an unreachable server, or a late renewal); before, it stayed missing for the
   life of the process.
-- A watchdog field can no longer be left without an expiration. `addWatchdog()`
-  used to send `HSET` and then `HEXPIRE`. `HSET` clears an expiration, so a crash,
-  a dropped connection, or a failed `HEXPIRE` between the two (including Redis
-  < 7.4) left a field reporting the process alive indefinitely. The field and its
-  expiration are now set in one transaction, and renewals use only `HEXPIRE`.
+- Watchdog creation checks support and command permissions before `HSET`, then
+  sets the expiration and performs any defensive cleanup in the same Redis
+  script. This closes both the separate-command failure window and the
+  `MULTI`/`EXEC` case where an execution-time refusal left `HSET` applied and
+  client-side `HDEL` could fail. Lost replies cannot interrupt server-side
+  expiration. Creation now requires `EVAL`, `HSET`, `HEXPIRE` and `HDEL` permission;
+  renewals continue to use only `HEXPIRE`. Unsupported servers and denied
+  permissions leave existing fields untouched.
 - The watchdog thread waits on a real mutex, so the destructor's wake-up can't be
   lost.
 
