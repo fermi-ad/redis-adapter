@@ -29,6 +29,8 @@ protected:
     RA_Options options;
     options.cxn.port = std::stoi(port);
     options.cxn.timeout = 100;
+    if (const auto* mode = std::getenv("REDIS_ADAPTER_TEST_READER_MODE"))
+      if (std::string(mode) == "keyspace") options.readerMode = RA_ReaderMode::Keyspace;
     options.workers = 1;
     base = "cache-" + std::to_string(getpid()) + "-" +
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
@@ -49,6 +51,12 @@ protected:
       lastSeen = batch.back().first;
       changed.notify_all();
     }, "1-0");
+    const auto deadline = std::chrono::steady_clock::now() + 3s;
+    while (adapter->readerBackendStatus().effective != options.readerMode &&
+           std::chrono::steady_clock::now() < deadline) std::this_thread::sleep_for(1ms);
+    ASSERT_EQ(adapter->readerBackendStatus().requested, options.readerMode);
+    ASSERT_EQ(adapter->readerBackendStatus().effective, options.readerMode)
+        << "fallback reason " << static_cast<int>(adapter->readerBackendStatus().fallbackReason);
   }
 
   void TearDown() override {
