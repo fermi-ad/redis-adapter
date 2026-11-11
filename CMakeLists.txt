@@ -116,6 +116,18 @@ if(REDIS_ADAPTER_TEST)
     message(WARNING "Python3 not found: write proxy tests disabled; native tests remain enabled")
   endif()
 
+  add_executable(redis-adapter-watchdog-test ${REDIS_ADAPTER_SOURCES} watchdog_test.cpp)
+  target_link_libraries(redis-adapter-watchdog-test ${REDIS_ADAPTER_LIBRARIES} GTest::gtest_main)
+  gtest_discover_tests(redis-adapter-watchdog-test PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
+  add_executable(redis-adapter-watchdog-fault-child ${REDIS_ADAPTER_SOURCES} watchdog_fault_child.cpp)
+  target_link_libraries(redis-adapter-watchdog-fault-child ${REDIS_ADAPTER_LIBRARIES})
+  if(Python3_Interpreter_FOUND)
+    add_test(NAME RedisAdapter.WatchdogFaults
+      COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/watchdog_failure_test.py
+              $<TARGET_FILE:redis-adapter-watchdog-fault-child>)
+    set_tests_properties(RedisAdapter.WatchdogFaults PROPERTIES TIMEOUT 60 RUN_SERIAL TRUE)
+  endif()
+
   add_executable(redis-adapter-recovery-test ${REDIS_ADAPTER_SOURCES} recovery_test.cpp)
   target_link_libraries(redis-adapter-recovery-test ${REDIS_ADAPTER_LIBRARIES} GTest::gtest_main)
   gtest_discover_tests(redis-adapter-recovery-test PROPERTIES TIMEOUT 20 RUN_SERIAL TRUE)
