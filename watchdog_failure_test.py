@@ -1,10 +1,19 @@
 #!/usr/bin/env python3
-"""Exercise watchdog creation failures and lost replies on private Redis.
+"""Inject faults between a watchdog's write and its expiration through a proxy.
 
-The ACL race modes change real permissions immediately before EXEC (the old
-implementation) or EVAL (the server-side implementation). They must not leave a
-field without an expiration, even when the cleanup command is denied or the reply is lost.
-The proxy also covers connection loss before creation and after server acceptance.
+A watchdog field must never be left without an expiration: whatever fails between
+setting the field and setting its expiration, once the process is gone the field
+must disappear within its 1 s expiration. For each scenario the child keeps an
+automatic watchdog alive through the proxy for a few seconds, is SIGKILLed, and the
+field must be gone 1.5 s later.
+
+  cut-before-expiry   the connection is cut after the field is sent but before its
+                      expiration takes effect (EXEC of the transaction, or a bare
+                      HEXPIRE following an HSET)
+  unknown-hexpire     HEXPIRE is answered with "unknown command", as Redis < 7.4 does
+  expire-fails        inside the transaction, HEXPIRE is replaced by a command that
+                      fails when EXEC runs, so the field is set but its expiration isn't
+  killed              no fault: the field is alive with an expiration, then disappears
 """
 import os
 import signal
@@ -87,17 +96,13 @@ class Forward(socketserver.BaseRequestHandler):
                         if command == b"MULTI":
                             in_multi = True
                         if mode == "cut-before-expiry" and (
-                                command == b"EVAL" or (command == b"EXEC" and in_multi) or
+                                (command == b"EXEC" and in_multi) or
                                 (command == b"HEXPIRE" and not in_multi and previous == b"HSET")):
                             fault = "cut"
-                        elif mode == "unknown-hexpire" and command in (b"HEXPIRE", b"EVAL"):
+                        elif mode == "unknown-hexpire" and command == b"HEXPIRE":
                             fault = "unknown"
-                        elif mode in ("acl-expire-cleanup", "acl-expire-lost-reply") and command in (b"EXEC", b"EVAL"):
-                            control = Redis(self.server.upstream_port)
-                            control("ACL", "SETUSER", "default", "-hexpire", "-hdel")
-                            fault = "drop-reply" if mode == "acl-expire-lost-reply" else "acl"
-                        elif mode == "lost-create-reply" and command in (b"EXEC", b"EVAL"):
-                            fault = "drop-reply"
+                        elif mode == "expire-fails" and command == b"HEXPIRE" and in_multi:
+                            fault = "rewrite"
                         if command in (b"EXEC", b"DISCARD"):
                             in_multi = False
                         previous = command
@@ -110,10 +115,11 @@ class Forward(socketserver.BaseRequestHandler):
                         if fault == "unknown":
                             self.request.sendall(b"-ERR unknown command 'hexpire', with args beginning with: \r\n")
                             continue
+                        if fault == "rewrite":
+                            # INCR on a hash queues fine and fails with WRONGTYPE when EXEC runs
+                            request = encode(b"INCR", args[1])
                         upstream.sendall(request)
                         response, _ = frame(reply)
-                        if fault == "drop-reply":
-                            return
                         self.request.sendall(response)
         except (EOFError, ConnectionError, TimeoutError, OSError):
             pass
@@ -126,7 +132,6 @@ def run(mode, binary, upstream):
     base = f"watchdog-fault-{mode}-{os.getpid()}"
     key = "{%s}:watchdog" % base
     direct = Redis(upstream)
-    direct("ACL", "SETUSER", "default", "+hexpire", "+hdel")
     direct("DEL", key)
     with Proxy(upstream, mode) as proxy:
         server = threading.Thread(target=proxy.serve_forever, daemon=True)
@@ -143,10 +148,10 @@ def run(mode, binary, upstream):
                 time.sleep(0.05)
             # Never alive without an expiration (-1), whatever was injected.
             expect(-1 not in samples, f"{mode}: watchdog field had no expiration: {samples}")
-            if mode in ("killed", "lost-create-reply"):
+            if mode == "killed":
                 expect(sum(1 for s in samples if s is not None and s > 0) > len(samples) // 2,
                        f"{mode}: watchdog was not kept alive: {samples}")
-            if mode != "killed":
+            else:
                 expect(proxy.faults > 0, f"{mode}: no fault was injected")
             child.send_signal(signal.SIGKILL)
             child.wait()
@@ -160,7 +165,6 @@ def run(mode, binary, upstream):
                 child.wait()
             proxy.shutdown()
             server.join()
-            direct("ACL", "SETUSER", "default", "+hexpire", "+hdel")
             direct("DEL", key)
     print(f"{mode}: no field left without an expiration ({proxy.faults} faults injected)")
 
@@ -168,8 +172,7 @@ def run(mode, binary, upstream):
 def main():
     expect(os.environ.get("REDIS_ADAPTER_ISOLATED_TEST") == "1", "private Redis fixture required")
     upstream = int(os.environ["REDIS_ADAPTER_TEST_PORT"])
-    for mode in (sys.argv[2:] or ("killed", "cut-before-expiry", "unknown-hexpire", "lost-create-reply",
-                                 "acl-expire-cleanup", "acl-expire-lost-reply")):
+    for mode in ("killed", "cut-before-expiry", "unknown-hexpire", "expire-fails"):
         run(mode, sys.argv[1], upstream)
 
 
