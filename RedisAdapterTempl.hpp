@@ -342,6 +342,22 @@ RedisAdapter::Pipeline::add_single_list(const std::string& subKey, const RA_Args
 }
 
 template<typename T> size_t
+RedisAdapter::Pipeline::add_single_list_view(const std::string& subKey, const RA_ArgsAdd& args, const T* data, size_t size)
+{
+  static_assert(std::is_trivial<T>(), "wrong type T");
+
+  const auto key = _adapter.build_key(subKey);
+  RedisConnection::StreamWrite write{key, next_id(key, args.time), {}, args.trim, args.approximateTrim};
+  write.viewField = DEFAULT_FIELD;
+  write.viewData = data ? sw::redis::StringView(reinterpret_cast<const char*>(data), size * sizeof(T))
+                        : sw::redis::StringView("", 0);
+  write.hasView = true;
+  _calls.push_back({_writes.size(), 1, false});
+  _writes.push_back(std::move(write));
+  return _calls.size() - 1;
+}
+
+template<typename T> size_t
 RedisAdapter::Pipeline::addValues(const std::string& subKey, const TimeValList<T>& data, uint32_t trim, bool approximateTrim)
 {
   static_assert(std::is_trivial<T>() || std::is_same<T, std::string>(), "wrong type T");
@@ -454,7 +470,10 @@ RedisAdapter::add_single_stream_list_helper(const std::string& subKey, RA_Time t
   static_assert(std::is_trivial<T>(), "wrong type T");
 
   std::string key = build_key(subKey);
-  Attrs attrs = default_field_attrs(data, size);
+  //  Send the caller's buffer directly instead of copying it into Attrs (the call is synchronous)
+  const std::array<std::pair<sw::redis::StringView, sw::redis::StringView>, 1> attrs{{
+    { DEFAULT_FIELD, data ? sw::redis::StringView(reinterpret_cast<const char*>(data), size * sizeof(T))
+                          : sw::redis::StringView("", 0) }}};
 
   const auto result = trim ? _redis.xaddTrimResult(key, time.id_or_now(), attrs.begin(), attrs.end(), trim,
                                          approximateTrim)

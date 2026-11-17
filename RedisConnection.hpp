@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "sw/redis++/redis++.h"
+#include "RedisLargeBufferCache.hpp"
 #include <syslog.h>
 #include <atomic>
 #include <mutex>
@@ -80,6 +81,8 @@ public:
   RedisConnection(const Options& opts, uint16_t readerPoolSize = 1)
     : _reader_pool_size(std::max<uint16_t>(1, readerPoolSize))
   {
+    //  Before connecting, so hiredis reuses its large write buffers (see RedisLargeBufferCache.hpp).
+    redis_adapter_detail::installHiredisBufferCache();
     if ( ! connect(opts)) syslog(LOG_ERR, "RedisConnection failed to connect in constructor");
   }
 
@@ -523,6 +526,11 @@ public:
     std::unordered_map<std::string, std::string> fields;
     uint32_t threshold = 0;  // MAXLEN when nonzero
     bool approximate = true;
+    // Optional borrowed field, sent after `fields` without copying `viewData`. The caller
+    // keeps the bytes valid and unchanged until writeBatch returns.
+    std::string viewField;
+    swr::StringView viewData;
+    bool hasView = false;
   };
 
   std::vector<WriteResult> writeBatch(const std::vector<StreamWrite>& writes) {
@@ -919,11 +927,19 @@ private:
 
   // The same wire commands Redis::xadd sends.
   static void sendWrite(swr::Connection& connection, const StreamWrite& write) {
+    if ( ! write.hasView) return sendFields(connection, write, write.fields.begin(), write.fields.end());
+    std::vector<std::pair<swr::StringView, swr::StringView>> fields;
+    fields.reserve(write.fields.size() + 1);
+    for (const auto& field : write.fields) fields.emplace_back(field.first, field.second);
+    fields.emplace_back(write.viewField, write.viewData);
+    sendFields(connection, write, fields.begin(), fields.end());
+  }
+  template<typename Input>
+  static void sendFields(swr::Connection& connection, const StreamWrite& write, Input first, Input last) {
     if (write.threshold)
-      swr::cmd::xadd_maxlen_range(connection, write.key, write.id, write.fields.begin(), write.fields.end(),
-                                  write.threshold, write.approximate);
+      swr::cmd::xadd_maxlen_range(connection, write.key, write.id, first, last, write.threshold, write.approximate);
     else
-      swr::cmd::xadd_range(connection, write.key, write.id, write.fields.begin(), write.fields.end());
+      swr::cmd::xadd_range(connection, write.key, write.id, first, last);
   }
 
   // Error replies are classified exactly as a single command's reply would be.
