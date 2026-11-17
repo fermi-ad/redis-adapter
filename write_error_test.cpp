@@ -173,6 +173,86 @@ TEST_F(WriteErrors, BatchesKeepAcceptedItemsSkipRejectionsAndCanTrimExactly) {
   EXPECT_EQ(redis->xlen(key("exact-list")), 1);
 }
 
+// Payload whose bytes identify the write, starting with a zero byte to check binary safety.
+static std::vector<uint8_t> numberedPayload(size_t index, size_t size) {
+  std::vector<uint8_t> payload(size);
+  for (size_t i = 0; i != size; ++i) payload[i] = static_cast<uint8_t>((index * 131 + i) & 0xff);
+  if (size) payload[0] = 0;
+  return payload;
+}
+using StreamEntries = std::vector<std::pair<std::string, std::unordered_map<std::string, std::string>>>;
+
+TEST_F(WriteErrors, DirectListAddSendsTheCallersBytes) {
+  RA adapter(base, options);
+  const auto payload = numberedPayload(7, 70000);
+  ASSERT_EQ(adapter.addSingleList("direct", payload, {.time=RA_Time(10000001), .trim=0}), RA_Time(10000001));
+  const std::array<uint8_t, 0> empty{};
+  ASSERT_EQ(adapter.addSingleList("direct", empty, {.time=RA_Time(10000002), .trim=0}), RA_Time(10000002));
+  StreamEntries entries;
+  redis->xrange(key("direct"), "-", "+", std::back_inserter(entries));
+  ASSERT_EQ(entries.size(), 2u);
+  EXPECT_EQ(entries[0].second.at("_"), std::string(payload.begin(), payload.end()));
+  EXPECT_EQ(entries[1].second.at("_"), "");
+}
+
+TEST_F(WriteErrors, PipelineViewsLandInQueueOrderAcrossExecs) {
+  RA adapter(base, options);
+  auto pipeline = adapter.pipeline();
+  constexpr size_t batches = 3, perBatch = 60;
+  std::vector<std::vector<uint8_t>> payloads;
+  for (size_t i = 0; i != batches * perBatch; ++i) payloads.push_back(numberedPayload(i, 100 + i * 37));
+  const auto timeOf = [](size_t i) { return RA_Time(1000000000LL + static_cast<int64_t>(i) * 1000); };
+  for (size_t batch = 0; batch != batches; ++batch) {
+    for (size_t n = 0; n != perBatch; ++n) {
+      const size_t i = batch * perBatch + n;
+      const std::string sub = i % 2 ? "odd" : "even";
+      const RA_ArgsAdd args{.time=timeOf(i), .trim=0};
+      // Mix borrowed and copied writes; every one must land in queue order for its key.
+      if (i % 3 == 0) pipeline.addSingleListView(sub, payloads[i], args);
+      else if (i % 3 == 1) pipeline.addSingleListView(sub, payloads[i].data(), payloads[i].size(), args);
+      else pipeline.addSingleList(sub, payloads[i], args);
+    }
+    const auto results = pipeline.exec();
+    ASSERT_EQ(results.size(), perBatch);
+    for (size_t n = 0; n != perBatch; ++n)
+      EXPECT_EQ(results[n], std::vector<RA_Time>{timeOf(batch * perBatch + n)});
+  }
+  for (const std::string sub : {"even", "odd"}) {
+    StreamEntries entries;
+    redis->xrange(key(sub), "-", "+", std::back_inserter(entries));
+    ASSERT_EQ(entries.size(), batches * perBatch / 2);
+    size_t i = sub == "odd" ? 1 : 0;
+    for (const auto& entry : entries) {
+      EXPECT_EQ(entry.first, timeOf(i).id());
+      EXPECT_EQ(entry.second.at("_"), std::string(payloads[i].begin(), payloads[i].end()));
+      i += 2;
+    }
+  }
+}
+
+TEST_F(WriteErrors, PipelineViewRejectsOnlyTheStaleWrite) {
+  RA adapter(base, options);
+  ASSERT_EQ(adapter.addSingleValue("stale", 1, {.time=RA_Time(20000000), .trim=0}), RA_Time(20000000));
+  const auto a = numberedPayload(1, 64), b = numberedPayload(2, 64), c = numberedPayload(3, 64);
+  auto pipeline = adapter.pipeline();
+  pipeline.addSingleListView("stale", a, {.time=RA_Time(30000000), .trim=0});
+  pipeline.addSingleListView("stale", b, {.time=RA_Time(10000000), .trim=0});  // older than the stream
+  pipeline.addSingleListView("stale", c, {.time=RA_Time(40000000), .trim=0});
+  const auto results = pipeline.exec();
+  using Times = std::vector<RA_Time>;
+  ASSERT_EQ(results.size(), 3u);
+  EXPECT_EQ(results[0], Times{RA_Time(30000000)});
+  EXPECT_EQ(results[1], Times{RA_REJECTED});
+  EXPECT_EQ(results[2], Times{RA_Time(40000000)});
+  StreamEntries entries;
+  redis->xrange(key("stale"), "-", "+", std::back_inserter(entries));
+  ASSERT_EQ(entries.size(), 3u);
+  EXPECT_EQ(entries[1].first, RA_Time(30000000).id());
+  EXPECT_EQ(entries[1].second.at("_"), std::string(a.begin(), a.end()));
+  EXPECT_EQ(entries[2].first, RA_Time(40000000).id());
+  EXPECT_EQ(entries[2].second.at("_"), std::string(c.begin(), c.end()));
+}
+
 TEST_F(WriteErrors, RejectedBatchesLeaveExistingHistoryUntrimmed) {
   RA adapter(base, options);
   for (int64_t i = 2; i <= 4; ++i)

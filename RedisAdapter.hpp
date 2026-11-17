@@ -26,6 +26,7 @@ using RedisAdapter = MockRedisAdapter;
 #include <queue>
 #include <optional>
 #include <tuple>
+#include <array>
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  define RA_VERSION
@@ -345,6 +346,26 @@ public:
     template<typename T> size_t
     addLists(const std::string& subKey, const TimeValList<std::vector<T>>& data, uint32_t trim = 1, bool approximateTrim = true);
 
+    //  addSingleListView : like addSingleList, but borrows the buffer instead of copying it
+    //
+    //    The bytes are read when exec() sends the batch, so the buffer must stay valid and
+    //    unchanged until exec() returns. Use addSingleList when that can't be guaranteed.
+    //
+    //  overload for array and span
+    template<template<typename T, size_t S> class C, typename T, size_t S> size_t
+    addSingleListView(const std::string& subKey, const C<T, S>& data, const RA_ArgsAdd& args = {})
+      { return add_single_list_view(subKey, args, data.data(), data.size()); }
+
+    //  overload for vector
+    template<typename T> size_t
+    addSingleListView(const std::string& subKey, const std::vector<T>& data, const RA_ArgsAdd& args = {})
+      { return add_single_list_view(subKey, args, data.data(), data.size()); }
+
+    //  overload for pointer and element count
+    template<typename T> size_t
+    addSingleListView(const std::string& subKey, const T* data, size_t size, const RA_ArgsAdd& args = {})
+      { return add_single_list_view(subKey, args, data, size); }
+
     std::vector<std::vector<RA_Time>> exec();
 
   private:
@@ -358,6 +379,8 @@ public:
     std::string next_id(const std::string& key, RA_Time requested);
     template<typename T> size_t add_single_list(const std::string& subKey, const RA_ArgsAdd& args,
                                                 const T* data, size_t size);
+    template<typename T> size_t add_single_list_view(const std::string& subKey, const RA_ArgsAdd& args,
+                                                     const T* data, size_t size);
     size_t add_batch(const std::string& subKey, TimeValList<Attrs>&& items, uint32_t trim, bool approximateTrim);
 
     RedisAdapter& _adapter;

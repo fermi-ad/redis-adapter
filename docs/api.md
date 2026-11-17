@@ -172,6 +172,38 @@ reports `RA_NOT_CONNECTED`, a batch omits them, and none is replayed. A pipeline
 is not a transaction; each write succeeds or fails on its own. A `Pipeline`
 refers to its adapter and is not safe to share between threads.
 
+Writes reach Redis in the order they were queued: `exec()` sends the whole
+queue on one connection and waits for every reply before returning, so a later
+`exec()` can't overtake an earlier one.
+
+#### Borrowed payloads
+
+`addSingleList` copies its buffer when the write is queued. For large payloads
+that already sit in memory which stays put until `exec()`, such as a DMA ring
+slot, `addSingleListView` borrows the buffer instead:
+
+```cpp
+auto batch = redis.pipeline();
+for (const auto& slot : readySlots)
+  batch.addSingleListView(slot.key, slot.bytes, {.time = slot.timestamp});
+auto results = batch.exec();   // the slots must stay valid and unchanged until here
+```
+
+It takes an array or span, a vector, or a pointer and element count. The bytes
+are read while `exec()` sends the batch, so the buffer must stay valid and
+unchanged until `exec()` returns; use `addSingleList` when that can't be
+guaranteed. The direct `addSingleList` never copies the payload, since the call
+returns only after the write is sent.
+
+#### Large-buffer reuse
+
+hiredis builds each command in a new buffer and frees its output buffer after
+every write. For large payloads each of those used to be a fresh `mmap` that
+the kernel zero-filled page by page, about four payloads' worth per add. The
+adapter installs a hiredis allocator (`RedisLargeBufferCache.hpp`) that keeps
+up to 16 MiB of large blocks for reuse, so steady-state large adds fault in
+almost no new pages. Don't combine it with other custom hiredis allocators.
+
 The generic typed path stores its binary-safe payload under the `_` stream
 field. Producer and consumer must agree on type and shape; the core protocol
 does not embed a schema.

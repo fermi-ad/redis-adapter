@@ -9,6 +9,11 @@ versions are independent of the RedisAdapter wire-protocol version.
 
 - `RedisAdapter::pipeline()` queues stream writes to any keys and sends them in
   one round trip, returning what each equivalent direct call would return.
+- `Pipeline::addSingleListView()` queues a list write that borrows the caller's
+  buffer instead of copying it; the buffer must stay valid until `exec()` returns.
+- hiredis allocates through a large-buffer cache, so its per-write command and
+  output buffers are reused instead of being mapped and zero-filled on every
+  large add. A regression test checks page faults per 1 MiB add.
 - Read-side status, observed/delivered cursors and captured-epoch callbacks.
 - Opt-in per-subscription continuity inspection with a bounded, persistent scheduler.
 - `RA_REJECTED` and structured stream write/trim results with error text and a
@@ -26,6 +31,7 @@ versions are independent of the RedisAdapter wire-protocol version.
 
 ### Changed
 
+- The direct `addSingleList()` sends the caller's buffer without copying it.
 - Pipeline-generated host timestamps increase per key across queued calls when
   clock ticks repeat or move backward; explicit timestamps remain unchanged.
 - Callers must use `!ok()` or inspect `err()`; checking only the historical
